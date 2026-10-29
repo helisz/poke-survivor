@@ -250,26 +250,72 @@ export class FxSystem {
   }
 
   /** 闪电劈落：从天而降的折线 + 末端爆点 */
-  boltStrike(x: number, y: number, color: number, height = 260) {
+  /**
+   * 电系放电：从施法者身上向外放射的锯齿电弧（不是天上垂直劈落）。
+   * @param ox,oy 放射起点（宝可梦位置）
+   * @param ang   主方向
+   * @param len   电弧长度
+   * @param color 颜色
+   * @param spread 放射张角（默认较窄，单束；大值为扇形多束）
+   * @param branches 电弧束数
+   */
+  boltArc(
+    ox: number, oy: number, ang: number, len: number,
+    color: number, spread = 0.5, branches = 3,
+  ) {
     const g = this.scene.add.graphics().setDepth(480);
-    let px = x + (Math.random() - 0.5) * 30, py = y - height;
-    g.lineStyle(3, color, 0.95);
-    g.beginPath();
-    g.moveTo(px, py);
-    const steps = 7;
-    for (let i = 1; i <= steps; i++) {
-      px = x + (Math.random() - 0.5) * (34 * (1 - i / steps));
-      py = y - height * (1 - i / steps);
-      g.lineTo(px, py);
+    const paths: { x: number; y: number }[][] = [];
+
+    for (let b = 0; b < branches; b++) {
+      const baseAng = ang + (branches === 1 ? 0 : (b / (branches - 1) - 0.5) * spread);
+      const pts: { x: number; y: number }[] = [{ x: ox, y: oy }];
+      const steps = 6;
+      let cx = ox, cy = oy;
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const jitter = (Math.random() - 0.5) * len * 0.22 * (1 - t * 0.4);
+        const perp = baseAng + Math.PI / 2;
+        cx = ox + Math.cos(baseAng) * len * t + Math.cos(perp) * jitter;
+        cy = oy + Math.sin(baseAng) * len * t + Math.sin(perp) * jitter;
+        pts.push({ x: cx, y: cy });
+      }
+      paths.push(pts);
     }
-    g.strokePath();
-    // 内芯亮白
-    g.lineStyle(1.4, 0xffffff, 0.9);
-    g.strokePath();
-    this.burst(x, y, color, 14, 180, 3, 280);
-    this.shockRing(x, y, color, 10, 90);
-    this.scene.tweens.add({
-      targets: g, alpha: 0, duration: 190, ease: 'Quad.In',
+
+    const draw = (alpha: number) => {
+      g.clear();
+      for (const pts of paths) {
+        // 外层光晕
+        g.lineStyle(6, color, 0.35 * alpha);
+        g.beginPath();
+        g.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x, pts[i].y);
+        g.strokePath();
+        // 主干
+        g.lineStyle(3, color, 0.95 * alpha);
+        g.beginPath();
+        g.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x, pts[i].y);
+        g.strokePath();
+        // 内芯亮白
+        g.lineStyle(1.3, 0xffffff, 0.9 * alpha);
+        g.beginPath();
+        g.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x, pts[i].y);
+        g.strokePath();
+        // 末端爆点
+        const end = pts[pts.length - 1];
+        this.burst(end.x, end.y, color, 5, 110, 2.2, 180);
+      }
+    };
+    draw(1);
+
+    // 起点电火花
+    this.burst(ox, oy, color, 10, 150, 2.6, 200);
+
+    this.scene.tweens.addCounter({
+      from: 1, to: 0, duration: 190, ease: 'Quad.In',
+      onUpdate: (tw) => draw(tw.getValue() ?? 0),
       onComplete: () => g.destroy(),
     });
   }

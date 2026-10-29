@@ -297,11 +297,11 @@ export class CombatSystem {
       p.setData('life', 1600);
       p.setData('moveId', def.id);
       p.setData('color', def.color);
-      // 电系：在出招点劈一道闪电强化观感
+      // 电系：不发弹体，直接从施法者身上放射电弧并结算伤害
       if (def.style === 'lightning') {
-        const tx = ox + Math.cos(Math.atan2((target?.y ?? oy) - oy, (target?.x ?? ox) - ox)) * 60;
-        const ty = oy + Math.sin(Math.atan2((target?.y ?? oy) - oy, (target?.x ?? ox) - ox)) * 60;
-        this.fx.boltStrike(tx, ty, def.color, 240);
+        this.killProjectile(p);
+        this.fireLightning(def, damage, ox, oy, target);
+        return;
       }
       p.setData('fx', fxKind);
       p.setData('homing', homing);
@@ -389,15 +389,11 @@ export class CombatSystem {
       }
       this.fx.burst(ox + Math.cos(ang) * 26, oy + Math.sin(ang) * 26, def.color, 8, 130, 2.8, 180);
     } else if (def.style === 'lightning') {
-      // 电系近战：劈出连锁闪电
-      const shots = 2 + Math.min(lvl, 3);
-      for (let i = 0; i < shots; i++) {
-        const a = ang + (Math.random() - 0.5) * 0.8;
-        const tx = ox + Math.cos(a) * range * 0.8;
-        const ty = oy + Math.sin(a) * range * 0.8;
-        this.fx.boltStrike(tx, ty, def.color, 200);
-        this.meleeBolt(ox, oy, a, range, def, damage, 0.28);
-      }
+      // 电系近战：从身边向外放射多束电弧（不放弹道）
+      const branches = 3 + Math.min(lvl, 4);
+      const spread = 0.5 + lvl * 0.1;
+      this.fx.boltArc(ox, oy, ang, range, def.color, spread, branches);
+      this.damageArc(ox, oy, ang, range, spread, damage, def);
     } else if (flurry) {
       // 并排弹道齐射：3 条 → 5 条，间距逐渐拉开
       const lanes = 3 + Math.min(Math.floor(lvl / 2), 2);
@@ -420,6 +416,37 @@ export class CombatSystem {
         this.meleeBolt(ox, oy, a, range, def, damage, 0.3);
       }
     }
+  }
+
+  /** 电系投射：从施法者向外放电，命中沿电弧路径的敌人 */
+  private fireLightning(
+    def: MoveDef, damage: number, ox: number, oy: number,
+    target: Phaser.Physics.Arcade.Sprite | null,
+  ) {
+    const range = Math.min((def.range ?? 300) * 1.5, this.screenAimRadius());
+    const ang = target ? Math.atan2(target.y - oy, target.x - ox) : this.playerAngle();
+    // 主束 + 两侧小分叉
+    this.fx.boltArc(ox, oy, ang, range, def.color, 0.34, 3);
+    this.damageArc(ox, oy, ang, range, 0.34, damage, def);
+  }
+
+  /** 对一段扇形电弧内的敌人结算伤害（每个敌人只吃一次） */
+  private damageArc(
+    ox: number, oy: number, ang: number, range: number,
+    spread: number, damage: number, def: MoveDef,
+  ) {
+    const hit = new Set<Phaser.Physics.Arcade.Sprite>();
+    this.enemies.forEachActive((e) => {
+      if (!e.active || hit.has(e)) return;
+      const d = Phaser.Math.Distance.Between(ox, oy, e.x, e.y);
+      if (d > range + 20) return;
+      const ea = Math.atan2(e.y - oy, e.x - ox);
+      let diff = Math.abs(Phaser.Math.Angle.Wrap(ea - ang));
+      if (diff > spread / 2 + 0.12) return;
+      hit.add(e);
+      this.hitEnemy(e, damage);
+    });
+    void def;
   }
 
   /** 近战弹道实体：短射程、带粒子拖尾、命中一次即消失 */
