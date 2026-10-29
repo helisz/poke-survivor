@@ -381,7 +381,8 @@ export class CombatSystem {
     if (sweep) {
       // 弹幕墙：宽度随等级增加，弹数 7 → 13
       const arcs = 7 + Math.min(lvl * 2, 6);
-      const spread = 1.5 + lvl * 0.08;
+      // 初期弧度压低 40%（1.5 → 0.9），升级再逐步张开
+      const spread = 0.9 + lvl * 0.12;
       for (let i = 0; i < arcs; i++) {
         const a = ang - spread / 2 + (spread * i) / (arcs - 1);
         this.meleeBolt(ox, oy, a, range, def, damage, 0.34);
@@ -411,7 +412,8 @@ export class CombatSystem {
     } else {
       // 扇形散射：弹道数量随等级增加
       const shots = 3 + Math.min(lvl, 4);
-      const spread = 0.55 + lvl * 0.05;
+      // 初期弧度压低 40%（0.55 → 0.33），升级再逐步张开
+      const spread = 0.33 + lvl * 0.09;
       for (let i = 0; i < shots; i++) {
         const a = ang - spread / 2 + (spread * i) / Math.max(1, shots - 1);
         if (def.style === 'fist') this.fx.fistWave(ox, oy, a, def.color);
