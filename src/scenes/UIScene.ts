@@ -49,6 +49,20 @@ export class UIScene extends Phaser.Scene {
     this.relayout();
   }
 
+  /** 读取手机底部安全区（iPhone 手势条 / Android 导航栏） */
+  private readSafeBottom(): number {
+    try {
+      const el = document.createElement('div');
+      el.style.cssText = 'position:fixed;bottom:0;left:0;width:0;height:env(safe-area-inset-bottom,0px);pointer-events:none;visibility:hidden;';
+      document.body.appendChild(el);
+      const h = el.getBoundingClientRect().height;
+      el.remove();
+      if (h > 0) return Math.min(h, 60);
+    } catch { /* ignore */ }
+    // 兜底：手机浏览器通常有工具栏，多留一截
+    return window.innerWidth < 520 ? 24 : 0;
+  }
+
   private onResize() { this.relayout(); }
 
   /** 所有 UI 坐标的唯一真源 */
@@ -80,9 +94,10 @@ export class UIScene extends Phaser.Scene {
     this.lvText.setPosition(pad, hpY + hpH / 2 + 8);
     this.killText.setPosition(pad, hpY + hpH / 2 + 26);
 
-    // 招式槽参数
+    // 招式槽参数：手机底部手势条/浏览器栏会盖住 → 用 CSS 安全区高度抬高
     const size = narrow ? 38 : 46;
-    const bottomPad = narrow ? 30 : 20;
+    const safeBottom = this.readSafeBottom();
+    const bottomPad = (narrow ? 30 : 20) + safeBottom;
     this.L.slotSize = size;
     this.L.slotGap = narrow ? 5 : 6;
     this.L.slotY = height - bottomPad - size / 2;

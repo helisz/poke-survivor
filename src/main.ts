@@ -27,6 +27,9 @@ const config: Phaser.Types.Core.GameConfig = {
 
 const game = new Phaser.Game(config);
 
+// 调试句柄：控制台 __PS__.scene.getScene('Game') 可查状态
+(window as any).__PS__ = game;
+
 // 隐藏 loading
 game.events.once(Phaser.Core.Events.READY, () => {
   const el = document.getElementById('boot');

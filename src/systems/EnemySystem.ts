@@ -7,6 +7,10 @@ export type EnemyKind = 'normal' | 'elite' | 'boss';
 export class EnemySystem {
   group: Phaser.Physics.Arcade.Group;
   private scene: Phaser.Scene;
+  /** 血条图形层（一次绘制所有敌人血条，比每个敌人挂对象省） */
+  private hpGfx: Phaser.GameObjects.Graphics;
+  /** 伤害数字池 */
+  private dmgPool: Phaser.GameObjects.Text[] = [];
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -14,6 +18,46 @@ export class EnemySystem {
       runChildUpdate: false,
       maxSize: 320,
     });
+    this.hpGfx = scene.add.graphics().setDepth(30);
+  }
+
+  /** 飘出伤害数字 */
+  showDamage(x: number, y: number, amount: number, kind: string) {
+    const t = this.dmgPool.pop() ?? this.scene.add.text(0, 0, '', {
+      fontFamily: 'monospace', fontStyle: 'bold', fontSize: '13px',
+      color: '#ffffff', stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(40);
+    t.setActive(true).setVisible(true).setAlpha(1).setScale(1);
+    t.setPosition(x + Phaser.Math.Between(-6, 6), y - 8);
+    t.setText(String(Math.round(amount)));
+    t.setFontSize(kind === 'boss' ? 17 : kind === 'elite' ? 15 : 12);
+    t.setColor(kind === 'normal' ? '#ffffff' : '#ffd75e');
+    this.scene.tweens.add({
+      targets: t, y: t.y - 26, alpha: 0,
+      duration: 550, ease: 'Quad.easeOut',
+      onComplete: () => { t.setActive(false).setVisible(false); this.dmgPool.push(t); },
+    });
+  }
+
+  /** 绘制所有存活敌人血条（仅受伤后显示） */
+  private drawHpBars() {
+    const g = this.hpGfx;
+    g.clear();
+    for (const e of this.group.getChildren() as Phaser.Physics.Arcade.Sprite[]) {
+      if (!e.active) continue;
+      const hp = e.getData('hp') as number;
+      const maxHp = e.getData('maxHp') as number;
+      if (!maxHp || hp >= maxHp) continue;  // 满血不显示
+      const kind = e.getData('kind') as string;
+      const ratio = Phaser.Math.Clamp(hp / maxHp, 0, 1);
+      const w = kind === 'boss' ? 54 : kind === 'elite' ? 34 : 20;
+      const h = kind === 'boss' ? 5 : 3;
+      const x = e.x - w / 2;
+      const y = e.y - e.displayHeight / 2 - 8;
+      g.fillStyle(0x000000, 0.75); g.fillRect(x - 1, y - 1, w + 2, h + 2);
+      const col = ratio > 0.5 ? 0x63c256 : ratio > 0.25 ? 0xf7d02c : 0xd0402c;
+      g.fillStyle(col, 1); g.fillRect(x, y, w * ratio, h);
+    }
   }
 
   private pickKey(kind: EnemyKind): string {
@@ -80,6 +124,7 @@ export class EnemySystem {
       const dist = Phaser.Math.Distance.Between(e.x, e.y, playerX, playerY);
       if (dist > 2200) this.recycle(e);
     }
+    this.drawHpBars();
   }
 
   damage(e: Phaser.Physics.Arcade.Sprite, amount: number, time: number) {
@@ -87,6 +132,7 @@ export class EnemySystem {
     e.setData('hp', hp);
     e.setTint(0xffffff);
     e.setData('flashUntil', time + 70);
+    this.showDamage(e.x, e.y, amount, e.getData('kind') as string);
     if (hp <= 0) {
       this.recycle(e);
       return true;
