@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { POKEMON_PLAYABLE, TYPE_COLORS } from '../data/pokedex';
 import { MOVES } from '../data/moves';
 import { Sfx } from '../systems/Sfx';
+import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 
 /** 从数组里随机抽 n 个不重复 */
 function pickN<T>(arr: readonly T[], n: number): T[] {
@@ -26,6 +27,8 @@ export class PartnerSelectScene extends Phaser.Scene {
   }
 
   create() {
+    // 场景 shutdown 时清理本场景 Text 的 canvas 纹理，防止重建时命中已销毁帧
+    installTextTextureCleanup(this);
     const { width, height } = this.scale;
     this.cameras.main.setBackgroundColor('#0a1620');
     this.cardRefs = [];
@@ -134,14 +137,14 @@ export class PartnerSelectScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.startBtn.on('pointerdown', () => {
       if (!this.selected) return;
-      this.scene.start('Game', { trait: this.trait, starterMove: this.selected });
+      goTo(this, 'Game', { trait: this.trait, starterMove: this.selected });
     });
 
     // 返回上一步
     const back = this.add.text(24, 30, '← 返回', {
       fontFamily: 'sans-serif', fontSize: '13px', color: '#7fa8c0',
     }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
-    back.on('pointerdown', () => this.scene.start('TraitSelect'));
+    back.on('pointerdown', () => goTo(this, 'TraitSelect'));
   }
 
   private catZh(c: string) {

@@ -2,12 +2,15 @@ import Phaser from 'phaser';
 import { loadSave } from '../data/stats';
 import { openDevPanel, makeDevButton } from '../ui/DevPanel';
 import { Sfx } from '../systems/Sfx';
+import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 
 /** 登录页：只展示信息，点击开始进入两个选择步骤 */
 export class MenuScene extends Phaser.Scene {
   constructor() { super('Menu'); }
 
   create() {
+    // 场景 shutdown 时清理本场景 Text 的 canvas 纹理，防止重建时命中已销毁帧
+    installTextTextureCleanup(this);
     const { width, height } = this.scale;
     this.cameras.main.setBackgroundColor('#0a1620');
     const save = loadSave();
@@ -38,7 +41,7 @@ export class MenuScene extends Phaser.Scene {
     this.add.text(width / 2, shopY, '永 久 强 化', {
       fontFamily: 'sans-serif', fontSize: '12px', color: '#63b4ef', fontStyle: 'bold',
     }).setOrigin(0.5);
-    shopBtn.on('pointerdown', () => { Sfx.init(); Sfx.click(); this.scene.start('Shop'); });
+    shopBtn.on('pointerdown', () => { Sfx.init(); Sfx.click(); goTo(this, 'Shop'); });
 
     // 操作指引
     const tips = [
@@ -61,7 +64,7 @@ export class MenuScene extends Phaser.Scene {
       fontFamily: 'sans-serif', fontSize: '18px', color: '#041018', fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    btn.on('pointerdown', () => { Sfx.init(); Sfx.click(); this.scene.start('TraitSelect'); });
+    btn.on('pointerdown', () => { Sfx.init(); Sfx.click(); goTo(this, 'TraitSelect'); });
     btn.on('pointerover', () => btn.setFillStyle(0x63b4ef));
     btn.on('pointerout', () => btn.setFillStyle(0x449ddf));
 

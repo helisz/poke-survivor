@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { PERM_UPGRADES, permCost, loadSave, writeSave, PERM_EMPTY, type PermKey } from '../data/stats';
 import { Sfx } from '../systems/Sfx';
+import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 
 /**
  * 商店：用金币购买局外永久升级（每级仅 1-2%）。
@@ -22,6 +23,8 @@ export class ShopScene extends Phaser.Scene {
   private coinText!: Phaser.GameObjects.Text;
 
   create() {
+    // 场景 shutdown 时清理本场景 Text 的 canvas 纹理，防止重建时命中已销毁帧
+    installTextTextureCleanup(this);
     const { width, height } = this.scale;
     this.save = loadSave();
     this.save.perm ??= { ...PERM_EMPTY };
@@ -96,7 +99,7 @@ export class ShopScene extends Phaser.Scene {
     this.add.text(width / 2 + 78, by, '返 回', {
       fontFamily: 'sans-serif', fontSize: '14px', color: '#9cc4dc', fontStyle: 'bold',
     }).setOrigin(0.5);
-    back.on('pointerdown', () => { Sfx.click(); this.scene.start('Menu'); });
+    back.on('pointerdown', () => { Sfx.click(); goTo(this, 'Menu'); });
 
     this.refresh();
   }

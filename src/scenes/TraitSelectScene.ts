@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { TRAITS, type TraitId } from '../data/stats';
 import { Sfx } from '../systems/Sfx';
 import { makeTraitIconTexture, type TraitIcon } from '../ui/TraitIcons';
+import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 
 /** 从数组里随机抽 n 个不重复 */
 function pickN<T>(arr: readonly T[], n: number): T[] {
@@ -41,6 +42,8 @@ export class TraitSelectScene extends Phaser.Scene {
   constructor() { super('TraitSelect'); }
 
   create() {
+    // 场景 shutdown 时清理本场景 Text 的 canvas 纹理，防止重建时命中已销毁帧
+    installTextTextureCleanup(this);
     const { width, height } = this.scale;
     this.cameras.main.setBackgroundColor('#0a1620');
     this.cardRefs = [];
@@ -168,7 +171,7 @@ export class TraitSelectScene extends Phaser.Scene {
     this.nextBtn.on('pointerdown', () => {
       if (!this.selected) return;
       Sfx.click();
-      this.scene.start('PartnerSelect', { trait: this.selected });
+      goTo(this, 'PartnerSelect', { trait: this.selected });
     });
   }
 }

@@ -9,6 +9,7 @@ import { UIScene } from './scenes/UIScene';
 import { LevelUpScene } from './scenes/LevelUpScene';
 import { GameOverScene } from './scenes/GameOverScene';
 import { Sfx } from './systems/Sfx';
+import { registerScene } from './systems/SceneFlow';
 
 /**
  * 移动端真实可用高度。
@@ -47,6 +48,14 @@ const config: Phaser.Types.Core.GameConfig = {
 };
 
 const game = new Phaser.Game(config);
+
+// 注册可重开场景的工厂：SceneFlow 用它 new 干净实例，
+// 避免复用 Phaser 的 Scene 对象带来的脏状态（见 SceneFlow.ts 注释）。
+registerScene('Menu', () => new MenuScene());
+registerScene('TraitSelect', () => new TraitSelectScene());
+registerScene('PartnerSelect', () => new PartnerSelectScene());
+registerScene('Shop', () => new ShopScene());
+registerScene('Game', () => new GameScene());
 
 // 音效：浏览器要求首次用户手势后才能出声
 const initAudio = () => { Sfx.init(); };

@@ -6,6 +6,7 @@ import { openDevPanel, makeDevButton } from '../ui/DevPanel';
 import { Sfx } from '../systems/Sfx';
 import { MAP_THEMES } from '../data/maps';
 import type { GameScene } from './GameScene';
+import { installTextTextureCleanup, abandonRun } from '../systems/SceneFlow';
 
 /** 招式类别中文名 */
 const CAT_ZH: Record<string, string> = {
@@ -49,6 +50,8 @@ export class UIScene extends Phaser.Scene {
   constructor() { super('UI'); }
 
   create(data: { game: GameScene }) {
+    // 场景 shutdown 时清理本场景 Text 的 canvas 纹理，防止重建时命中已销毁帧
+    installTextTextureCleanup(this);
     this.gs = data.game;
     this.slotIcons = [];
 
@@ -499,22 +502,6 @@ export class UIScene extends Phaser.Scene {
   private quitToMenu() {
     Sfx.click();
     this.gs.paused = false;
-    const mgr = this.scene.manager;
-    // 先建主菜单，保证后续无论停谁都有东西接住输入。
-    // Menu 可能处于 SLEEPING 状态（曾被 stop 过），此时 start 不会再跑 create，
-    // 必须用 wake 才能重新显示。
-    const menu = mgr.getScene('Menu');
-    if (menu && menu.sys.isSleeping()) mgr.wake('Menu');
-    else mgr.start('Menu');
-    // 停掉除 Menu 之外的一切场景。
-    // 只点名停 LevelUp/Game/UI 是不够的——TraitSelect、PartnerSelect、GameOver
-    // 等场景若残留活跃，会和 Menu 一起渲染、互相抢 pointer，表现为"点了没反应"。
-    //
-    // 注意：必须先收集 key 再停。mgr.stop() 会实时改动 getScenes() 返回的内部数组，
-    // 边遍历边停会漏停或误停（曾把 Menu 自己也停掉，导致整屏空白）。
-    const others = mgr.getScenes(true)
-      .map((sc) => sc.sys.settings.key)
-      .filter((key) => key !== 'Menu');
-    for (const key of others) mgr.stop(key);
+    abandonRun(this);
   }
 }

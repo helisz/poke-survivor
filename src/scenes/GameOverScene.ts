@@ -3,11 +3,14 @@ import { loadSave, writeSave, PERM_EMPTY } from '../data/stats';
 import { MOVES } from '../data/moves';
 import type { GameScene } from './GameScene';
 import { Sfx } from '../systems/Sfx';
+import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 
 export class GameOverScene extends Phaser.Scene {
   constructor() { super('GameOver'); }
 
   create(data: { game: GameScene; survived: boolean; time: number; level: number; kills: number }) {
+    // 场景 shutdown 时清理本场景 Text 的 canvas 纹理，防止重建时命中已销毁帧
+    installTextTextureCleanup(this);
     const { width, height } = this.scale;
     this.add.rectangle(0, 0, width, height, 0x041018, 0.94).setOrigin(0);
 
@@ -127,12 +130,9 @@ export class GameOverScene extends Phaser.Scene {
     }).setOrigin(0.5);
     const back = () => {
       Sfx.click();
-      // 关键：结算场景必须自己停掉，否则会一直盖在最上层拦住所有点击
-      this.scene.stop('LevelUp');
-      this.scene.stop('UI');
-      this.scene.stop('Game');
-      this.scene.start('Menu');
-      this.scene.stop();          // ← 最后停掉结算自己，否则它全程盖在最上层拦点击
+      // 统一走 SceneFlow：先建 Menu，再停掉包括自己在内的一切；
+      // 本场景同样会被停掉，无需再单独停自己。
+      goTo(this, 'Menu');
     };
     btn.on('pointerdown', back);
 

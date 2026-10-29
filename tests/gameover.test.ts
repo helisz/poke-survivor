@@ -4,8 +4,14 @@ import { resolve } from 'node:path';
 
 /**
  * 回归测试：结算后返回主页，所有按钮点不了。
- * 根因：GameOverScene 返回菜单时没有 stop 自己，
- * 它作为全屏遮罩一直盖在最上层，吞掉所有 pointer 事件。
+ *
+ * 历史根因有两层：
+ *  1. GameOverScene 返回时没停自己 → 全屏遮罩吞掉所有 pointer 事件
+ *  2. 各处手写 scene.start/stop，顺序与清理都不一致，重开多次后
+ *     Text 纹理命中已销毁帧，直接抛 drawImage 异常
+ *
+ * 现在统一走 SceneFlow.goTo：它先建目标场景，再停掉其它一切（包含调用者自己），
+ * 所以这里只校验"调用的是统一入口"，具体顺序由 scene-flow.test.ts 覆盖。
  */
 
 const src = readFileSync(
@@ -13,7 +19,6 @@ const src = readFileSync(
   'utf8',
 );
 
-/** 抽出 back() 函数体 */
 function backBody(): string {
   const i = src.indexOf('const back = () => {');
   expect(i, 'GameOverScene 应存在 back()').toBeGreaterThan(-1);
@@ -22,27 +27,17 @@ function backBody(): string {
 }
 
 describe('结算返回主页不拦截点击', () => {
-  it('返回时必须停掉结算场景本身', () => {
-    const body = backBody();
-    // this.scene.stop() 不带参数 = 停自己
-    expect(body).toMatch(/this\.scene\.stop\(\s*\)/);
+  it('返回时走统一流转入口 goTo', () => {
+    expect(backBody()).toContain("goTo(this, 'Menu')");
   });
 
-  it('返回时必须清理 Game 与 UI 场景', () => {
+  it('不再手写 scene.start / scene.stop 组合', () => {
     const body = backBody();
-    expect(body).toContain("this.scene.stop('Game')");
-    expect(body).toContain("this.scene.stop('UI')");
+    expect(body).not.toMatch(/this\.scene\.start\(/);
+    expect(body).not.toMatch(/this\.scene\.stop\(/);
   });
 
-  it('返回时必须真正启动菜单场景', () => {
-    expect(backBody()).toContain("this.scene.start('Menu')");
-  });
-
-  it('停自己必须发生在启动菜单之后（否则 start 可能被中断）', () => {
-    const body = backBody();
-    const startIdx = body.indexOf("this.scene.start('Menu')");
-    const stopSelfIdx = body.search(/this\.scene\.stop\(\s*\)/);
-    expect(startIdx).toBeGreaterThan(-1);
-    expect(stopSelfIdx).toBeGreaterThan(startIdx);
+  it('场景装了 Text 纹理清理钩子', () => {
+    expect(src).toContain('installTextTextureCleanup(this)');
   });
 });

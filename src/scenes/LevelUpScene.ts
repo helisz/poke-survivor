@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { GameScene, UpgradeOption } from './GameScene';
+import { installTextTextureCleanup } from '../systems/SceneFlow';
 
 export class LevelUpScene extends Phaser.Scene {
   private gs!: GameScene;
@@ -9,6 +10,8 @@ export class LevelUpScene extends Phaser.Scene {
   constructor() { super('LevelUp'); }
 
   create(data: { game: GameScene }) {
+    // 场景 shutdown 时清理本场景 Text 的 canvas 纹理，防止重建时命中已销毁帧
+    installTextTextureCleanup(this);
     this.gs = data.game;
     const { width, height } = this.scale;
     this.vertical = width < 640;
