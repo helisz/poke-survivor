@@ -444,7 +444,9 @@ export class GameScene extends Phaser.Scene {
     const rate = (0.62 + 3.3 * Math.pow(Math.min(t, RUN_SECONDS) / RUN_SECONDS, 0.65))
       * (theme.spawnMul ?? 1);
     this.spawnAccum += dt * rate;
-    const hpMul = (1 + t / 45) * (theme.enemyHpMul ?? 1);
+    // 血量成长：原 1 + t/45 在 2 分钟就涨到 3.7 倍，太陡。
+    // 改为 300 秒内从 1 涨到 2.2 倍，前段几乎持平，后段缓慢加速。
+    const hpMul = (1 + 1.2 * Math.pow(Math.min(t, 300) / 300, 1.35)) * (theme.enemyHpMul ?? 1);
     const speedMul = (1 + t / 220) * theme.enemySpeedMul;
 
     const cap = 260;

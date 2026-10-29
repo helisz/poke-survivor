@@ -91,7 +91,8 @@ export class EnemySystem {
     e.setData('kind', kind);
     e.setData('hp', baseHp * hpMul);
     e.setData('maxHp', baseHp * hpMul);
-    e.setData('speed', baseSpeed * speedMul * (0.9 + Math.random() * 0.25));
+    // 个体浮动收紧到 0.9~1.08：最慢的怪也比主角慢，玩家永远能拉开距离
+    e.setData('speed', baseSpeed * speedMul * (0.9 + Math.random() * 0.18));
     e.setData('dmg', kind === 'boss' ? 26 : kind === 'elite' ? 16 : dmg);
     e.setData('flashUntil', 0);
     e.setData('isBlackened', kind !== 'normal');

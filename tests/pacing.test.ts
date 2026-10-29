@@ -31,13 +31,24 @@ describe('冷却：1 级不低于 1 秒', () => {
   });
 });
 
-describe('移动速度：初期已下调 40%', () => {
-  it('基础移速为 111（原 185 的 60%）', () => {
-    expect(BASE_STATS.speed).toBe(111);
+describe('移动速度：比普通怪快约 10%', () => {
+  // 小怪基础速度 74，个体浮动 0.9~1.08，均值 0.99
+  const ENEMY_SPEED = 74;
+  const ENEMY_SPEED_MEAN = ENEMY_SPEED * 0.99;
+
+  it('主角移速比小怪均值快 8%~13%', () => {
+    const ratio = BASE_STATS.speed / ENEMY_SPEED_MEAN;
+    expect(ratio).toBeGreaterThanOrEqual(1.08);
+    expect(ratio).toBeLessThanOrEqual(1.13);
   });
 
-  it('降速比例约 40%', () => {
-    expect(1 - BASE_STATS.speed / 185).toBeCloseTo(0.40, 2);
+  it('即使遇到最快的个体浮动，主角仍能拉开距离', () => {
+    const fastest = ENEMY_SPEED * 1.08;
+    expect(BASE_STATS.speed).toBeGreaterThan(fastest);
+  });
+
+  it('主角不该快到可以无视走位（上限 100）', () => {
+    expect(BASE_STATS.speed).toBeLessThanOrEqual(100);
   });
 
   it('永久强化仍能在降速后提升移速', () => {
