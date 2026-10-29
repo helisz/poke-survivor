@@ -46,7 +46,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   thunderbolt: [
     {
       toId: 26, name: '雷丘',
-      requireOneOf: [{ kind: 'level', value: 12 }, { kind: 'time', value: 240 }],
+      requireOneOf: [{ kind: 'level', value: 12 }, { kind: 'time', value: 80 }],
       dmgMul: 1.5, cdMul: 0.85,
       note: '十万伏特 → 高压电击：伤害 +50%，附带感电',
     },
@@ -55,7 +55,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   flamethrower: [
     {
       toId: 146, name: '火焰鸟',
-      requireOneOf: [{ kind: 'level', value: 18 }, { kind: 'time', value: 420 }],
+      requireOneOf: [{ kind: 'level', value: 18 }, { kind: 'time', value: 140 }],
       dmgMul: 1.4, cdMul: 0.9,
       note: '喷射火焰 → 圣火：范围扩大，穿透 +1',
     },
@@ -64,7 +64,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   watergun: [
     {
       toId: 160, name: '大力鳄',
-      requireOneOf: [{ kind: 'level', value: 14 }, { kind: 'time', value: 300 }],
+      requireOneOf: [{ kind: 'level', value: 14 }, { kind: 'time', value: 100 }],
       dmgMul: 1.45, cdMul: 0.88,
       note: '水枪 → 激流炮：弹数 +1',
     },
@@ -73,7 +73,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   razorleaf: [
     {
       toId: 154, name: '大竺葵',
-      requireOneOf: [{ kind: 'level', value: 14 }, { kind: 'time', value: 300 }],
+      requireOneOf: [{ kind: 'level', value: 14 }, { kind: 'time', value: 100 }],
       dmgMul: 1.4, cdMul: 0.9,
       note: '飞叶快刀 → 叶风暴：穿透 +2',
     },
@@ -82,7 +82,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   shadowball: [
     {
       toId: 429, name: '梦妖魔',
-      requireOneOf: [{ kind: 'level', value: 16 }, { kind: 'time', value: 360 }],
+      requireOneOf: [{ kind: 'level', value: 16 }, { kind: 'time', value: 120 }],
       dmgMul: 1.5, cdMul: 0.9,
       note: '暗影球 → 黑色凝视：命中回复少量生命',
     },
@@ -91,7 +91,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   dragonclaw: [
     {
       toId: 373, name: '暴飞龙',
-      requireOneOf: [{ kind: 'level', value: 18 }, { kind: 'time', value: 420 }],
+      requireOneOf: [{ kind: 'level', value: 18 }, { kind: 'time', value: 140 }],
       dmgMul: 1.5, cdMul: 0.85,
       note: '龙之爪 → 龙星群：伤害 +50%',
     },
@@ -100,7 +100,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   aurasphere: [
     {
       toId: 448, name: 'Mega 路卡利欧',
-      requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'time', value: 480 }],
+      requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'time', value: 160 }],
       dmgMul: 1.6, cdMul: 0.8,
       note: '波导弹 → 波导爆发：穿透 +2，伤害 +60%',
     },
@@ -109,7 +109,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   psychic: [
     {
       toId: 475, name: '艾路雷朵',
-      requireOneOf: [{ kind: 'level', value: 16 }, { kind: 'time', value: 360 }],
+      requireOneOf: [{ kind: 'level', value: 16 }, { kind: 'time', value: 120 }],
       dmgMul: 1.45, cdMul: 0.85,
       note: '精神强念 → 精神利刃：光环范围扩大',
     },
@@ -118,7 +118,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   rockslide: [
     {
       toId: 142, name: '化石翼龙',
-      requireOneOf: [{ kind: 'level', value: 18 }, { kind: 'time', value: 420 }],
+      requireOneOf: [{ kind: 'level', value: 18 }, { kind: 'time', value: 140 }],
       dmgMul: 1.55, cdMul: 0.9,
       note: '岩崩 → 岩崩乱舞：落石数 +2',
     },
@@ -127,7 +127,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   aquatail: [
     {
       toId: 130, name: 'Mega 暴鲤龙',
-      requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'time', value: 480 }],
+      requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'time', value: 160 }],
       dmgMul: 1.6, cdMul: 0.85,
       note: '水流尾 → 破坏光线：伤害 +60%',
     },

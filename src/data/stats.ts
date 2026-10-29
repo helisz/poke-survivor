@@ -24,7 +24,8 @@ export const BASE_STATS: PlayerStats = {
 };
 
 export const MAX_SLOTS = 6;
-export const RUN_SECONDS = 15 * 60;
+/** 一局时长（测试期压缩到 5 分钟，正式版改回 15*60） */
+export const RUN_SECONDS = 5 * 60;
 export const ENEMY_CAP = 300;
 
 export function expForLevel(level: number): number {

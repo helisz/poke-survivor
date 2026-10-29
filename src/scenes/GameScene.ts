@@ -35,7 +35,7 @@ export class GameScene extends Phaser.Scene {
   runEnded = false;
   private spawnAccum = 0;
   private eliteTimer = 0;
-  private bossSpawned = { 600: false, 840: false } as Record<number, boolean>;
+  private bossSpawned = { 200: false, 280: false } as Record<number, boolean>;
   private bossRef: Phaser.Physics.Arcade.Sprite | null = null;
   private orbGroup!: Phaser.Physics.Arcade.Group;
 
@@ -53,7 +53,7 @@ export class GameScene extends Phaser.Scene {
     this.spawnAccum = 0;
     this.eliteTimer = 0;
     this.pendingLevelUps = 0;
-    this.bossSpawned = { 600: false, 840: false };
+    this.bossSpawned = { 200: false, 280: false };
 
     this.makeDotTexture();
     this.makeOrbTexture();
@@ -154,33 +154,34 @@ export class GameScene extends Phaser.Scene {
 
   private updateSpawning(dt: number) {
     const t = this.elapsed;
-    // 刷怪速率：开局 ~1.2/s，之后每 60 秒 +1.2/s，封顶 12/s
-    const rate = Math.min(1.2 + t * 0.02, 12);
+    // 刷怪速率：按 5 分钟局压缩（原 15 分钟参数 ×3）
+    // 开局 ~1.2/s，之后每 20 秒 +1.2/s，封顶 12/s
+    const rate = Math.min(1.2 + t * 0.06, 12);
     this.spawnAccum += dt * rate;
-    const hpMul = 1 + t / 120;
-    const speedMul = 1 + t / 600;
+    const hpMul = 1 + t / 40;
+    const speedMul = 1 + t / 200;
 
     const cap = 260;
-    const batch = t < 120 ? 1 : t < 300 ? 2 : t < 540 ? 3 : 4;
+    const batch = t < 40 ? 1 : t < 100 ? 2 : t < 180 ? 3 : 4;
     while (this.spawnAccum >= 1) {
       this.spawnAccum -= 1;
       if (this.enemies.countActive() >= cap) continue;
       for (let i = 0; i < batch; i++) this.spawnRing(hpMul, speedMul);
     }
 
-    // 精英
+    // 精英：每 20 秒一波（原 60 秒）
     this.eliteTimer += dt;
-    if (this.eliteTimer >= 60) {
+    if (this.eliteTimer >= 20) {
       this.eliteTimer = 0;
-      const n = 1 + Math.floor(t / 240);
+      const n = 1 + Math.floor(t / 80);
       for (let i = 0; i < n; i++) {
         const p = this.ringPosition(360);
         this.enemies.spawn('elite', p.x, p.y, hpMul + 0.5, speedMul, 16);
       }
     }
 
-    // BOSS
-    for (const sec of [600, 840]) {
+    // BOSS：200 秒 / 280 秒（原 600 / 840）
+    for (const sec of [200, 280]) {
       if (!this.bossSpawned[sec] && this.elapsed >= sec) {
         this.bossSpawned[sec] = true;
         const p = this.ringPosition(420);
