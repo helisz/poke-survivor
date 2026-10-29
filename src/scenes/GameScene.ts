@@ -56,6 +56,13 @@ export class GameScene extends Phaser.Scene {
   private eliteTimer = 0;
   private bossSpawned = { 200: false, 280: false } as Record<number, boolean>;
   private bossRef: Phaser.Physics.Arcade.Sprite | null = null;
+  /** 终局 BOSS：时间到后刷出，击杀才过关 */
+  private finalBossSpawned = false;
+  private bossSkillTimer = 0;
+  private bossBarBg?: Phaser.GameObjects.Rectangle;
+  private bossBarFill?: Phaser.GameObjects.Rectangle;
+  private bossNameText?: Phaser.GameObjects.Text;
+  private bossBarW = 300;
   private orbGroup!: Phaser.Physics.Arcade.Group;
 
   onLevelUp?: () => void;
@@ -108,6 +115,15 @@ export class GameScene extends Phaser.Scene {
       const base = isBoss ? 60 : isElite ? 18 : 1;
       this.dropOrb(x, y, Math.max(1, Math.round(base * timeMul)), isElite, isBoss);
       if (isBoss) this.cameras.main.shake(300, 0.01);
+
+      // 终局 BOSS 死亡 → 过关
+      if (isBoss && this.finalBossSpawned) {
+        const boss = this.bossRef;
+        if (!boss || !boss.active) {
+          this.hideBossBar();
+          this.time.delayedCall(600, () => this.endRun(true));
+        }
+      }
     };
 
     // 初始招式：随机给一个池内招式
@@ -193,8 +209,33 @@ export class GameScene extends Phaser.Scene {
     // 经验球吸附
     this.updateOrbs(dt);
 
-    if (this.player.isDead) this.endRun(false);
-    if (this.elapsed >= RUN_SECONDS) this.endRun(true);
+    if (this.player.isDead) { this.endRun(false); return; }
+    // 时间到不再直接过关 —— 必须击杀终局 BOSS
+    if (this.elapsed >= RUN_SECONDS && !this.finalBossSpawned) this.spawnFinalBoss();
+    this.updateBossBar();
+    this.updateBossSkill(delta);
+  }
+
+  /** 时间到：刷出终局 BOSS，杀掉才算过关 */
+  private spawnFinalBoss() {
+    this.finalBossSpawned = true;
+    const p = this.ringPosition(300);
+    const boss = this.enemies.spawn('boss', p.x, p.y, 1, 1, 30);
+    this.bossRef = boss;
+    if (boss) {
+      // 终局 BOSS 血更厚，标记身份
+      const hp = 3000 * 2.2;
+      boss.setData('hp', hp);
+      boss.setData('maxHp', hp);
+      boss.setData('isFinal', true);
+      boss.setScale(boss.scaleX * 1.25, boss.scaleY * 1.25);
+      // 记录出生世界坐标，用于技能判定
+      boss.setData('spawnX', p.x);
+      boss.setData('spawnY', p.y);
+    }
+    this.cameras.main.flash(600, 160, 0, 0);
+    this.cameras.main.shake(500, 0.014);
+    this.onFinalBossAnnounce();
   }
 
   get mapThemeIndex() { return this.mapIndex; }
@@ -537,6 +578,144 @@ export class GameScene extends Phaser.Scene {
       chosen.push(o);
     }
     return chosen;
+  }
+
+  // ── 终局 BOSS：血条 / 宣告 / 技能 ──────────────────────────
+
+  /** 屏幕底部 Boss 血条 */
+  private onFinalBossAnnounce() {
+    const w = this.scale.width, h = this.scale.height;
+    const narrow = w < 640;
+    const barW = Math.min(narrow ? w - 60 : 460, w - 60);
+    const barH = 12;
+    // 底部已有技能栏 + 属性图标 + 摇杆区，血条放在它们上方
+    const y = h - (narrow ? 170 : 120);
+
+    // 名字
+    this.bossNameText = this.add.text(w / 2, y - 24, '黑化超梦 · 终局', {
+      fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+      fontSize: narrow ? '15px' : '17px', fontStyle: 'bold', color: '#ff6b6b',
+      stroke: '#1a0000', strokeThickness: 4,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(420);
+
+    // 底槽
+    this.bossBarBg = this.add.rectangle(w / 2, y, barW, barH, 0x1a0a10, 0.9)
+      .setOrigin(0.5).setScrollFactor(0).setDepth(420)
+      .setStrokeStyle(1.5, 0x8b1a2b);
+
+    // 血条本体
+    this.bossBarFill = this.add.rectangle(w / 2 - barW / 2, y, barW, barH - 4, 0xd63b4d, 1)
+      .setOrigin(0, 0.5).setScrollFactor(0).setDepth(421);
+    this.bossBarW = barW;
+
+    // 顶部大字宣告
+    const banner = this.add.text(w / 2, h * 0.38, 'BOSS 来袭', {
+      fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+      fontSize: narrow ? '38px' : '48px', fontStyle: 'bold', color: '#ff4d4d',
+      stroke: '#000000', strokeThickness: 6,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(420).setAlpha(0).setScale(0.6);
+
+    this.tweens.add({
+      targets: banner, alpha: 1, scale: 1, duration: 300, ease: 'Back.Out',
+      hold: 900, yoyo: true, onComplete: () => banner.destroy(),
+    });
+
+    // 提示：击杀才能过关
+    this.add.text(w / 2, y + 22, '击杀 BOSS 才能过关', {
+      fontFamily: 'sans-serif', fontSize: narrow ? '11px' : '12px', color: '#ffb3b3',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(420).setName('bossHint');
+  }
+
+  /** 每帧刷新 Boss 血条 */
+  private updateBossBar() {
+    const boss = this.bossRef;
+    if (!this.bossBarFill) return;
+    if (!boss || !boss.active) {
+      this.hideBossBar();
+      return;
+    }
+    const hp = boss.getData('hp') as number;
+    const maxHp = boss.getData('maxHp') as number;
+    const ratio = Phaser.Math.Clamp(hp / Math.max(1, maxHp), 0, 1);
+    this.bossBarFill.width = this.bossBarW * ratio;
+
+    // 濒死闪红
+    if (ratio < 0.25) {
+      this.bossBarFill.fillColor = 0xff2a2a;
+    } else {
+      this.bossBarFill.fillColor = 0xd63b4d;
+    }
+  }
+
+  private hideBossBar() {
+    this.bossBarBg?.destroy(); this.bossBarBg = undefined;
+    this.bossBarFill?.destroy(); this.bossBarFill = undefined;
+    this.bossNameText?.destroy(); this.bossNameText = undefined;
+    (this.children.getByName('bossHint') as Phaser.GameObjects.Text)?.destroy();
+  }
+
+  /** 终局 BOSS 技能：冲锋 + 环形弹幕 */
+  private updateBossSkill(dtMs: number) {
+    const boss = this.bossRef;
+    if (!boss || !boss.active || !boss.getData('isFinal')) return;
+
+    this.bossSkillTimer += dtMs;
+    if (this.bossSkillTimer < 2600) return;
+    this.bossSkillTimer = 0;
+
+    const hp = boss.getData('hp') as number;
+    const maxHp = boss.getData('maxHp') as number;
+    const enraged = hp / Math.max(1, maxHp) < 0.4;
+
+    // 技能一：向玩家冲锋
+    const ang = Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
+    const dash = enraged ? 620 : 450;
+    boss.setVelocity(Math.cos(ang) * dash, Math.sin(ang) * dash);
+    this.time.delayedCall(420, () => {
+      if (boss.active) boss.setVelocity(0, 0);
+    });
+    // 冲锋拖尾
+    this.combat.fx.burst(boss.x, boss.y, 0xff4d4d, 14, 220, 4, 320);
+
+    // 技能二：环形弹幕（血量低时多一圈）
+    this.time.delayedCall(520, () => {
+      if (!boss.active) return;
+      const rings = enraged ? 2 : 1;
+      for (let r = 0; r < rings; r++) {
+        const n = 10;
+        for (let i = 0; i < n; i++) {
+          const a = (Math.PI * 2 * i) / n + r * 0.3;
+          this.spawnBossBullet(boss.x, boss.y, a, enraged ? 210 : 175);
+        }
+      }
+      this.cameras.main.shake(180, 0.006);
+    });
+  }
+
+  /** BOSS 弹幕 */
+  private spawnBossBullet(x: number, y: number, ang: number, speed: number) {
+    const b = this.physics.add.image(x, y, 'dot')
+      .setDepth(7).setTintFill(0xff3355).setScale(1.6);
+    const body = b.body as Phaser.Physics.Arcade.Body;
+    body.setEnable(true);
+    body.setCircle(6, -2, -2);
+    b.setVelocity(Math.cos(ang) * speed, Math.sin(ang) * speed);
+    this.combat.fx.burst(x, y, 0xff3355, 3, 90, 2, 180);
+
+    // 命中玩家判定
+    const timer = this.time.addEvent({
+      delay: 16, loop: true, callback: () => {
+        if (!b.active) { timer.remove(); return; }
+        const d = Phaser.Math.Distance.Between(b.x, b.y, this.player.x, this.player.y);
+        if (d < 22) {
+          this.player.takeDamage(14);
+          this.combat.fx.burst(b.x, b.y, 0xff3355, 8, 160, 3, 220);
+          b.destroy(); timer.remove();
+        }
+      },
+    });
+    // 3.2 秒后自动销毁
+    this.time.delayedCall(3200, () => { if (b.active) b.destroy(); timer.remove(); });
   }
 
   private endRun(survived: boolean) {
