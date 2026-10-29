@@ -112,9 +112,9 @@ export class GameScene extends Phaser.Scene {
       this.neonFloor?.destroy();
     });
 
-    // 霓虹后处理：泛光 + 暗角 + 降饱和压暗
-    // 参数调低：泛光过强会把画面糊成一团，暗角过重会压缩视野
-    applyNeonLook(this, { bloom: 0.55, vignette: 0.34, brightness: 0.94, saturation: 1.18 });
+    // 后处理只保留极轻的暗角，用于收拢视线。
+    // bloom 已移除：泛光会把角色和 UI 糊成半透明，方向不对。
+    applyNeonLook(this, { bloom: 0, vignette: 0.1, brightness: 1.04, saturation: 1.05 });
 
     // 世界无限：给一个很大的边界
     this.physics.world.setBounds(-1e6, -1e6, 2e6, 2e6);

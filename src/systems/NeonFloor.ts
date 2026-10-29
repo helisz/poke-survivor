@@ -25,7 +25,10 @@ export class NeonFloor {
     this.grid = scene.add.graphics().setScrollFactor(0).setDepth(-98);
     this.paintGrid(width, height);
 
-    // 滚动光斑：每种颜色一张径向渐变圆
+    // 滚动光斑：每种颜色一张径向渐变圆。
+    // 关键教训：不能用 ADD 混合 + 大面积光团，否则整屏会被提亮成一层光雾，
+    // 角色和暗色 UI 都被糊掉、显得半透明。改用 NORMAL 混合、极低 alpha，
+    // 只作为地面的微弱色偏存在。
     const glowKeys: [string, number][] = [
       ['neonglow_cyan', 0x2fd6e8],
       ['neonglow_magenta', 0xe82f9c],
@@ -46,19 +49,18 @@ export class NeonFloor {
       const img = scene.add.image(0, 0, key)
         .setScrollFactor(0)
         .setDepth(-97)
-        .setBlendMode(Phaser.BlendModes.ADD)
-        .setAlpha(0.2);
+        .setAlpha(0.045);
       this.glows.push({
         g: img,
         vx: (i % 2 === 0 ? 1 : -1) * (6 + i * 3),
         vy: (i === 1 ? 1 : -1) * (4 + i * 2),
-        base: 0.16 + i * 0.03,
+        base: 0.04 + i * 0.008,
       });
     });
 
-    // 地平线光带：屏幕下缘的横向光
-    this.floorLight = scene.add.rectangle(width / 2, height - 4, width, 90, 0x1b4a63, 0.16)
-      .setScrollFactor(0).setDepth(-96).setBlendMode(Phaser.BlendModes.ADD)
+    // 地平线光带：屏幕下缘的横向光。仅作极淡压边，不能盖住底部技能槽
+    this.floorLight = scene.add.rectangle(width / 2, height - 4, width, 70, 0x1b4a63, 0.05)
+      .setScrollFactor(0).setDepth(-96)
       .setOrigin(0.5, 1);
 
     scene.scale.on('resize', (gs: Phaser.Structs.Size) => {
@@ -71,16 +73,16 @@ export class NeonFloor {
     const g = this.grid;
     g.clear();
     const step = 32;
-    // 静态网格线
-    g.lineStyle(1, 0x2fd6e8, 0.045);
+    // 静态网格线：极低透明度，只作为地面质感暗示，绝不干扰 UI 文字阅读
+    g.lineStyle(1, 0x2fd6e8, 0.022);
     for (let x = 0; x <= w; x += step) {
       g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.strokePath();
     }
     for (let y = 0; y <= h; y += step) {
       g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.strokePath();
     }
-    // 每 4 格一条更亮的线，形成节奏
-    g.lineStyle(1, 0x2fd6e8, 0.09);
+    // 每 4 格一条稍亮的线，形成节奏
+    g.lineStyle(1, 0x2fd6e8, 0.045);
     for (let x = 0; x <= w; x += step * 4) {
       g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.strokePath();
     }

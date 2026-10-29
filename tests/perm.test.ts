@@ -70,14 +70,13 @@ describe('永久强化：价格与退款', () => {
   });
 });
 
-describe('基础伤害已下调', () => {
-  it('基础伤害倍率应为 0.75（下调 40%）', () => {
-    expect(BASE_STATS.damageMul).toBeCloseTo(0.75, 4);
+describe('基础伤害倍率', () => {
+  it('基础伤害倍率为 1.05（比原始 0.75 高 40%）', () => {
+    expect(BASE_STATS.damageMul).toBeCloseTo(1.05, 4);
   });
 
-  it('下调后单招基础 DPS 不超过 34', () => {
-    // 单体最高 flareblitz 36 伤 / 880ms ≈ 40.9 DPS × 0.75 ≈ 30.7
-    const dps = (36 * 1000 / 880) * BASE_STATS.damageMul;
-    expect(dps).toBeLessThan(34);
+  it('相对上调幅度为 +40%', () => {
+    const before = 0.75;
+    expect(BASE_STATS.damageMul / before).toBeCloseTo(1.4, 2);
   });
 });

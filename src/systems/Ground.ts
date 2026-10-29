@@ -28,13 +28,16 @@ export class Ground {
     this.tile = scene.add.tileSprite(0, 0, width, height, this.texKey(0, 0))
       .setOrigin(0, 0).setScrollFactor(0).setDepth(-100);
 
-    // 大尺度明暗层：低频噪点色块，让地面有起伏不是一片死色
+    // 大尺度明暗层：低频噪点色块，让地面有起伏不是一片死色。
+    // alpha 从 1 降到 0.45：满不透明度会变成一坨坨绿雾，压掉角色对比度。
     this.blotch = scene.add.tileSprite(0, 0, width, height, this.blotchKey(0))
-      .setOrigin(0, 0).setScrollFactor(0).setDepth(-99).setAlpha(1);
+      .setOrigin(0, 0).setScrollFactor(0).setDepth(-99).setAlpha(0.28);
 
     this.decorGroup = scene.add.group();
+    // 氛围色叠加层。绝不能用 ADD 混合：加色混合会把整屏提亮成一层光雾，
+    // 角色和 UI 都被糊掉、显得半透明。NORMAL 混合 + 低 alpha 只做色彩倾向。
     this.ambientRect = scene.add.rectangle(0, 0, width, height, 0xffffff, 0)
-      .setOrigin(0, 0).setScrollFactor(0).setDepth(90).setBlendMode(Phaser.BlendModes.ADD);
+      .setOrigin(0, 0).setScrollFactor(0).setDepth(90);
 
     scene.scale.on('resize', (gs: Phaser.Structs.Size) => {
       this.tile.setSize(gs.width, gs.height);

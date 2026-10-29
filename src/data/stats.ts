@@ -25,7 +25,7 @@ export interface PlayerStats {
 }
 
 export const BASE_STATS: PlayerStats = {
-  hp: 180, maxHp: 180, speed: 118, damageMul: 0.75, cooldownMul: 1,
+  hp: 180, maxHp: 180, speed: 118, damageMul: 1.05, cooldownMul: 1,
   pickup: 85, expMul: 1, damageTakenMul: 1, radius: 11,
 };
 

@@ -29,10 +29,10 @@ const FX_KEY = 'neon-post';
 export function applyNeonLook(scene: Phaser.Scene, opt: NeonOptions = {}) {
   const cam = scene.cameras.main;
   const o = {
-    bloom: opt.bloom ?? 1.1,
-    vignette: opt.vignette ?? 0.62,
-    brightness: opt.brightness ?? 0.88,
-    saturation: opt.saturation ?? 1.35,
+    bloom: opt.bloom ?? 0.5,
+    vignette: opt.vignette ?? 0.18,
+    brightness: opt.brightness ?? 1.06,
+    saturation: opt.saturation ?? 1.2,
   };
 
   // 幂等：重复调用先清掉旧的
