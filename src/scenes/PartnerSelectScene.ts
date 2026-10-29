@@ -54,49 +54,65 @@ export class PartnerSelectScene extends Phaser.Scene {
   }
 
   private buildCards(width: number, height: number) {
-    const cardW = Math.min((width - 44) / 3, 108);
-    const cardH = 168;
-    const gap = 6;
-    const startX = (width - (cardW * 3 + gap * 2)) / 2 + cardW / 2;
-    const y = height * 0.30 + cardH / 2;
+    // 竖排：宽卡 + 左图右字，手机竖屏下更好点、也放得下更多信息
+    const cardW = Math.min(width - 48, 460);
+    // 顶部标题占 21%，底部按钮占 100px，卡片平分剩余高度（上限 150）
+    const topLimit = height * 0.21;
+    const bottomLimit = height - 100;
+    const gap = 14;
+    const availH = bottomLimit - topLimit;
+    const cardH = Math.min(150, (availH - gap * (this.choices.length - 1)) / this.choices.length);
+    const totalH = cardH * this.choices.length + gap * (this.choices.length - 1);
+    // 在可用区里居中
+    const startY = topLimit + (availH - totalH) / 2 + cardH / 2;
+    const cx = width / 2;
 
     this.choices.forEach((p, i) => {
-      const x = startX + i * (cardW + gap);
+      const y = startY + i * (cardH + gap);
       const color = TYPE_COLORS[p.type] ?? 0x449ddf;
       const move = MOVES[p.move];
 
-      const box = this.add.rectangle(x, y, cardW, cardH, 0x11202c)
+      const box = this.add.rectangle(cx, y, cardW, cardH, 0x11202c)
         .setStrokeStyle(2, 0x1e3344).setInteractive({ useHandCursor: true });
 
+      // 左侧：宝可梦头像
+      const iconX = cx - cardW / 2 + cardH * 0.52;
       const pkKey = `pk_${p.id}`;
       if (this.textures.exists(pkKey)) {
-        this.add.image(x, y - 52, pkKey).setScale((cardW - 62) / 64);
+        this.add.image(iconX, y, pkKey).setScale((cardH - 50) / 64);
       }
-      this.add.text(x, y - 6, p.name, {
-        fontFamily: 'sans-serif', fontSize: '14px', color: '#ffffff', fontStyle: 'bold',
-      }).setOrigin(0.5);
-      this.add.text(x, y + 14, move?.name ?? p.move, {
-        fontFamily: 'sans-serif', fontSize: '11px', color: '#ffffff',
-      }).setOrigin(0.5);
-      this.add.text(x, y + 30, `${p.type} · ${move ? this.catZh(move.category) : ''}`, {
-        fontFamily: 'sans-serif', fontSize: '9px',
+
+      // 右侧文本区：左对齐，5 行在卡片内垂直居中
+      const textX = cx - cardW / 2 + cardH * 0.95;
+      const lineGap = Math.min(19, (cardH - 34) / 4);
+      const baseY = y - (lineGap * 4) / 2;
+
+      this.add.text(textX, baseY, p.name, {
+        fontFamily: 'sans-serif', fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0, 0.5);
+      this.add.text(textX, baseY + lineGap, move?.name ?? p.move, {
+        fontFamily: 'sans-serif', fontSize: '12px', color: '#ffffff',
+      }).setOrigin(0, 0.5);
+      this.add.text(textX, baseY + lineGap * 2, `${p.type} · ${move ? this.catZh(move.category) : ''}`, {
+        fontFamily: 'sans-serif', fontSize: '10px',
         color: `#${color.toString(16).padStart(6, '0')}`,
-      }).setOrigin(0.5);
-      this.add.text(x, y + 48, move ? `伤害 ${move.baseDamage}　冷却 ${(move.cooldown / 1000).toFixed(1)}s` : '', {
-        fontFamily: 'sans-serif', fontSize: '9px', color: '#8fa8b8',
-        wordWrap: { width: cardW - 12 }, align: 'center',
-      }).setOrigin(0.5);
+      }).setOrigin(0, 0.5);
+      this.add.text(textX, baseY + lineGap * 3,
+        move ? `伤害 ${move.baseDamage}　冷却 ${(move.cooldown / 1000).toFixed(1)}s` : '', {
+          fontFamily: 'sans-serif', fontSize: '10px', color: '#a7c0d0',
+        }).setOrigin(0, 0.5);
       const trait = move?.traits?.length
         ? move.traits.map((t) => this.traitZh(t)).join(' · ')
         : (move?.desc ?? '');
-      this.add.text(x, y + 66, trait, {
-        fontFamily: 'sans-serif', fontSize: '9px', color: '#6f8ca0',
-        wordWrap: { width: cardW - 12 }, align: 'center',
-      }).setOrigin(0.5);
+      this.add.text(textX, baseY + lineGap * 4, trait, {
+        fontFamily: 'sans-serif', fontSize: '10px', color: '#93aec0',
+        wordWrap: { width: cardW - cardH * 0.95 - 20 }, align: 'left',
+      }).setOrigin(0, 0.5);
 
-      const mark = this.add.text(x, y - cardH / 2 + 12, '', {
-        fontFamily: 'sans-serif', fontSize: '10px', color: '#449ddf', fontStyle: 'bold',
-      }).setOrigin(0.5);
+      // 右上角的选中标记
+      const mark = this.add.text(cx + cardW / 2 - 14, y - cardH / 2 + 14, '', {
+        fontFamily: 'sans-serif', fontSize: '11px', color: '#449ddf', fontStyle: 'bold',
+      }).setOrigin(1, 0.5);
 
       box.on('pointerdown', () => {
         this.selected = p.move;
