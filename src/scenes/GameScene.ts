@@ -117,12 +117,12 @@ export class GameScene extends Phaser.Scene {
       // 经验随时间成长：前 60 秒 1×，之后线性提升，5 分钟时约 2.6×
       const t = this.elapsed;
       const timeMul = 1 + Math.min(t / 200, 1.6);
-      const base = isBoss ? 60 : isElite ? 18 : 1;
+      const base = isBoss ? 120 : isElite ? 36 : 2;
       this.dropOrb(x, y, Math.max(1, Math.round(base * timeMul)), isElite, isBoss);
       if (isBoss) this.cameras.main.shake(300, 0.01);
 
       // 回血球：1% 概率掉落（BOSS 必掉 2 颗，精英 20%）
-      const healChance = isBoss ? 1 : isElite ? 0.2 : 0.01;
+      const healChance = isBoss ? 1 : isElite ? 0.25 : 0.03;
       if (Math.random() < healChance) {
         this.dropHealOrb(x, y);
         if (isBoss) this.dropHealOrb(x + 18, y + 10);
@@ -321,7 +321,7 @@ export class GameScene extends Phaser.Scene {
     const t = this.elapsed;
     // 刷怪速率：极平缓的幂曲线，全程几乎线性微增
     // 开局 0.5/s，120 秒 2.2/s，300 秒 3.5/s
-    const rate = 0.5 + 3.0 * Math.pow(Math.min(t, RUN_SECONDS) / RUN_SECONDS, 0.65);
+    const rate = 0.62 + 3.3 * Math.pow(Math.min(t, RUN_SECONDS) / RUN_SECONDS, 0.65);
     this.spawnAccum += dt * rate;
     const hpMul = 1 + t / 45;
     const speedMul = (1 + t / 220) * this.ground.theme.enemySpeedMul;

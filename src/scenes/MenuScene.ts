@@ -31,11 +31,11 @@ export class MenuScene extends Phaser.Scene {
       fontSize: '12px', color: '#a8c4d8',
     }).setOrigin(0.5);
 
-    // 玩法说明
+    // 操作指引
     const tips = [
-      '训练家本人不出招，选中招式后宝可梦会跟随出战',
+      '直接拖动屏幕即可平移，不用点方向键',
+      '宝可梦会自动攻击，你只管走位',
       '一局 5 分钟，之后 BOSS 来袭 —— 击杀它才算过关',
-      '升级时三选一强化，最多 6 个招式槽',
     ];
     tips.forEach((t, i) => {
       this.add.text(width / 2, height * 0.45 + i * 24, `· ${t}`, {
@@ -56,7 +56,7 @@ export class MenuScene extends Phaser.Scene {
     btn.on('pointerover', () => btn.setFillStyle(0x63b4ef));
     btn.on('pointerout', () => btn.setFillStyle(0x449ddf));
 
-    this.add.text(width / 2, height - 62, 'WASD / 方向键 移动 · 升级时按 1/2/3 选择', {
+    this.add.text(width / 2, height - 62, '拖动屏幕平移 · 升级时按 1/2/3 选择', {
       fontFamily: 'sans-serif', fontSize: '10px', color: '#4c6272',
     }).setOrigin(0.5);
 
