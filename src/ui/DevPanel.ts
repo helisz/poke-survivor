@@ -54,6 +54,9 @@ export function openDevPanel(
     fontFamily: 'sans-serif', fontSize: '10px', color: '#5f7a8c',
   }).setOrigin(0.5));
 
+  // 各行重置器：重置按钮统一调用
+  const resetFns: (() => void)[] = [];
+
   rows.forEach((row, ri) => {
     const ry = cy - ph / 2 + 82 + ri * rowH;
     panel.add(scene.add.text(cx - pw / 2 + 16, ry - 8, row.label, {
@@ -75,6 +78,7 @@ export function openDevPanel(
       onChange?.(save);
       if (row.invincible) refreshInvincible();
     };
+    resetFns.push(() => { save[row.key] = 1; valText.setText('1×'); });
 
     const mk = (dx: number, dir: -1 | 1, sym: string) => {
       const b = scene.add.rectangle(cx + dx, ry + 16, 34, 28, 0x16293a)

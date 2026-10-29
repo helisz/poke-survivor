@@ -171,9 +171,9 @@ export class CombatSystem {
       p.setData('life', life);
       if (life <= 0) { this.killProjectile(p); continue; }
 
-      // 炮弹类：实时喷尾焰
+      // 弹体拖尾：炮弹/激光/闪电喷尾焰，近战弹道喷短促刃光
       const kind = p.getData('fx') as string;
-      if (kind === 'shell' || kind === 'laser' || kind === 'bolt') {
+      if (kind === 'shell' || kind === 'laser' || kind === 'bolt' || kind === 'slash') {
         const v = p.body!.velocity;
         const ang = Math.atan2(v.y, v.x);
         this.fx.shellTrail(p, p.x, p.y, ang, p.getData('color') as number, dtMs);
@@ -312,46 +312,78 @@ export class CombatSystem {
     p.setVelocity(Math.cos(next) * speed, Math.sin(next) * speed);
   }
 
+  /**
+   * 近战重构：不再画扇形，改发真实短程弹道，靠射程衰减消失。
+   * 三种流派：
+   *   bar  —— 并排弹道齐射（连续拳、雷光拳）
+   *   fan  —— 扇形散射多弹道（龙之爪、铁头、火焰踢）
+   *   sweep—— 宽扇形弹幕墙（水流尾、叶刃、闪焰冲锋）
+   */
   private fireMelee(def: MoveDef, damage: number, ox: number, oy: number) {
     const traits = def.traits ?? [];
-    const sweep = traits.includes('sweep');
     const flurry = traits.includes('flurry');
+    const sweep = traits.includes('sweep');
+    const lvl = this.getMoveLevel(def.id) - 1;
 
-    // sweep 大角度横扫，普通近战窄扇形
-    const halfAngle = sweep ? 1.15 : 0.7;
-    const range = (def.range ?? 90) + (this.getMoveLevel(def.id) - 1) * 8;
-    const hits = def.count ?? 1;
-
-    // sweep 优先贴最近敌人方向；没有敌人时朝面向
-    const target = this.nearestEnemy(ox, oy, Math.min(range * 1.8, this.screenAimRadius()));
+    const target = this.nearestEnemy(ox, oy, Math.min((def.range ?? 90) * 2.2, this.screenAimRadius()));
     const ang = target ? Math.atan2(target.y - oy, target.x - ox) : this.playerAngle();
 
-    // 视觉：刀光弧 + 火花
-    const dur = flurry ? 130 : sweep ? 260 : 200;
-    this.fx.slash(ox, oy, ang, halfAngle, range, def.color, dur);
+    // 射程随等级增长
+    const range = (def.range ?? 90) * 1.6 + lvl * 16;
 
-    // 连击：补一圈点状爆点，跟横扫区分开
-    if (flurry) {
-      for (let k = 0; k < 3; k++) {
-        const a = ang + (Math.random() - 0.5) * halfAngle * 1.6;
-        const r = range * (0.4 + Math.random() * 0.5);
-        this.fx.burst(ox + Math.cos(a) * r, oy + Math.sin(a) * r, def.color, 6, 150, 2.6, 220);
+    if (sweep) {
+      // 弹幕墙：宽度随等级增加，弹数 7 → 13
+      const arcs = 7 + Math.min(lvl * 2, 6);
+      const spread = 1.5 + lvl * 0.08;
+      for (let i = 0; i < arcs; i++) {
+        const a = ang - spread / 2 + (spread * i) / (arcs - 1);
+        this.meleeBolt(ox, oy, a, range, def, damage, 0.34);
+      }
+      this.fx.burst(ox + Math.cos(ang) * 26, oy + Math.sin(ang) * 26, def.color, 8, 130, 2.8, 180);
+    } else if (flurry) {
+      // 并排弹道齐射：3 条 → 5 条，间距逐渐拉开
+      const lanes = 3 + Math.min(Math.floor(lvl / 2), 2);
+      const gap = 12 + lvl * 1.5;
+      for (let i = 0; i < lanes; i++) {
+        const off = (i - (lanes - 1) / 2) * gap;
+        const px = ox + Math.cos(ang + Math.PI / 2) * off;
+        const py = oy + Math.sin(ang + Math.PI / 2) * off;
+        this.meleeBolt(px, py, ang, range * 1.15, def, damage, 0.26);
+      }
+    } else {
+      // 扇形散射：弹道数量随等级增加
+      const shots = 3 + Math.min(lvl, 4);
+      const spread = 0.55 + lvl * 0.05;
+      for (let i = 0; i < shots; i++) {
+        const a = ang - spread / 2 + (spread * i) / Math.max(1, shots - 1);
+        this.meleeBolt(ox, oy, a, range, def, damage, 0.3);
       }
     }
+  }
 
-    // 命中判定：flurry 只看一帧但打多段，sweep 打全角度
-    const targets: Phaser.Physics.Arcade.Sprite[] = [];
-    this.enemies.forEachActive((e) => {
-      const d = Phaser.Math.Distance.Between(ox, oy, e.x, e.y);
-      if (d > range) return;
-      const ea = Math.atan2(e.y - oy, e.x - ox);
-      const diff = Phaser.Math.Angle.Wrap(ea - ang);
-      if (Math.abs(diff) <= halfAngle + 0.1) targets.push(e);
-    });
-
-    for (let h = 0; h < hits; h++) {
-      targets.forEach((e) => this.hitEnemy(e, damage));
-    }
+  /** 近战弹道实体：短射程、带粒子拖尾、命中一次即消失 */
+  private meleeBolt(
+    ox: number, oy: number, ang: number, range: number,
+    def: MoveDef, damage: number, scale: number,
+  ) {
+    const p = this.projectiles.get(ox, oy, 'dot') as Phaser.Physics.Arcade.Image | null;
+    if (!p) return;
+    const speed = 620;
+    p.setActive(true).setVisible(true);
+    p.setTintFill(def.color);
+    p.setScale(scale);
+    p.setData('damage', damage);
+    p.setData('pierce', def.traits?.includes('pierce') ? 1 : 0);
+    p.setData('life', (range / speed) * 1000);
+    p.setData('moveId', def.id);
+    p.setData('color', def.color);
+    p.setData('fx', 'slash');
+    p.setData('hitList', []);
+    p.setVelocity(Math.cos(ang) * speed, Math.sin(ang) * speed);
+    const body = p.body as Phaser.Physics.Arcade.Body;
+    body.setEnable(true);
+    body.setSize(18, 18, true);
+    this.fx.castPulse(ox, oy, def.color, 16);
   }
 
   private fireAoe(def: MoveDef, damage: number, ox: number, oy: number) {
