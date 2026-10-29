@@ -87,6 +87,8 @@ export class TraitSelectScene extends Phaser.Scene {
 
       const icon = this.add.image(x - cardW / 2 + 44, y, iconKey)
         .setDisplaySize(44, 44);
+      // 记下缩放比，refresh 里绝不能再 setScale，否则会打回原图尺寸
+      const iconScale = icon.scaleX;
 
       const name = this.add.text(x - cardW / 2 + 76, y - 13, t.name, {
         fontFamily: 'sans-serif', fontSize: '18px', color: '#ffffff', fontStyle: 'bold',
@@ -116,6 +118,7 @@ export class TraitSelectScene extends Phaser.Scene {
 
       void bar;
       this.cardRefs.push({ box, icon, name, desc, mark, accent });
+      void iconScale;
     });
 
     this.refresh();
@@ -129,7 +132,6 @@ export class TraitSelectScene extends Phaser.Scene {
       r.box.setFillStyle(on ? 0x16293a : 0x11202c);
       r.name.setColor(on ? '#ffffff' : '#e2eef7');
       r.desc.setColor(on ? '#b8d0e0' : '#8fa8b8');
-      r.icon.setScale(1);
       r.mark.setText(on ? '✓ 已选' : '');
       r.mark.setColor(`#${r.accent.toString(16).padStart(6, '0')}`);
     });
