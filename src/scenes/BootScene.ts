@@ -31,15 +31,6 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
-    // 全局 pixelArt 已关闭（为了让文字抗锯齿清晰），
-    // 这里单独把像素素材设回 NEAREST，保持硬边像素风、不发虚。
-    for (const key of POKEMON_IDS) {
-      const tex = this.textures.get(`pk_${key}`);
-      if (tex && tex.source[0]) tex.source[0].setFilter(Phaser.Textures.FilterMode.NEAREST);
-    }
-    const ash = this.textures.get('ash');
-    if (ash && ash.source[0]) ash.source[0].setFilter(Phaser.Textures.FilterMode.NEAREST);
-
     this.scene.start('Menu');
   }
 }

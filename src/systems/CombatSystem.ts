@@ -343,13 +343,13 @@ export class CombatSystem {
   }
 
   private fireAura(def: MoveDef, damage: number, ox: number, oy: number) {
-    // 范围放大：基础 ×1.45，每级成长 9 → 14
-    const radius = (def.range ?? 110) * 1.45 + (this.getMoveLevel(def.id) - 1) * 14;
+    // 范围收敛：判定半径按原值一半，每级成长同步缩小
+    const radius = (def.range ?? 110) * 0.72 + (this.getMoveLevel(def.id) - 1) * 7;
     const cx = this.player.x, cy = this.player.y;
     // 视觉环：外圈亮边 + 内圈填充，范围更直观
     const ring = this.scene.add.circle(cx, cy, radius, def.color, 0.16).setDepth(2);
     const edge = this.scene.add.circle(cx, cy, radius, def.color, 0)
-      .setStrokeStyle(3, def.color, 0.55).setDepth(3);
+      .setStrokeStyle(2.5, def.color, 0.55).setDepth(3);
     this.scene.tweens.add({
       targets: [ring, edge], alpha: 0, duration: 340,
       onComplete: () => { ring.destroy(); edge.destroy(); },
