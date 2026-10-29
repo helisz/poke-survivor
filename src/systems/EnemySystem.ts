@@ -50,6 +50,8 @@ export class EnemySystem {
       const maxHp = e.getData('maxHp') as number;
       if (!maxHp || hp >= maxHp) continue;  // 满血不显示
       const kind = e.getData('kind') as string;
+      // 终局 BOSS 的血量已由屏幕底部专属血条展示，头顶不再重复画
+      if (e.getData('isFinal')) continue;
       const ratio = Phaser.Math.Clamp(hp / maxHp, 0, 1);
       const w = kind === 'boss' ? 54 : kind === 'elite' ? 34 : 20;
       const h = kind === 'boss' ? 5 : 3;

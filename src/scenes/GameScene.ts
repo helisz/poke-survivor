@@ -246,7 +246,21 @@ export class GameScene extends Phaser.Scene {
     }
     this.cameras.main.flash(600, 160, 0, 0);
     this.cameras.main.shake(500, 0.014);
+    // 清场：所有小怪/精英直接消失（不给经验，纯清场）
+    this.cullMinions();
     this.onFinalBossAnnounce();
+  }
+
+  /** BOSS 登场清场：移除除 BOSS 外的所有敌人 */
+  private cullMinions() {
+    const boss = this.bossRef;
+    for (const e of this.enemies.group.getChildren() as Phaser.Physics.Arcade.Sprite[]) {
+      if (!e.active || e === boss) continue;
+      // 消失特效：粉紫爆散
+      this.combat.fx.burst(e.x, e.y, 0xb06bff, 6, 170, 2.6, 260);
+      (e.body as Phaser.Physics.Arcade.Body).setEnable(false);
+      e.setActive(false).setVisible(false);
+    }
   }
 
   get mapThemeIndex() { return this.mapIndex; }
@@ -299,6 +313,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateSpawning(dt: number) {
+    // 终局 BOSS 阶段：不再刷任何小怪
+    if (this.finalBossSpawned) return;
     const t = this.elapsed;
     // 刷怪速率：按 5 分钟局压缩（原 15 分钟参数 ×3）
     // 开局 ~1.2/s，之后每 20 秒 +1.2/s，封顶 12/s
@@ -672,7 +688,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5).setScrollFactor(0).setDepth(420)
       .setStrokeStyle(1.5, 0x8b1a2b);
 
-    // 血条本体
+    // 血条本体：左端固定在底槽左侧，用 scaleX 从左往右收缩
     this.bossBarFill = this.add.rectangle(w / 2 - barW / 2, y, barW, barH - 4, 0xd63b4d, 1)
       .setOrigin(0, 0.5).setScrollFactor(0).setDepth(421);
     this.bossBarW = barW;
@@ -706,7 +722,8 @@ export class GameScene extends Phaser.Scene {
     const hp = boss.getData('hp') as number;
     const maxHp = boss.getData('maxHp') as number;
     const ratio = Phaser.Math.Clamp(hp / Math.max(1, maxHp), 0, 1);
-    this.bossBarFill.width = this.bossBarW * ratio;
+    // 中心原点：用 scaleX 收缩，保持左端与底槽对齐
+    this.bossBarFill.scaleX = ratio;
 
     // 濒死闪红
     if (ratio < 0.25) {
