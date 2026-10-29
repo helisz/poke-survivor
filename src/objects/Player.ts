@@ -35,25 +35,25 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const t = TRAITS.find((x) => x.id === trait);
     if (!t) return;
     switch (trait) {
-      case 'swift':    this.stats.speed *= 1.15; break;
+      case 'swift':    this.stats.speed *= 1.06; break;
       case 'iron':
-        this.stats.maxHp += 25;
+        this.stats.maxHp += 12;
         this.stats.hp = this.stats.maxHp;
-        this.stats.damageTakenMul *= 0.9;
+        this.stats.damageTakenMul *= 0.95;
         break;
       case 'affinity':
-        this.stats.pickup *= 1.4;
-        this.stats.expMul *= 1.1;
+        this.stats.pickup *= 1.15;
+        this.stats.expMul *= 1.05;
         break;
-      case 'power':    this.stats.damageMul *= 1.18; break;
-      case 'haste':    this.stats.cooldownMul *= 0.88; break;
+      case 'power':    this.stats.damageMul *= 1.05; break;
+      case 'haste':    this.stats.cooldownMul *= 0.96; break;
       case 'vitality':
-        this.stats.maxHp += 40;
+        this.stats.maxHp += 18;
         this.stats.hp = this.stats.maxHp;
         break;
-      case 'scholar':  this.stats.expMul *= 1.3; break;
-      case 'magnet':   this.stats.pickup *= 1.8; break;
-      case 'guard':    this.stats.damageTakenMul *= 0.78; break;
+      case 'scholar':  this.stats.expMul *= 1.08; break;
+      case 'magnet':   this.stats.pickup *= 1.25; break;
+      case 'guard':    this.stats.damageTakenMul *= 0.92; break;
     }
   }
 

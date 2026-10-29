@@ -1,13 +1,13 @@
 export const TRAITS = [
-  { id: 'swift',    name: '急足',   desc: '移速 +15%' },
-  { id: 'iron',     name: '铁壁',   desc: '最大 HP +25，受伤 -10%' },
-  { id: 'affinity', name: '亲和',   desc: '拾取范围 +40%，经验 +10%' },
-  { id: 'power',    name: '蛮力',   desc: '伤害 +18%' },
-  { id: 'haste',    name: '迅捷',   desc: '招式冷却 -12%' },
-  { id: 'vitality', name: '活力',   desc: '最大 HP +40，回血速度 +50%' },
-  { id: 'scholar',  name: '好学',   desc: '经验 +30%' },
-  { id: 'magnet',   name: '磁力',   desc: '拾取范围 +80%' },
-  { id: 'guard',    name: '守护',   desc: '受伤 -22%' },
+  { id: 'swift',    name: '急足',   icon: 'wind',  desc: '移速 +6%' },
+  { id: 'iron',     name: '铁壁',   icon: 'shield', desc: '最大 HP +12，受伤 -5%' },
+  { id: 'affinity', name: '亲和',   icon: 'heart',  desc: '拾取范围 +15%，经验 +5%' },
+  { id: 'power',    name: '蛮力',   icon: 'fist',   desc: '伤害 +5%' },
+  { id: 'haste',    name: '迅捷',   icon: 'clock',  desc: '招式冷却 -4%' },
+  { id: 'vitality', name: '活力',   icon: 'plus',   desc: '最大 HP +18，回血 +15%' },
+  { id: 'scholar',  name: '好学',   icon: 'book',   desc: '经验 +8%' },
+  { id: 'magnet',   name: '磁力',   icon: 'magnet', desc: '拾取范围 +25%' },
+  { id: 'guard',    name: '守护',   icon: 'armor',  desc: '受伤 -8%' },
 ] as const;
 
 export type TraitId = typeof TRAITS[number]['id'];
