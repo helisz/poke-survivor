@@ -320,15 +320,16 @@ export class GameScene extends Phaser.Scene {
     orb.setAlpha(1);
 
     // 颜色分层：BOSS 金 / 精英紫 / 普通按价值蓝绿
+    // 纹理 16px、主体半径 6，这里的 scale 让实际显示比原来更小巧
     if (isBoss) {
       orb.setTint(0xffd75e);      // 金色
-      orb.setScale(1.7);
+      orb.setScale(1.15);
     } else if (isElite) {
       orb.setTint(0xb06bff);      // 紫色，一眼分辨
-      orb.setScale(1.35);
+      orb.setScale(0.95);
     } else {
       orb.setTint(value >= 3 ? 0x63c256 : 0x4592e0);
-      orb.setScale(value >= 3 ? 1.05 : 0.85);
+      orb.setScale(value >= 3 ? 0.75 : 0.62);
     }
 
     // 精英/BOSS 加一圈光晕，掉在地上也好找
@@ -561,12 +562,39 @@ export class GameScene extends Phaser.Scene {
 
   private makeOrbTexture() {
     if (this.textures.exists('orb')) return;
+    // 珍珠质感：球面明暗渐变 + 左上高光 + 底部反光
+    // 纹理尺寸 16×16，主体半径 6（比原来小），tint 仍由调用方决定颜色
+    const S = 16;
+    const cx = 8, cy = 8, R = 6;
     const g = this.make.graphics({ x: 0, y: 0 }, false);
-    g.fillStyle(0xffffff, 1);
-    g.fillCircle(6, 6, 5);
+
+    // 1) 由外到内叠同心圆模拟球面：边缘偏暗、中心偏亮
+    const STEPS = 7;
+    for (let i = STEPS; i >= 1; i--) {
+      const t = i / STEPS;          // 1 → 外圈
+      const r = R * t;
+      // 亮度：外圈 0.62 → 内圈 1.0
+      const lum = 0.62 + 0.38 * (1 - t);
+      const v = Math.round(255 * lum);
+      g.fillStyle(Phaser.Display.Color.GetColor(v, v, v), 1);
+      g.fillCircle(cx, cy, r);
+    }
+
+    // 2) 球体边缘压暗一圈，强化立体轮廓
+    g.lineStyle(1, 0x000000, 0.22);
+    g.strokeCircle(cx, cy, R - 0.5);
+
+    // 3) 左上高光：亮点 + 柔光晕
     g.fillStyle(0xffffff, 0.55);
-    g.fillCircle(4, 4, 2);
-    g.generateTexture('orb', 12, 12);
+    g.fillCircle(cx - 2.4, cy - 2.4, 2.4);
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(cx - 2.6, cy - 2.6, 1.3);
+
+    // 4) 右下反光：模拟环境反射，珍珠感的关键
+    g.fillStyle(0xffffff, 0.35);
+    g.fillCircle(cx + 2.2, cy + 2.4, 1.4);
+
+    g.generateTexture('orb', S, S);
     g.destroy();
   }
 
