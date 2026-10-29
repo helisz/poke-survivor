@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import { MOVES, MOVE_LIST } from '../data/moves';
-import { expForLevel, RUN_SECONDS, type PlayerStats } from '../data/stats';
+import { MOVES, MOVE_LIST, RARITY_WEIGHT } from '../data/moves';
+import { expForLevel, RUN_SECONDS, loadSave, type PlayerStats } from '../data/stats';
 import { Player } from '../objects/Player';
 import { CombatSystem } from '../systems/CombatSystem';
 import { EnemySystem } from '../systems/EnemySystem';
@@ -17,6 +17,8 @@ export interface UpgradeOption {
   apply: () => void;
   /** 进化卡专用：进化后的宝可梦图鉴 ID，用于卡片显示大图 */
   portraitId?: number;
+  /** 新招式卡：稀有度，用于卡片描边分级 */
+  rarity?: 'common' | 'rare' | 'epic';
 }
 
 export class GameScene extends Phaser.Scene {
@@ -65,6 +67,10 @@ export class GameScene extends Phaser.Scene {
     this.physics.world.setBounds(-1e6, -1e6, 2e6, 2e6);
 
     this.player = new Player(this, 0, 0, data.trait);
+    // 开发者模式倍率（主菜单可调）
+    const save = loadSave();
+    this.player.stats.damageMul *= save.devDmgMul ?? 1;
+    this.player.stats.damageTakenMul *= save.devTakenMul ?? 1;
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
     this.enemies = new EnemySystem(this);
@@ -211,7 +217,7 @@ export class GameScene extends Phaser.Scene {
       if (hit) return;
       if (Phaser.Geom.Intersects.RectangleToRectangle(hb, e.getBounds())) {
         // 接触伤害 = 基础伤害的 55%；手机屏更小更难走位，降到 42%
-        const dmgScale = this.scale.width < 520 ? 0.42 : 0.55;
+        const dmgScale = this.scale.width < 520 ? 0.28 : 0.38;
         this.player.takeDamage((e.getData('dmg') as number) * dmgScale);
         hit = true;
       }
@@ -324,13 +330,44 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    // 新招式（未满 6 格）
+    // 新招式（未满 6 格）：按稀有度加权抽取，优先补齐「系别多样性」
     if (owned.length < 6) {
+      const ownedTypes = new Set(owned.map((id) => MOVES[id]?.type));
       const avail = MOVE_LIST.filter((m) => !owned.includes(m.id) && m.id !== 'morningsun');
-      for (const def of avail) {
+      // 加权：稀有度基数 × 系别奖励（已有同系的降权，新系别升权）
+      const scored = avail.map((def) => {
+        let w = RARITY_WEIGHT[def.rarity ?? 'common'];
+        if (ownedTypes.has(def.type)) w *= 0.45;
+        else if (ownedTypes.size > 0) w *= 1.6;
+        // 有进化链的稍微加权（可养成）
+        if (def.hasEvolution) w *= 1.25;
+        return { def, w };
+      });
+      const total = scored.reduce((a, b) => a + b.w, 0);
+      const picked: typeof scored = [];
+      const poolTmp = scored.slice();
+      // 抽 2 个候选新招式（三选一里通常占 1~2 个位置）
+      for (let k = 0; k < 2 && poolTmp.length; k++) {
+        const sum = poolTmp.reduce((a, b) => a + b.w, 0);
+        let r = Math.random() * sum;
+        let idx = 0;
+        for (let i = 0; i < poolTmp.length; i++) {
+          r -= poolTmp[i].w;
+          if (r <= 0) { idx = i; break; }
+        }
+        picked.push(poolTmp[idx]);
+        poolTmp.splice(idx, 1);
+      }
+      for (const { def } of picked) {
+        const rar = def.rarity ?? 'common';
+        const rarTag = rar === 'epic' ? '史诗 ' : rar === 'rare' ? '稀有 ' : '';
+        const rarColor = rar === 'epic' ? 0xb06bff : rar === 'rare' ? 0x449ddf : def.color;
         pool.push({
-          kind: 'newmove', id: `new_${def.id}`, title: `新招式 · ${def.name}`,
-          desc: def.desc, color: def.color,
+          kind: 'newmove', id: `new_${def.id}`,
+          title: `新招式 · ${rarTag}${def.name}`,
+          desc: `${def.desc}　${def.type}系`,
+          color: rarColor,
+          rarity: rar,
           apply: () => this.combat.addMove(def.id),
         });
       }

@@ -19,8 +19,8 @@ export interface PlayerStats {
 }
 
 export const BASE_STATS: PlayerStats = {
-  hp: 140, maxHp: 140, speed: 175, damageMul: 1, cooldownMul: 1,
-  pickup: 70, expMul: 1, damageTakenMul: 1, radius: 16,
+  hp: 180, maxHp: 180, speed: 185, damageMul: 1.25, cooldownMul: 1,
+  pickup: 85, expMul: 1, damageTakenMul: 1, radius: 16,
 };
 
 export const MAX_SLOTS = 6;
@@ -36,6 +36,10 @@ export interface SaveData {
   coins: number;
   bestTime: number;
   unlocked: string[];
+  /** 开发者模式：玩家输出伤害倍率（1 = 正常） */
+  devDmgMul: number;
+  /** 开发者模式：玩家受到伤害倍率（1 = 正常，越小越简单） */
+  devTakenMul: number;
 }
 
 const SAVE_KEY = 'poke-survivor-save-v1';
@@ -43,9 +47,12 @@ const SAVE_KEY = 'poke-survivor-save-v1';
 export function loadSave(): SaveData {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (raw) return { coins: 0, bestTime: 0, unlocked: [], ...JSON.parse(raw) };
+    if (raw) {
+      const d = { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, ...JSON.parse(raw) };
+      return d;
+    }
   } catch { /* ignore */ }
-  return { coins: 0, bestTime: 0, unlocked: [] };
+  return { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1 };
 }
 
 export function writeSave(data: SaveData) {

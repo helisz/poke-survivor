@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TRAITS, loadSave, type TraitId } from '../data/stats';
+import { TRAITS, loadSave, writeSave, type TraitId } from '../data/stats';
 
 export class MenuScene extends Phaser.Scene {
   private selected: TraitId = 'swift';
@@ -57,6 +57,8 @@ export class MenuScene extends Phaser.Scene {
       fontFamily: 'sans-serif', fontSize: '11px', color: '#4c6272',
     }).setOrigin(0.5);
 
+    this.buildDevPanel(width, height, save);
+
     this.refresh(width);
     this.input.keyboard?.once('keydown-ENTER', () => this.startRun());
     this.input.keyboard?.once('keydown-SPACE', () => this.startRun());
@@ -75,6 +77,92 @@ export class MenuScene extends Phaser.Scene {
   private fmt(s: number) {
     const m = Math.floor(s / 60), sec = Math.floor(s % 60);
     return `${m}:${String(sec).padStart(2, '0')}`;
+  }
+
+  /** 开发者模式：调节造成/承受伤害倍率，存入存档 */
+  private buildDevPanel(width: number, height: number, save: ReturnType<typeof loadSave>) {
+    const btnY = height * 0.955;
+    const btn = this.add.text(width / 2, btnY, '⚙ 开发者模式', {
+      fontFamily: 'sans-serif', fontSize: '12px', color: '#4c6272',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    const panel = this.add.container(0, 0).setDepth(900).setVisible(false);
+    const pw = Math.min(width - 40, 340);
+    const ph = 290;
+    const bg = this.add.rectangle(width / 2, height / 2, pw, ph, 0x0b151d, 0.98)
+      .setStrokeStyle(2, 0x449ddf).setInteractive();
+    panel.add(bg);
+
+    panel.add(this.add.text(width / 2, height / 2 - ph / 2 + 18, '开发者模式', {
+      fontFamily: 'sans-serif', fontSize: '15px', color: '#449ddf', fontStyle: 'bold',
+    }).setOrigin(0.5));
+    panel.add(this.add.text(width / 2, height / 2 - ph / 2 + 40, '调整倍率后立即生效，仅本机保存', {
+      fontFamily: 'sans-serif', fontSize: '10px', color: '#5f7a8c',
+    }).setOrigin(0.5));
+
+    const rows: { key: 'devDmgMul' | 'devTakenMul'; label: string; hint: string; steps: number[] }[] = [
+      { key: 'devDmgMul', label: '造成伤害', hint: '越高越强', steps: [0.5, 1, 1.5, 2, 3, 5, 10] },
+      { key: 'devTakenMul', label: '承受伤害', hint: '越低越肉', steps: [0, 0.1, 0.3, 0.5, 0.75, 1, 2] },
+    ];
+
+    rows.forEach((row, ri) => {
+      const ry = height / 2 - ph / 2 + 70 + ri * 72;
+      panel.add(this.add.text(width / 2 - pw / 2 + 16, ry - 6, `${row.label}`, {
+        fontFamily: 'sans-serif', fontSize: '13px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(0, 0.5));
+      panel.add(this.add.text(width / 2 - pw / 2 + 16 + row.label.length * 13 + 8, ry - 6, row.hint, {
+        fontFamily: 'sans-serif', fontSize: '10px', color: '#5f7a8c',
+      }).setOrigin(0, 0.5));
+
+      const valText = this.add.text(width / 2 + pw / 2 - 16, ry - 6, `${save[row.key]}×`, {
+        fontFamily: 'monospace', fontSize: '15px', color: '#449ddf', fontStyle: 'bold',
+      }).setOrigin(1, 0.5);
+      panel.add(valText);
+
+      // 左右步进
+      const mk = (dx: number, dir: -1 | 1, sym: string) => {
+        const b = this.add.rectangle(width / 2 + dx, ry + 20, 34, 30, 0x16293a)
+          .setStrokeStyle(1.5, 0x2b4256).setInteractive({ useHandCursor: true });
+        const t = this.add.text(width / 2 + dx, ry + 20, sym, {
+          fontFamily: 'monospace', fontSize: '16px', color: '#ffffff',
+        }).setOrigin(0.5);
+        b.on('pointerdown', () => {
+          const arr = row.steps;
+          let idx = arr.findIndex((v) => Math.abs(v - save[row.key]) < 1e-6);
+          if (idx < 0) idx = arr.findIndex((v) => v >= save[row.key]);
+          idx = Phaser.Math.Clamp(idx + dir, 0, arr.length - 1);
+          save[row.key] = arr[idx];
+          writeSave(save);
+          valText.setText(`${arr[idx]}×`);
+        });
+        panel.add([b, t]);
+      };
+      mk(-30, -1, '−');
+      mk(30, 1, '+');
+
+      // 快捷预设
+      if (row.key === 'devTakenMul') {
+        const q = this.add.text(width / 2 + 30 + 26, ry + 20, '无敌', {
+          fontFamily: 'sans-serif', fontSize: '11px', color: '#63c256',
+        }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+        q.on('pointerdown', () => {
+          save.devTakenMul = 0;
+          writeSave(save);
+          valText.setText('0×');
+        });
+        panel.add(q);
+      }
+    });
+
+    const closeBtn = this.add.rectangle(width / 2, height / 2 + ph / 2 - 22, 90, 28, 0x449ddf)
+      .setInteractive({ useHandCursor: true });
+    const closeTxt = this.add.text(width / 2, height / 2 + ph / 2 - 22, '关闭', {
+      fontFamily: 'sans-serif', fontSize: '13px', color: '#041018', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    closeBtn.on('pointerdown', () => panel.setVisible(false));
+    panel.add([closeBtn, closeTxt]);
+
+    btn.on('pointerdown', () => panel.setVisible(!panel.visible));
   }
 
   private startRun() {
