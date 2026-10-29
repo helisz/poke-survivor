@@ -10,6 +10,13 @@ const CAT_ZH: Record<string, string> = {
   melee: '近战', projectile: '弹道', aura: '光环', aoe: '范围', summon: '召唤',
 };
 
+/** 招式特性中文名 */
+const TRAIT_ZH: Record<string, string> = {
+  homing: '追踪', pierce: '穿透', spread: '散射', orbit: '环绕',
+  chain: '连锁', nova: '爆发', shockwave: '冲击波', slam: '落点砸击',
+  sweep: '横扫', flurry: '连击', heal: '治疗',
+};
+
 export class UIScene extends Phaser.Scene {
   private gs!: GameScene;
   private hpBar!: Phaser.GameObjects.Rectangle;
@@ -265,6 +272,7 @@ export class UIScene extends Phaser.Scene {
       body = `${d.desc}\n伤害 ${d.baseDamage}　冷却 ${(d.cooldown / 1000).toFixed(2)}s` +
         (d.count ? `　弹数 ${d.count}` : '') +
         (d.pierce ? `　穿透 ${d.pierce}` : '') +
+        (d.traits?.length ? `\n特性 ${d.traits.map((t) => TRAIT_ZH[t] ?? t).join(' · ')}` : '') +
         (d.rarity && d.rarity !== 'common' ? `\n稀有度 ${RARITY_ZH[d.rarity]}` : '') +
         (d.hasEvolution ? '　可进化 ★' : '');
       color = d.color;

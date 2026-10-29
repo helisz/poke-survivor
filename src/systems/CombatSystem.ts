@@ -45,6 +45,27 @@ export class CombatSystem {
       const enemy = enemyObj as Phaser.Physics.Arcade.Sprite;
       if (!proj.active || !enemy.active) return;
       this.hitEnemy(enemy, proj.getData('damage') as number);
+
+      // 记录命中，供追踪/连锁查重
+      const hitList = (proj.getData('hitList') as Phaser.Physics.Arcade.Sprite[]) ?? [];
+      if (!hitList.includes(enemy)) hitList.push(enemy);
+      proj.setData('hitList', hitList);
+
+      // chain：命中后跳到附近另一个未命中目标（最多 2 次）
+      const chainLeft = (proj.getData('chainLeft') as number) ?? 0;
+      if (chainLeft > 0) {
+        const next = this.nearestEnemyExcluding(proj.x, proj.y, 240, hitList);
+        if (next) {
+          proj.setData('chainLeft', chainLeft - 1);
+          const ang = Math.atan2(next.y - proj.y, next.x - proj.x);
+          const sp = Math.hypot(proj.body!.velocity.x, proj.body!.velocity.y) || 400;
+          proj.setVelocity(Math.cos(ang) * sp, Math.sin(ang) * sp);
+          const flash = this.scene.add.circle(proj.x, proj.y, 10, 0xffffff, 0.7).setDepth(9);
+          this.scene.tweens.add({ targets: flash, alpha: 0, scale: 2, duration: 180, onComplete: () => flash.destroy() });
+          return;   // 连锁后继续飞行，不消耗穿透
+        }
+      }
+
       const pierceLeft = (proj.getData('pierce') as number) ?? 0;
       if (pierceLeft > 0) {
         proj.setData('pierce', pierceLeft - 1);
@@ -123,9 +144,10 @@ export class CombatSystem {
       this.fire(def, slot.level, origin.x, origin.y);
     });
 
-    // 弹道出界回收
+    // 弹道出界回收 + 追踪弹转向
     for (const p of this.projectiles.getChildren() as Phaser.Physics.Arcade.Image[]) {
       if (!p.active) continue;
+      if (p.getData('homing')) this.updateHoming(p);
       const life = (p.getData('life') as number) - dtMs;
       p.setData('life', life);
       if (life <= 0) this.killProjectile(p);
@@ -133,9 +155,17 @@ export class CombatSystem {
   }
 
   private nearestEnemy(x: number, y: number, maxDist = 700) {
+    return this.nearestEnemyExcluding(x, y, maxDist, []);
+  }
+
+  /** 最近敌人，跳过 exclude 列表中的目标 */
+  private nearestEnemyExcluding(
+    x: number, y: number, maxDist: number, exclude: Phaser.Physics.Arcade.Sprite[],
+  ) {
     let best: Phaser.Physics.Arcade.Sprite | null = null;
     let bestD = maxDist * maxDist;
     this.enemies.forEachActive((e) => {
+      if (exclude.includes(e)) return;
       const d = (e.x - x) ** 2 + (e.y - y) ** 2;
       if (d < bestD) { bestD = d; best = e; }
     });
@@ -160,11 +190,17 @@ export class CombatSystem {
   }
 
   private fireProjectile(def: MoveDef, damage: number, ox: number, oy: number) {
+    const traits = def.traits ?? [];
+    const homing = traits.includes('homing');
+    const chain = traits.includes('chain');
     const target = this.nearestEnemy(ox, oy);
     const count = (def.count ?? 1) + Math.floor((this.getMoveLevel(def.id) - 1) / 2);
     const baseAng = target ? Math.atan2(target.y - oy, target.x - ox) : 0;
+    // spread 标签：扇形角度更大，否则默认小夹角
+    const spreadStep = traits.includes('spread') ? 0.3 : 0.16;
+
     for (let i = 0; i < count; i++) {
-      const spread = count > 1 ? (i - (count - 1) / 2) * 0.16 : 0;
+      const spread = count > 1 ? (i - (count - 1) / 2) * spreadStep : 0;
       const ang = baseAng + spread;
       const p = this.projectiles.get(ox, oy, 'dot') as Phaser.Physics.Arcade.Image | null;
       if (!p) continue;
@@ -173,50 +209,133 @@ export class CombatSystem {
       p.setData('damage', damage);
       p.setData('pierce', def.pierce ?? 0);
       p.setData('life', 1600);
-      const speed = def.projectileSpeed ?? 400;
+      p.setData('moveId', def.id);
+      p.setData('homing', homing);
+      p.setData('chain', chain);
+      p.setData('chainLeft', chain ? 2 : 0);
+      p.setData('hitList', []);          // 已命中目标，避免连锁重复打同一个
+      const speed = homing ? (def.projectileSpeed ?? 400) * 0.8 : (def.projectileSpeed ?? 400);
       (p.body as Phaser.Physics.Arcade.Body).setEnable(true);
       (p.body as Phaser.Physics.Arcade.Body).setCircle(6, -2, -2);
       p.setVelocity(Math.cos(ang) * speed, Math.sin(ang) * speed);
       p.setDepth(8);
+
+      if (homing) {
+        // 追踪弹：稍微放大 + 光晕，视觉上区分
+        p.setScale(1.25);
+        p.setData('speed', speed);
+      } else {
+        p.setScale(1);
+      }
     }
   }
 
+  /** 追踪弹每帧转向最近的敌人 */
+  private updateHoming(p: Phaser.Physics.Arcade.Image) {
+    const hitList = (p.getData('hitList') as Phaser.Physics.Arcade.Sprite[]) ?? [];
+    const target = this.nearestEnemy(p.x, p.y, 420);
+    if (!target || hitList.includes(target)) return;
+    const speed = (p.getData('speed') as number) ?? 320;
+    const want = Math.atan2(target.y - p.y, target.x - p.x);
+    const cur = Math.atan2(p.body!.velocity.y, p.body!.velocity.x);
+    const next = Phaser.Math.Angle.RotateTo(cur, want, 0.09);
+    p.setVelocity(Math.cos(next) * speed, Math.sin(next) * speed);
+  }
+
   private fireMelee(def: MoveDef, damage: number, ox: number, oy: number) {
-    const target = this.nearestEnemy(ox, oy, (def.range ?? 90) * 1.6);
-    const ang = target ? Math.atan2(target.y - oy, target.x - ox) : this.playerAngle();
+    const traits = def.traits ?? [];
+    const sweep = traits.includes('sweep');
+    const flurry = traits.includes('flurry');
+
+    // sweep 大角度横扫，普通近战窄扇形
+    const halfAngle = sweep ? 1.15 : 0.7;
     const range = (def.range ?? 90) + (this.getMoveLevel(def.id) - 1) * 8;
     const hits = def.count ?? 1;
 
-    // 视觉：扇形
-    const g = this.scene.add.graphics().setDepth(9);
-    g.fillStyle(def.color, 0.35);
-    g.slice(ox, oy, range, ang - 0.7, ang + 0.7, false);
-    g.fillPath();
-    this.scene.tweens.add({ targets: g, alpha: 0, duration: 180, onComplete: () => g.destroy() });
+    // sweep 优先贴最近敌人方向；没有敌人时朝面向
+    const target = this.nearestEnemy(ox, oy, range * 1.8);
+    const ang = target ? Math.atan2(target.y - oy, target.x - ox) : this.playerAngle();
 
-    // 伤害判定
+    // 视觉
+    const g = this.scene.add.graphics().setDepth(9);
+    g.fillStyle(def.color, sweep ? 0.28 : 0.38);
+    g.slice(ox, oy, range, ang - halfAngle, ang + halfAngle, false);
+    g.fillPath();
+    if (sweep) {
+      g.lineStyle(2, def.color, 0.85);
+      g.beginPath();
+      g.arc(ox, oy, range, ang - halfAngle, ang + halfAngle, false);
+      g.strokePath();
+    }
+    const dur = flurry ? 110 : sweep ? 240 : 180;
+    this.scene.tweens.add({
+      targets: g, alpha: 0, duration: dur,
+      ...(sweep ? { scaleX: 1.08, scaleY: 1.08 } : {}),
+      onComplete: () => g.destroy(),
+    });
+
+    // 命中判定：flurry 只看一帧但打多段，sweep 打全角度
+    const targets: Phaser.Physics.Arcade.Sprite[] = [];
+    this.enemies.forEachActive((e) => {
+      const d = Phaser.Math.Distance.Between(ox, oy, e.x, e.y);
+      if (d > range) return;
+      const ea = Math.atan2(e.y - oy, e.x - ox);
+      const diff = Phaser.Math.Angle.Wrap(ea - ang);
+      if (Math.abs(diff) <= halfAngle + 0.1) targets.push(e);
+    });
+
     for (let h = 0; h < hits; h++) {
-      this.enemies.forEachActive((e) => {
-        const d = Phaser.Math.Distance.Between(ox, oy, e.x, e.y);
-        if (d > range) return;
-        const ea = Math.atan2(e.y - oy, e.x - ox);
-        let diff = Phaser.Math.Angle.Wrap(ea - ang);
-        if (Math.abs(diff) < 0.8) this.hitEnemy(e, damage);
-      });
+      targets.forEach((e) => this.hitEnemy(e, damage));
     }
   }
 
   private fireAoe(def: MoveDef, damage: number, ox: number, oy: number) {
-    // AOE 落在玩家身上（自身爆发）
-    const cx = this.player.x, cy = this.player.y;
+    const traits = def.traits ?? [];
+    const slam = traits.includes('slam');
+    const shockwave = traits.includes('shockwave');
+
+    // slam：砸向最近敌人位置；否则自身爆发
+    let cx = this.player.x, cy = this.player.y;
+    if (slam) {
+      const t = this.nearestEnemy(ox, oy, 420);
+      if (t) { cx = t.x; cy = t.y; }
+    }
     const radius = (def.range ?? 120) + (this.getMoveLevel(def.id) - 1) * 10;
-    const g = this.scene.add.graphics().setDepth(9);
-    g.fillStyle(def.color, 0.4);
-    g.fillCircle(cx, cy, radius);
-    g.lineStyle(3, def.color, 0.9);
-    g.strokeCircle(cx, cy, radius);
-    this.scene.tweens.add({ targets: g, alpha: 0, scaleX: 1.15, scaleY: 1.15, duration: 260, onComplete: () => g.destroy() });
-    g.setPosition(0, 0);
+
+    if (slam) {
+      // 落点预警圈 + 砸击
+      const mark = this.scene.add.circle(cx, cy, radius, def.color, 0.2)
+        .setStrokeStyle(3, def.color, 0.9).setDepth(9);
+      this.scene.tweens.add({
+        targets: mark, scaleX: 1.12, scaleY: 1.12, alpha: 0, duration: 280,
+        onComplete: () => mark.destroy(),
+      });
+    } else if (shockwave) {
+      // 冲击波：从中心向外扩散的圆环
+      const wave = this.scene.add.circle(cx, cy, 12, def.color, 0)
+        .setStrokeStyle(5, def.color, 0.95).setDepth(9);
+      this.scene.tweens.add({
+        targets: wave, radius: radius, duration: 320,
+        onUpdate: (tw) => {
+          wave.setRadius(12 + (radius - 12) * tw.progress);
+          wave.setStrokeStyle(5 * (1 - tw.progress * 0.7), def.color, 0.95 * (1 - tw.progress));
+        },
+        onComplete: () => wave.destroy(),
+      });
+      const inner = this.scene.add.circle(cx, cy, radius, def.color, 0.1).setDepth(8);
+      this.scene.tweens.add({ targets: inner, alpha: 0, duration: 320, onComplete: () => inner.destroy() });
+    } else {
+      // nova：自身爆发
+      const g = this.scene.add.graphics().setDepth(9);
+      g.fillStyle(def.color, 0.4);
+      g.fillCircle(cx, cy, radius);
+      g.lineStyle(3, def.color, 0.9);
+      g.strokeCircle(cx, cy, radius);
+      this.scene.tweens.add({
+        targets: g, alpha: 0, scaleX: 1.15, scaleY: 1.15, duration: 260,
+        onComplete: () => g.destroy(),
+      });
+    }
 
     this.enemies.forEachActive((e) => {
       if (Phaser.Math.Distance.Between(cx, cy, e.x, e.y) <= radius) this.hitEnemy(e, damage);
