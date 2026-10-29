@@ -206,8 +206,9 @@ export class GameScene extends Phaser.Scene {
     this.enemies.forEachActive((e) => {
       if (hit) return;
       if (Phaser.Geom.Intersects.RectangleToRectangle(hb, e.getBounds())) {
-        // 接触伤害 = 基础伤害的 55%，避免瞬间暴毙
-        this.player.takeDamage((e.getData('dmg') as number) * 0.55);
+        // 接触伤害 = 基础伤害的 55%；手机屏更小更难走位，降到 42%
+        const dmgScale = this.scale.width < 520 ? 0.42 : 0.55;
+        this.player.takeDamage((e.getData('dmg') as number) * dmgScale);
         hit = true;
       }
     });

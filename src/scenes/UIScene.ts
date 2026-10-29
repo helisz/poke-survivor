@@ -157,6 +157,8 @@ export class UIScene extends Phaser.Scene {
     for (let i = ids.length; i < this.slotIcons.length; i++) {
       this.slotIcons[i].setVisible(false);
     }
+
+    this.layoutSlots();
   }
 
   /** 招式槽排列：底部居中，按可见项排布 */
