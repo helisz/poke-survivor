@@ -15,71 +15,100 @@ export class UIScene extends Phaser.Scene {
   private slotIcons: Phaser.GameObjects.Container[] = [];
   private slotRoot!: Phaser.GameObjects.Container;
 
+  /** 布局参数，唯一由 relayout() 计算 */
+  private L = { hpW: 200, hpH: 14, barW: 300, slotSize: 46, slotGap: 6, slotY: 600 };
+
   constructor() { super('UI'); }
 
   create(data: { game: GameScene }) {
     this.gs = data.game;
-    this.slotIcons = [];  // 场景重启时必须清空，否则引用旧对象
-    const { width, height } = this.scale;
+    this.slotIcons = [];
 
-    // 顶部：血条
-    this.hpBg = this.add.rectangle(160, 30, 240, 16, 0x33121a).setOrigin(0, 0.5).setScrollFactor(0);
-    this.hpBar = this.add.rectangle(160, 30, 240, 16, 0x63c256).setOrigin(0, 0.5).setScrollFactor(0);
-    this.add.text(160, 44, '', { fontSize: '10px' });
+    this.hpBg = this.add.rectangle(0, 0, 200, 14, 0x33121a).setOrigin(0, 0.5);
+    this.hpBar = this.add.rectangle(0, 0, 200, 14, 0x63c256).setOrigin(0, 0.5);
 
-    // 经验条（全宽顶部）
-    const barW = Math.min(width - 40, 640);
-    this.expBg = this.add.rectangle(width / 2, 8, barW, 6, 0x11202c).setOrigin(0.5, 0);
-    this.expBar = this.add.rectangle(width / 2 - barW / 2, 8, 0, 6, 0x449ddf).setOrigin(0, 0);
+    this.expBg = this.add.rectangle(0, 0, 300, 6, 0x11202c).setOrigin(0, 0);
+    this.expBar = this.add.rectangle(0, 0, 0, 6, 0x449ddf).setOrigin(0, 0);
 
-    // 计时
-    this.timeText = this.add.text(width / 2, 24, '0:00', {
+    this.timeText = this.add.text(0, 0, '0:00', {
       fontFamily: 'monospace', fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5, 0);
 
-    // 左下：等级 / 击杀
-    this.lvText = this.add.text(20, height - 60, 'Lv.1', {
+    this.lvText = this.add.text(0, 0, 'Lv.1', {
       fontFamily: 'monospace', fontSize: '15px', color: '#449ddf', fontStyle: 'bold',
     });
-    this.killText = this.add.text(20, height - 40, '击杀 0', {
+    this.killText = this.add.text(0, 0, '击杀 0', {
       fontFamily: 'monospace', fontSize: '12px', color: '#8fa8b8',
     });
 
-    // 招式槽
     this.slotRoot = this.add.container(0, 0);
 
-    this.scale.on('resize', () => this.relayout());
-    this.relayout();
+    this.scale.on('resize', this.onResize, this);
+    this.events.once('shutdown', () => this.scale.off('resize', this.onResize, this));
 
-    this.events.on('shutdown', () => { this.scale.off('resize', this.relayout, this); });
+    this.relayout();
   }
 
+  private onResize() { this.relayout(); }
+
+  /** 所有 UI 坐标的唯一真源 */
   private relayout() {
-    const { width } = this.scale;
     if (!this.expBg) return;
-    const barW = Math.min(width - 40, 640);
-    this.expBg.setPosition(width / 2, 8).setDisplaySize(barW, 6);
-    this.expBar.setPosition(width / 2 - barW / 2, 8);
-    this.timeText.setPosition(width / 2, 24);
+    const { width, height } = this.scale;
+    const pad = width < 480 ? 8 : 12;
+    const narrow = width < 520;
+
+    // 经验条：贴顶，左右留 pad
+    const barW = Math.max(120, width - pad * 2);
+    this.L.barW = barW;
+    this.expBg.setPosition(pad, 6).setDisplaySize(barW, 6);
+    this.expBar.setPosition(pad, 6).setDisplaySize(barW * this.expRatio(), 6);
+
+    // 计时器：居中
+    this.timeText.setPosition(width / 2, 16).setFontSize(narrow ? 17 : 20);
+
+    // 血条：左上
+    const hpW = Math.min(width * 0.46, 240);
+    const hpH = narrow ? 12 : 14;
+    const hpY = narrow ? 52 : 56;
+    this.L.hpW = hpW;
+    this.L.hpH = hpH;
+    this.hpBg.setPosition(pad, hpY).setDisplaySize(hpW, hpH);
+    this.hpBar.setPosition(pad, hpY).setDisplaySize(hpW * this.hpRatio(), hpH);
+
+    // 等级/击杀：血条下方（不贴底，避开招式槽与手机安全区）
+    this.lvText.setPosition(pad, hpY + hpH / 2 + 8);
+    this.killText.setPosition(pad, hpY + hpH / 2 + 26);
+
+    // 招式槽参数
+    const size = narrow ? 38 : 46;
+    const bottomPad = narrow ? 30 : 20;
+    this.L.slotSize = size;
+    this.L.slotGap = narrow ? 5 : 6;
+    this.L.slotY = height - bottomPad - size / 2;
+
+    this.layoutSlots();
+  }
+
+  private hpRatio() {
+    if (!this.gs || !this.gs.player) return 1;
+    return Phaser.Math.Clamp(this.gs.stats.hp / this.gs.stats.maxHp, 0, 1);
+  }
+
+  private expRatio() {
+    if (!this.gs || !this.gs.expNext) return 0;
+    return Phaser.Math.Clamp(this.gs.exp / this.gs.expNext, 0, 1);
   }
 
   update() {
     if (!this.gs || !this.gs.player) return;
-    const s = this.gs.stats;
 
-    // 血条
-    const ratio = Phaser.Math.Clamp(s.hp / s.maxHp, 0, 1);
-    // 用 displayWidth 而非 setSize：setSize 不刷新 displayWidth
-    this.hpBg.setDisplaySize(240, 16);
-    this.hpBar.setDisplaySize(240 * ratio, 16);
+    const ratio = this.hpRatio();
+    this.hpBar.setDisplaySize(this.L.hpW * ratio, this.L.hpH);
     this.hpBar.setFillStyle(ratio > 0.5 ? 0x63c256 : ratio > 0.25 ? 0xf7d02c : 0xd0402c);
 
-    // 经验条
-    const er = Phaser.Math.Clamp(this.gs.exp / this.gs.expNext, 0, 1);
-    const baseW = this.expBg.displayWidth || Math.min(this.scale.width - 40, 640);
-    this.expBar.setDisplaySize(baseW * er, 6);
+    this.expBar.setDisplaySize(this.L.barW * this.expRatio(), 6);
 
-    // 计时
     const left = Math.max(0, RUN_SECONDS - this.gs.elapsed);
     const m = Math.floor(left / 60), sec = Math.floor(left % 60);
     this.timeText.setText(`${m}:${String(sec).padStart(2, '0')}`);
@@ -92,15 +121,14 @@ export class UIScene extends Phaser.Scene {
 
   private syncSlots() {
     const ids = this.gs.combat.slotIds;
-    const { width, height } = this.scale;
 
-    // 需要时创建
     while (this.slotIcons.length < ids.length) {
-      const i = this.slotIcons.length;
       const c = this.add.container(0, 0);
       const box = this.add.rectangle(0, 0, 46, 46, 0x0e1a24).setStrokeStyle(2, 0x24404f);
       const icon = this.add.image(0, 0, 'pk_25').setScale(0.55);
-      const lv = this.add.text(16, 10, '1', { fontFamily: 'monospace', fontSize: '11px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(1, 1);
+      const lv = this.add.text(16, 16, '1', {
+        fontFamily: 'monospace', fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(1, 1);
       c.add([box, icon, lv]);
       (c as any).__icon = icon;
       (c as any).__lv = lv;
@@ -108,27 +136,42 @@ export class UIScene extends Phaser.Scene {
       this.slotIcons.push(c);
     }
 
+    const size = this.L.slotSize;
     ids.forEach((id, i) => {
       const c = this.slotIcons[i];
       c.setVisible(true);
       const def = MOVES[id];
-      const size = width < 520 ? 40 : 46;
-      const gap = size + 6;
-      const totalW = ids.length * gap;
-      const startX = (width - totalW) / 2 + gap / 2;
-      const y = height - (width < 520 ? 44 : 40);
-      c.setPosition(startX + i * gap, y);
       const box = c.list[0] as Phaser.GameObjects.Rectangle;
       box.setDisplaySize(size, size);
-      box.setStrokeStyle(2, def.color);
+      box.setStrokeStyle(2, def ? def.color : 0x24404f);
       const icon = (c as any).__icon as Phaser.GameObjects.Image;
-      icon.setTexture(`pk_${def.pokeId}`);
-      icon.setScale(size / 64 * 0.9);
-      (c as any).__lv.setText(String(this.gs.combat.getMoveLevel(id)));
+      if (def) {
+        icon.setTexture(`pk_${def.pokeId}`);
+        icon.setScale((size / 64) * 0.9);
+      }
+      const lv = (c as any).__lv as Phaser.GameObjects.Text;
+      lv.setPosition(size / 2 - 3, size / 2 - 3);
+      lv.setText(String(this.gs.combat.getMoveLevel(id)));
     });
 
     for (let i = ids.length; i < this.slotIcons.length; i++) {
       this.slotIcons[i].setVisible(false);
     }
+  }
+
+  /** 招式槽排列：底部居中，按可见项排布 */
+  private layoutSlots() {
+    const { width } = this.scale;
+    const visible = this.slotIcons.filter((c) => c.visible);
+    const n = visible.length;
+    if (!n) return;
+    const size = this.L.slotSize;
+    const gap = this.L.slotGap;
+    const totalW = n * size + (n - 1) * gap;
+    const startX = (width - totalW) / 2 + size / 2;
+
+    visible.forEach((c, i) => {
+      c.setPosition(startX + i * (size + gap), this.L.slotY);
+    });
   }
 }

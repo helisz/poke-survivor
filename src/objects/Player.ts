@@ -8,7 +8,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   moves: string[] = [];
   private followers: Phaser.GameObjects.Image[] = [];
   private followerRadius = 46;
-  private auraRing?: Phaser.GameObjects.Arc;
   private bob = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number, trait: TraitId) {
@@ -57,22 +56,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       f.setPosition(Phaser.Math.Linear(f.x, tx, 0.25), Phaser.Math.Linear(f.y, ty, 0.25));
       f.setDepth(this.y > f.y ? 8 : 11);
     });
-    this.drawAura();
-  }
-
-  /** 环绕一圈的蓝色高亮圈（呼吸脉动） */
-  private drawAura() {
-    const r = this.followerRadius + 6;
-    if (!this.auraRing) {
-      this.auraRing = this.scene.add.circle(this.x, this.y, r)
-        .setStrokeStyle(3, 0x449ddf, 0.9)
-        .setFillStyle(0x449ddf, 0.06)
-        .setDepth(7);
-    }
-    this.auraRing.setPosition(this.x, this.y);
-    this.auraRing.setRadius(r);
-    // 脉动：0.75 ~ 1.0
-    this.auraRing.setStrokeStyle(3, 0x449ddf, 0.55 + 0.35 * (Math.sin(this.bob * 3) * 0.5 + 0.5));
   }
 
   followerPositions(): { x: number; y: number }[] {
