@@ -5,6 +5,7 @@ import { MAP_THEMES, themeIndexAtProgress } from '../data/maps';
 import { Player } from '../objects/Player';
 import { CombatSystem } from '../systems/CombatSystem';
 import { EnemySystem } from '../systems/EnemySystem';
+import { Sfx } from '../systems/Sfx';
 import { Ground } from '../systems/Ground';
 import type { TraitId } from '../data/stats';
 import { EVOLUTIONS, canEvolve, type EvolutionDef } from '../data/evolutions';
@@ -246,6 +247,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.cameras.main.flash(600, 160, 0, 0);
     this.cameras.main.shake(500, 0.014);
+    Sfx.bossSpawn();
     // 清场：所有小怪/精英直接消失（不给经验，纯清场）
     this.cullMinions();
     this.onFinalBossAnnounce();
@@ -277,6 +279,7 @@ export class GameScene extends Phaser.Scene {
 
   /** 切换地图时的横幅提示 */
   private onMapChange(index: number) {
+    Sfx.mapChange();
     const theme = MAP_THEMES[index];
     const w = this.scale.width, h = this.scale.height;
     const cy = h * 0.42;
@@ -454,6 +457,7 @@ export class GameScene extends Phaser.Scene {
         const gain = (o.getData('value') as number) * this.player.stats.expMul;
         o.setActive(false).setVisible(false);
         (o.body as Phaser.Physics.Arcade.Body).setEnable(false);
+        Sfx.pickup();
         this.gainExp(gain);
       }
       if (d > 3000) { o.setActive(false).setVisible(false); (o.body as Phaser.Physics.Arcade.Body).setEnable(false); }
@@ -472,6 +476,7 @@ export class GameScene extends Phaser.Scene {
         const pct = (h.getData('heal') as number) ?? 0.2;
         const amount = Math.round(this.player.stats.maxHp * pct);
         this.player.heal(amount);
+        Sfx.heal();
         this.combat.fx.burst(h.x, h.y, 0x2bd85a, 14, 200, 3, 300);
         // 飘字提示
         this.showHealFloat(h.x, h.y, amount);
@@ -504,6 +509,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.pendingLevelUps > 0 && !this.paused) {
       this.paused = true;
+      Sfx.levelUp();
       this.scene.pause();
       this.scene.launch('LevelUp', { game: this });
     }
@@ -749,6 +755,7 @@ export class GameScene extends Phaser.Scene {
     this.bossSkillTimer += dtMs;
     if (this.bossSkillTimer < 2600) return;
     this.bossSkillTimer = 0;
+    Sfx.bossSkill();
 
     const hp = boss.getData('hp') as number;
     const maxHp = boss.getData('maxHp') as number;
@@ -808,6 +815,7 @@ export class GameScene extends Phaser.Scene {
   private endRun(survived: boolean) {
     if (this.runEnded) return;
     this.runEnded = true;
+    if (survived) Sfx.win(); else Sfx.lose();
     this.scene.launch('GameOver', {
       game: this,
       survived,

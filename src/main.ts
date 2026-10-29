@@ -7,6 +7,7 @@ import { GameScene } from './scenes/GameScene';
 import { UIScene } from './scenes/UIScene';
 import { LevelUpScene } from './scenes/LevelUpScene';
 import { GameOverScene } from './scenes/GameOverScene';
+import { Sfx } from './systems/Sfx';
 
 /**
  * 移动端真实可用高度。
@@ -45,6 +46,12 @@ const config: Phaser.Types.Core.GameConfig = {
 };
 
 const game = new Phaser.Game(config);
+
+// 音效：浏览器要求首次用户手势后才能出声
+const initAudio = () => { Sfx.init(); };
+window.addEventListener('pointerdown', initAudio, { once: true });
+window.addEventListener('touchstart', initAudio, { once: true });
+window.addEventListener('keydown', initAudio, { once: true });
 
 // 调试句柄：控制台 __PS__.scene.getScene('Game') 可查状态
 (window as any).__PS__ = game;

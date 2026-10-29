@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { loadSave } from '../data/stats';
 import { openDevPanel, makeDevButton } from '../ui/DevPanel';
+import { Sfx } from '../systems/Sfx';
 
 /** 登录页：只展示信息，点击开始进入两个选择步骤 */
 export class MenuScene extends Phaser.Scene {
@@ -51,7 +52,7 @@ export class MenuScene extends Phaser.Scene {
       fontFamily: 'sans-serif', fontSize: '18px', color: '#041018', fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    btn.on('pointerdown', () => this.scene.start('TraitSelect'));
+    btn.on('pointerdown', () => { Sfx.init(); Sfx.click(); this.scene.start('TraitSelect'); });
     btn.on('pointerover', () => btn.setFillStyle(0x63b4ef));
     btn.on('pointerout', () => btn.setFillStyle(0x449ddf));
 

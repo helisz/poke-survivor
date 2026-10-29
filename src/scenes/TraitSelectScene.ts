@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { TRAITS, type TraitId } from '../data/stats';
+import { Sfx } from '../systems/Sfx';
 
 /** 从数组里随机抽 n 个不重复 */
 function pickN<T>(arr: readonly T[], n: number): T[] {
@@ -68,6 +69,7 @@ export class TraitSelectScene extends Phaser.Scene {
 
       box.on('pointerdown', () => {
         this.selected = t.id;
+        Sfx.select();
         this.refresh();
       });
       this.cardRefs.push({ box, name, desc, mark });

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { POKEMON_PLAYABLE, TYPE_COLORS } from '../data/pokedex';
 import { MOVES } from '../data/moves';
+import { Sfx } from '../systems/Sfx';
 
 /** 从数组里随机抽 n 个不重复 */
 function pickN<T>(arr: readonly T[], n: number): T[] {
@@ -96,6 +97,7 @@ export class PartnerSelectScene extends Phaser.Scene {
 
       box.on('pointerdown', () => {
         this.selected = p.move;
+        Sfx.select();
         this.refresh();
       });
       this.cardRefs.push({ box, mark });

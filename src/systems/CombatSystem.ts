@@ -4,6 +4,7 @@ import type { EvolutionDef } from '../data/evolutions';
 import type { Player } from '../objects/Player';
 import type { EnemySystem } from './EnemySystem';
 import { FxSystem, SKILL_FX } from './FxSystem';
+import { Sfx } from './Sfx';
 
 interface ActiveSlot {
   moveId: string;
@@ -226,10 +227,10 @@ export class CombatSystem {
     const damage = def.baseDamage * dmgMul;
 
     switch (def.category) {
-      case 'projectile': this.fireProjectile(def, damage, ox, oy); break;
-      case 'melee': this.fireMelee(def, damage, ox, oy); break;
-      case 'aoe': this.fireAoe(def, damage, ox, oy); break;
-      case 'aura': this.fireAura(def, damage, ox, oy); break;
+      case 'projectile': this.fireProjectile(def, damage, ox, oy); Sfx.shoot(); break;
+      case 'melee': this.fireMelee(def, damage, ox, oy); Sfx.slash(); break;
+      case 'aoe': this.fireAoe(def, damage, ox, oy); Sfx.shoot(); break;
+      case 'aura': this.fireAura(def, damage, ox, oy); Sfx.shoot(); break;
       case 'summon':
         if (def.id === 'morningsun') this.player.heal(25 + level * 10);
         break;
@@ -438,6 +439,7 @@ export class CombatSystem {
     if (died) {
       const kind = e.getData('kind') as string;
       this.kills++;
+      Sfx.kill(kind === 'elite' || kind === 'boss');
       this.onKill?.(e.x, e.y, kind === 'elite', kind === 'boss');
       // 击杀爆点：精英/BOSS 炸得更狠
       const big = kind === 'boss' ? 3 : kind === 'elite' ? 2 : 1;

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { BASE_STATS, TRAITS, MAX_SLOTS, PLAYER_SCALE, GLOBAL_SCALE, type PlayerStats, type TraitId } from '../data/stats';
+import { Sfx } from '../systems/Sfx';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   stats: PlayerStats;
@@ -123,6 +124,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.damageSeq++;
     this.damageAt = this.scene.time.now;
     this.hurtTimer = 0.5;
+    Sfx.hurt();
     this.setTint(0xff6b6b);
     this.scene.time.delayedCall(120, () => {
       if (this.active && this.hurtTimer > 0) this.setTint(0xffffff);
