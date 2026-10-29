@@ -8,6 +8,7 @@ import { EnemySystem } from '../systems/EnemySystem';
 import { Ground } from '../systems/Ground';
 import type { TraitId } from '../data/stats';
 import { EVOLUTIONS, canEvolve, type EvolutionDef } from '../data/evolutions';
+import { POKEMON_PLAYABLE } from '../data/pokedex';
 
 export interface UpgradeOption {
   kind: 'newmove' | 'upgrade' | 'stat' | 'evolve';
@@ -20,6 +21,10 @@ export interface UpgradeOption {
   portraitId?: number;
   /** 新招式卡：稀有度，用于卡片描边分级 */
   rarity?: 'common' | 'rare' | 'epic';
+  /** 该卡对应的宝可梦图鉴 ID（卡片右侧显示头像） */
+  pokeId?: number;
+  /** 该卡对应的宝可梦名字 */
+  pokeName?: string;
 }
 
 export class GameScene extends Phaser.Scene {
@@ -414,6 +419,11 @@ export class GameScene extends Phaser.Scene {
     return out;
   }
 
+  /** 按招式 id 反查宝可梦中文名（用可玩池作映射） */
+  private pokeNameOf(moveId: string): string {
+    return POKEMON_PLAYABLE.find((p) => p.move === moveId)?.name ?? '';
+  }
+
   buildUpgradeOptions(): UpgradeOption[] {
     const pool: UpgradeOption[] = [];
     const owned = this.combat.slotIds;
@@ -426,6 +436,7 @@ export class GameScene extends Phaser.Scene {
         desc: evo.note,
         color: MOVES[moveId].color,
         portraitId: evo.toId,
+        pokeId: evo.toId, pokeName: evo.name,
         apply: () => this.combat.evolve(moveId, evo),
       });
     });
@@ -437,6 +448,7 @@ export class GameScene extends Phaser.Scene {
       pool.push({
         kind: 'upgrade', id: `up_${id}`, title: `${def.name}  Lv.${lv + 1}`,
         desc: `伤害 +18%（当前 Lv.${lv}）`, color: def.color,
+        pokeId: def.pokeId, pokeName: this.pokeNameOf(id),
         apply: () => this.combat.upgradeMove(id),
       });
     }
@@ -488,6 +500,7 @@ export class GameScene extends Phaser.Scene {
           desc: `${def.desc}　${def.type}系`,
           color: rarColor,
           rarity: rar,
+          pokeId: def.pokeId, pokeName: this.pokeNameOf(def.id),
           apply: () => this.combat.addMove(def.id),
         });
       }

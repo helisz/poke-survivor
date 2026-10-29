@@ -82,23 +82,40 @@ export class LevelUpScene extends Phaser.Scene {
         const glow = this.add.circle(px, py, (64 * scale) / 2 + 4, 0xffd75e, 0.16);
         const portrait = this.add.image(px, py, key).setScale(scale);
         c.add([glow, portrait]);
+        // 大图下方标注名字
+        if (opt.pokeName) {
+          const nm = this.add.text(px, py + maxImgH / 2 + 2, opt.pokeName, {
+            fontFamily: 'sans-serif', fontSize: '10px', color: '#ffd75e',
+          }).setOrigin(0.5, 0);
+          c.add(nm);
+        }
       }
     }
 
     if (this.vertical) {
+      // 手机竖排卡：文字靠左，宝可梦头像放右边、名字在头像下面
+      const hasPoke = !!opt.pokeId && this.textures.exists(`pk_${opt.pokeId}`);
+      const slotW = hasPoke ? 54 : 0;
+      const textW = w - 40 - slotW;
+
       const num = this.add.text(-w / 2 + 14, -h / 2 + 14, `${index + 1}`, {
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '16px', color: '#449ddf', fontStyle: 'bold',
       });
       const tag = this.add.text(-w / 2 + 34, -h / 2 + 16, badge, { fontFamily: 'sans-serif', fontSize: '11px', color: badgeColor, fontStyle: isEvo ? 'bold' : 'normal' });
       const title = this.add.text(-w / 2 + 14, -h / 2 + 40, opt.title, {
         fontFamily: 'sans-serif', fontSize: '15px', color: isEvo ? '#ffd75e' : '#ffffff', fontStyle: 'bold',
-        wordWrap: { width: w - (isEvo ? 96 : 40) },
+        wordWrap: { width: textW },
       });
       const desc = this.add.text(-w / 2 + 14, -h / 2 + 64, opt.desc, {
         fontFamily: 'sans-serif', fontSize: '11px', color: '#8fa8b8',
-        wordWrap: { width: w - (isEvo ? 96 : 40) },
+        wordWrap: { width: textW },
       });
       c.add([num, tag, title, desc]);
+
+      // 进化卡已有左侧大图，不再重复小头像
+      if (hasPoke && !isEvo) {
+        this.addPokeBadge(c, opt, w / 2 - 32, 0, h);
+      }
     } else {
       const num = this.add.text(0, -h / 2 + 12, `[${index + 1}]`, { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '13px', color: '#4c6272' }).setOrigin(0.5, 0);
       const tag = this.add.text(0, -h / 2 + 34, badge, { fontFamily: 'sans-serif', fontSize: '11px', color: badgeColor }).setOrigin(0.5, 0);
@@ -106,17 +123,49 @@ export class LevelUpScene extends Phaser.Scene {
         fontFamily: 'sans-serif', fontSize: '14px', color: '#ffffff', fontStyle: 'bold',
         wordWrap: { width: w - 24 }, align: 'center',
       }).setOrigin(0.5, 0);
+      c.add([num, tag, title]);
+
+      // 桌面横排卡：头像放内容下方、描述上方
+      const hasPoke = !!opt.pokeId && this.textures.exists(`pk_${opt.pokeId}`);
+      if (hasPoke) {
+        this.addPokeBadge(c, opt, 0, 18, h, true);
+      }
+
       const desc = this.add.text(0, h / 2 - 20, opt.desc, {
         fontFamily: 'sans-serif', fontSize: '10px', color: '#8fa8b8',
         wordWrap: { width: w - 20 }, align: 'center',
       }).setOrigin(0.5, 1);
-      c.add([num, tag, title, desc]);
+      c.add(desc);
     }
 
     bg.setInteractive({ useHandCursor: true })
       .on('pointerover', () => bg.setStrokeStyle(2, opt.color))
       .on('pointerout', () => bg.setStrokeStyle(2, 0x24404f))
       .on('pointerdown', () => this.choose(index));
+  }
+
+  /** 在卡片右侧放宝可梦头像 + 名字 */
+  private addPokeBadge(
+    c: Phaser.GameObjects.Container,
+    opt: UpgradeOption,
+    x: number,
+    y: number,
+    cardH: number,
+    stacked = false,
+  ) {
+    const key = `pk_${opt.pokeId}`;
+    const size = stacked ? 42 : Math.min(46, cardH * 0.5);
+    const scale = size / 64;
+
+    const icon = this.add.image(x, stacked ? y : y - 8, key).setScale(scale);
+    c.add(icon);
+
+    const name = this.add.text(x, (stacked ? y : y - 8) + size / 2 + 4, opt.pokeName ?? '', {
+      fontFamily: 'sans-serif',
+      fontSize: `${stacked ? 10 : 9}px`,
+      color: '#a8c4d8',
+    }).setOrigin(0.5, 0);
+    c.add(name);
   }
 
   private choose(i: number) {
