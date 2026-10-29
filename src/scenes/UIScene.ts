@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { MOVES, RARITY_ZH } from '../data/moves';
 import { RUN_SECONDS, MAX_SLOTS } from '../data/stats';
 import { POKEMON_PLAYABLE } from '../data/pokedex';
+import { openDevPanel, makeDevButton } from '../ui/DevPanel';
 import type { GameScene } from './GameScene';
 
 /** 招式类别中文名 */
@@ -37,7 +38,7 @@ export class UIScene extends Phaser.Scene {
     this.hpBg = this.add.rectangle(0, 0, 200, 14, 0x33121a).setOrigin(0, 0.5);
     this.hpBar = this.add.rectangle(0, 0, 200, 14, 0x63c256).setOrigin(0, 0.5);
     this.hpText = this.add.text(0, 0, '140/140', {
-      fontFamily: 'monospace', fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0, 0.5);
 
@@ -46,17 +47,33 @@ export class UIScene extends Phaser.Scene {
     this.expBar = this.add.rectangle(0, 0, 1, 6, 0x449ddf).setOrigin(0, 0);
 
     this.timeText = this.add.text(0, 0, '0:00', {
-      fontFamily: 'monospace', fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5, 0);
 
     this.lvText = this.add.text(0, 0, 'Lv.1', {
-      fontFamily: 'monospace', fontSize: '15px', color: '#449ddf', fontStyle: 'bold',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '15px', color: '#449ddf', fontStyle: 'bold',
     });
     this.killText = this.add.text(0, 0, '击杀 0', {
-      fontFamily: 'monospace', fontSize: '12px', color: '#8fa8b8',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '12px', color: '#8fa8b8',
     });
 
     this.layoutSlots();
+
+    // 游戏内也常驻开发者入口，随时可调
+    makeDevButton(this, () => {
+      this.gs.paused = true;
+      this.gs.scene.pause();
+      openDevPanel(this, (save) => {
+        const st = this.gs.player.stats;
+        // 改了倍率立即重算（先还原再应用，避免连乘）
+        st.damageMul = this.gs.baseDamageMul * (save.devDmgMul ?? 1);
+        st.damageTakenMul = this.gs.baseTakenMul * (save.devTakenMul ?? 0);
+        st.expMul = this.gs.baseExpMul * (save.devExpMul ?? 3);
+      }, () => {
+        this.gs.paused = false;
+        this.gs.scene.resume();
+      });
+    }, 1900);
 
     this.scale.on('resize', this.onResize, this);
     this.events.once('shutdown', () => this.scale.off('resize', this.onResize, this));
@@ -177,7 +194,7 @@ export class UIScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       const icon = this.add.image(0, 0, 'pk_25').setScale(0.55).setDepth(501).setVisible(false);
       const lv = this.add.text(0, 0, '1', {
-        fontFamily: 'monospace', fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(1, 1).setDepth(502).setVisible(false);
 
       box.on('pointerdown', () => this.showMoveTip(i));
@@ -191,10 +208,13 @@ export class UIScene extends Phaser.Scene {
       const id = ids[i];
       const def = id ? MOVES[id] : undefined;
 
-      box.setVisible(true).setDisplaySize(size, size);
-      // 显式同步命中区（Rectangle 用 setDisplaySize 不会自动改 hitArea）
-      box.input!.hitArea.setSize(size, size);
-      box.input!.hitArea.setPosition(-size / 2, -size / 2);
+      box.setVisible(true);
+      // 用 setSize 而不是 setDisplaySize：Rectangle 的几何尺寸变了，命中区才好同步
+      box.setSize(size, size);
+      // 命中区比视觉大 8px，手指擦边也能点中
+      const hit = size + 8;
+      box.input!.hitArea.setSize(hit, hit);
+      box.input!.hitArea.setPosition(-hit / 2, -hit / 2);
 
       if (def) {
         box.setFillStyle(0x0e1a24, 0.92);
@@ -253,11 +273,11 @@ export class UIScene extends Phaser.Scene {
     const tip = this.add.container(0, 0).setDepth(999);
     const padX = 11, padY = 9, maxW = Math.min(width - 32, 260);
     const tTitle = this.add.text(padX, padY, title, {
-      fontFamily: 'monospace', fontSize: '14px', color: '#ffffff', fontStyle: 'bold',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '14px', color: '#ffffff', fontStyle: 'bold',
       wordWrap: { width: maxW - padX * 2 },
     });
     const tSub = this.add.text(padX, tTitle.y + tTitle.height + 3, sub, {
-      fontFamily: 'monospace', fontSize: '11px', color: '#8fa8b8',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '11px', color: '#8fa8b8',
       wordWrap: { width: maxW - padX * 2 },
     });
     const parts: Phaser.GameObjects.GameObject[] = [tTitle, tSub];
@@ -265,7 +285,7 @@ export class UIScene extends Phaser.Scene {
 
     if (body) {
       const tBody = this.add.text(padX, lastY + 6, body, {
-        fontFamily: 'monospace', fontSize: '11.5px', color: '#c8dae6', lineSpacing: 3,
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '11.5px', color: '#c8dae6', lineSpacing: 3,
         wordWrap: { width: maxW - padX * 2 },
       });
       parts.push(tBody);
@@ -312,7 +332,7 @@ export class UIScene extends Phaser.Scene {
     const y = this.L.hpY;
 
     const t = this.add.text(x, y, `-${n}`, {
-      fontFamily: 'monospace', fontSize: '15px', color: '#ff5252', fontStyle: 'bold',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '15px', color: '#ff5252', fontStyle: 'bold',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0, 0.5).setDepth(950);
 

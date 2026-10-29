@@ -38,8 +38,10 @@ export interface SaveData {
   unlocked: string[];
   /** 开发者模式：玩家输出伤害倍率（1 = 正常） */
   devDmgMul: number;
-  /** 开发者模式：玩家受到伤害倍率（1 = 正常，越小越简单） */
+  /** 开发者模式：玩家受到伤害倍率（0 = 无敌，1 = 正常） */
   devTakenMul: number;
+  /** 开发者模式：经验获取倍率（默认 3 倍，测试期加速成长） */
+  devExpMul: number;
 }
 
 const SAVE_KEY = 'poke-survivor-save-v1';
@@ -48,11 +50,11 @@ export function loadSave(): SaveData {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (raw) {
-      const d = { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, ...JSON.parse(raw) };
+      const d = { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 0, devExpMul: 3, ...JSON.parse(raw) };
       return d;
     }
   } catch { /* ignore */ }
-  return { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1 };
+  return { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 0, devExpMul: 3 };
 }
 
 export function writeSave(data: SaveData) {

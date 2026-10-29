@@ -26,8 +26,10 @@ const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: '#0a0f14',
-  pixelArt: true,
-  roundPixels: true,
+  // 关闭 pixelArt：它会让 canvas 文字也关闭抗锯齿、糊成像素块。
+  // 宝可梦图是 64px 整数倍缩放，关掉后依然锐利。
+  pixelArt: false,
+  roundPixels: false,
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,

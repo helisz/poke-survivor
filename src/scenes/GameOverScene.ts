@@ -33,7 +33,7 @@ export class GameOverScene extends Phaser.Scene {
     ];
     rows.forEach((r, i) => {
       this.add.text(width / 2, height * 0.38 + i * 26, r, {
-        fontFamily: 'monospace', fontSize: '14px', color: i >= 4 ? '#f7d02c' : '#c8d8e4',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '14px', color: i >= 4 ? '#f7d02c' : '#c8d8e4',
       }).setOrigin(0.5);
     });
 

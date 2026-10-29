@@ -24,7 +24,7 @@ export class EnemySystem {
   /** 飘出伤害数字 */
   showDamage(x: number, y: number, amount: number, kind: string) {
     const t = this.dmgPool.pop() ?? this.scene.add.text(0, 0, '', {
-      fontFamily: 'monospace', fontStyle: 'bold', fontSize: '13px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontStyle: 'bold', fontSize: '13px',
       color: '#ffffff', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(40);
     t.setActive(true).setVisible(true).setAlpha(1).setScale(1);
@@ -92,7 +92,8 @@ export class EnemySystem {
     else e.clearTint();
 
     const body = e.body as Phaser.Physics.Arcade.Body;
-    const r = kind === 'boss' ? 30 : kind === 'elite' ? 20 : 11;
+    // 判定圈放大：普通 11→16，精英 20→26，BOSS 30→38
+    const r = kind === 'boss' ? 38 : kind === 'elite' ? 26 : 16;
     body.setCircle(r, e.width / 2 - r, e.height / 2 - r);
     body.setEnable(true);
     body.reset(x, y);

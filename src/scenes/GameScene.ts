@@ -45,7 +45,7 @@ export class GameScene extends Phaser.Scene {
 
   constructor() { super('Game'); }
 
-  create(data: { trait: TraitId }) {
+  create(data: { trait: TraitId; starterMove?: string }) {
     this.runEnded = false;
     this.paused = false;
     this.level = 1;
@@ -67,10 +67,15 @@ export class GameScene extends Phaser.Scene {
     this.physics.world.setBounds(-1e6, -1e6, 2e6, 2e6);
 
     this.player = new Player(this, 0, 0, data.trait);
-    // 开发者模式倍率（主菜单可调）
+    // 开发者模式倍率（主菜单/游戏内 ⚙ 可调）
     const save = loadSave();
+    // 记下不含 dev 倍率的基础值，改倍率时用它重算，避免连乘
+    this.baseDamageMul = this.player.stats.damageMul;
+    this.baseTakenMul = this.player.stats.damageTakenMul;
+    this.baseExpMul = this.player.stats.expMul;
     this.player.stats.damageMul *= save.devDmgMul ?? 1;
-    this.player.stats.damageTakenMul *= save.devTakenMul ?? 1;
+    this.player.stats.damageTakenMul *= save.devTakenMul ?? 0;
+    this.player.stats.expMul *= save.devExpMul ?? 3;
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
     this.enemies = new EnemySystem(this);
@@ -85,7 +90,10 @@ export class GameScene extends Phaser.Scene {
     };
 
     // 初始招式：随机给一个池内招式
-    const startMove = Phaser.Utils.Array.GetRandom(MOVE_LIST.filter((m) => m.category !== 'summon')).id;
+    // 初始招式：开局选定的伙伴，否则随机
+    const startMove = data.starterMove
+      ?? Phaser.Utils.Array.GetRandom(MOVE_LIST.filter((m) => m.category !== 'summon')).id;
+    this.starterMove = startMove;
     this.combat.addMove(startMove);
 
     // 输入
@@ -286,6 +294,14 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** 本局伙伴宝可梦的招式 id（开局选定，抽卡优先同族/同系） */
+  starterMove?: string;
+
+  /** 不含开发者倍率的基础数值，用于游戏内改倍率时重算 */
+  baseDamageMul = 1;
+  baseTakenMul = 1;
+  baseExpMul = 1;
+
   /** 找出当前满足条件、且本局还没进化到那一步的进化项 */
   pendingEvolutions(): { moveId: string; evo: EvolutionDef }[] {
     const out: { moveId: string; evo: EvolutionDef }[] = [];
@@ -341,6 +357,15 @@ export class GameScene extends Phaser.Scene {
         else if (ownedTypes.size > 0) w *= 1.6;
         // 有进化链的稍微加权（可养成）
         if (def.hasEvolution) w *= 1.25;
+
+        // ── 专属化：本局伙伴同系加权，能导向进化 ──
+        if (this.starterMove && this.starterMove !== def.id) {
+          const starter = MOVES[this.starterMove];
+          if (starter) {
+            if (MOVES[def.id].type === starter.type) w *= 2.2;   // 同系亲和
+            if (def.hasEvolution) w *= 1.3;                       // 可养成优先
+          }
+        }
         return { def, w };
       });
       const total = scored.reduce((a, b) => a + b.w, 0);

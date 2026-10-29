@@ -224,11 +224,17 @@ export class CombatSystem {
   }
 
   private fireAura(def: MoveDef, damage: number, ox: number, oy: number) {
-    const radius = (def.range ?? 110) + (this.getMoveLevel(def.id) - 1) * 9;
+    // 范围放大：基础 ×1.45，每级成长 9 → 14
+    const radius = (def.range ?? 110) * 1.45 + (this.getMoveLevel(def.id) - 1) * 14;
     const cx = this.player.x, cy = this.player.y;
-    // 简单视觉环
-    const ring = this.scene.add.circle(cx, cy, radius, def.color, 0.12).setDepth(2);
-    this.scene.tweens.add({ targets: ring, alpha: 0, duration: 320, onComplete: () => ring.destroy() });
+    // 视觉环：外圈亮边 + 内圈填充，范围更直观
+    const ring = this.scene.add.circle(cx, cy, radius, def.color, 0.16).setDepth(2);
+    const edge = this.scene.add.circle(cx, cy, radius, def.color, 0)
+      .setStrokeStyle(3, def.color, 0.55).setDepth(3);
+    this.scene.tweens.add({
+      targets: [ring, edge], alpha: 0, duration: 340,
+      onComplete: () => { ring.destroy(); edge.destroy(); },
+    });
     this.enemies.forEachActive((e) => {
       if (Phaser.Math.Distance.Between(cx, cy, e.x, e.y) <= radius) this.hitEnemy(e, damage);
     });

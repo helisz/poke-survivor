@@ -1,8 +1,12 @@
 import Phaser from 'phaser';
-import { TRAITS, loadSave, writeSave, type TraitId } from '../data/stats';
+import { TRAITS, loadSave, type TraitId } from '../data/stats';
+import { POKEMON_PLAYABLE, TYPE_COLORS } from '../data/pokedex';
+import { openDevPanel, makeDevButton } from '../ui/DevPanel';
 
 export class MenuScene extends Phaser.Scene {
   private selected: TraitId = 'swift';
+  private selectedStarter = 'thunderbolt';
+  private starterTexts: Phaser.GameObjects.Rectangle[] = [];
   private traitTexts: Phaser.GameObjects.Text[] = [];
 
   constructor() { super('Menu'); }
@@ -14,20 +18,38 @@ export class MenuScene extends Phaser.Scene {
     const save = loadSave();
 
     this.add.text(width / 2, height * 0.22, 'POKE SURVIVOR', {
-      fontFamily: 'monospace', fontSize: '40px', color: '#449ddf', fontStyle: 'bold',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '40px', color: '#449ddf', fontStyle: 'bold',
     }).setOrigin(0.5);
 
     this.add.text(width / 2, height * 0.22 + 42, '宝可梦幸存者 · 草原试炼', {
       fontFamily: 'sans-serif', fontSize: '15px', color: '#7fa8c0',
     }).setOrigin(0.5);
 
+    this.add.text(width / 2, height * 0.22 + 62, 'ポケモンサバイバー · 草原の試練', {
+      fontFamily: '"Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif',
+      fontSize: '11px', color: '#5f7a8c',
+    }).setOrigin(0.5);
+
     this.add.text(width / 2, height * 0.36, `金币  ${save.coins}      最长生存  ${this.fmt(save.bestTime)}`, {
-      fontFamily: 'monospace', fontSize: '14px', color: '#a8c4d8',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '14px', color: '#a8c4d8',
     }).setOrigin(0.5);
 
     this.add.text(width / 2, height * 0.44, '选择特性', {
       fontFamily: 'sans-serif', fontSize: '14px', color: '#7fa8c0',
     }).setOrigin(0.5);
+
+    // 伙伴宝可梦入口（开始按钮上方）
+    const starterBtn = this.add.rectangle(width / 2, height * 0.745, 220, 38, 0x16293a)
+      .setStrokeStyle(2, 0x2b4256).setInteractive({ useHandCursor: true });
+    const starterLabel = this.add.text(width / 2, height * 0.745, '', {
+      fontFamily: 'sans-serif', fontSize: '13px', color: '#a8c4d8',
+    }).setOrigin(0.5);
+    const updateStarterLabel = () => {
+      const p = POKEMON_PLAYABLE.find((x) => x.move === this.selectedStarter);
+      starterLabel.setText(`伙伴：${p ? p.name : '随机'}  ▸ 点击更换`);
+    };
+    updateStarterLabel();
+    starterBtn.on('pointerdown', () => this.openStarterPicker(width, height, updateStarterLabel));
 
     TRAITS.forEach((t, i) => {
       const y = height * 0.5 + i * 54;
@@ -57,7 +79,7 @@ export class MenuScene extends Phaser.Scene {
       fontFamily: 'sans-serif', fontSize: '11px', color: '#4c6272',
     }).setOrigin(0.5);
 
-    this.buildDevPanel(width, height, save);
+    makeDevButton(this, () => openDevPanel(this));
 
     this.refresh(width);
     this.input.keyboard?.once('keydown-ENTER', () => this.startRun());
@@ -79,93 +101,70 @@ export class MenuScene extends Phaser.Scene {
     return `${m}:${String(sec).padStart(2, '0')}`;
   }
 
-  /** 开发者模式：调节造成/承受伤害倍率，存入存档 */
-  private buildDevPanel(width: number, height: number, save: ReturnType<typeof loadSave>) {
-    const btnY = height * 0.955;
-    const btn = this.add.text(width / 2, btnY, '⚙ 开发者模式', {
-      fontFamily: 'sans-serif', fontSize: '12px', color: '#4c6272',
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+  /** 伙伴宝可梦选择弹层：24 只网格 */
+  private openStarterPicker(width: number, height: number, onPick: () => void) {
+    const panel = this.add.container(0, 0).setDepth(950);
+    const pw = Math.min(width - 24, 360);
+    const cols = 4;
+    const cell = Math.min((pw - 24) / cols, 66);
+    const rows = Math.ceil(POKEMON_PLAYABLE.length / cols);
+    const gridH = rows * (cell + 18);
+    const ph = Math.min(gridH + 92, height - 60);
+    const cx = width / 2, cy = height / 2;
 
-    const panel = this.add.container(0, 0).setDepth(900).setVisible(false);
-    const pw = Math.min(width - 40, 340);
-    const ph = 290;
-    const bg = this.add.rectangle(width / 2, height / 2, pw, ph, 0x0b151d, 0.98)
+    const bg = this.add.rectangle(cx, cy, pw, ph, 0x0b151d, 0.99)
       .setStrokeStyle(2, 0x449ddf).setInteractive();
     panel.add(bg);
-
-    panel.add(this.add.text(width / 2, height / 2 - ph / 2 + 18, '开发者模式', {
+    panel.add(this.add.text(cx, cy - ph / 2 + 20, '选择伙伴宝可梦', {
       fontFamily: 'sans-serif', fontSize: '15px', color: '#449ddf', fontStyle: 'bold',
     }).setOrigin(0.5));
-    panel.add(this.add.text(width / 2, height / 2 - ph / 2 + 40, '调整倍率后立即生效，仅本机保存', {
+    panel.add(this.add.text(cx, cy - ph / 2 + 40, '开局携带它的招式，后续更容易抽到同系招式', {
       fontFamily: 'sans-serif', fontSize: '10px', color: '#5f7a8c',
     }).setOrigin(0.5));
 
-    const rows: { key: 'devDmgMul' | 'devTakenMul'; label: string; hint: string; steps: number[] }[] = [
-      { key: 'devDmgMul', label: '造成伤害', hint: '越高越强', steps: [0.5, 1, 1.5, 2, 3, 5, 10] },
-      { key: 'devTakenMul', label: '承受伤害', hint: '越低越肉', steps: [0, 0.1, 0.3, 0.5, 0.75, 1, 2] },
-    ];
+    const startX = cx - (cols * cell) / 2 + cell / 2;
+    const startY = cy - ph / 2 + 76;
 
-    rows.forEach((row, ri) => {
-      const ry = height / 2 - ph / 2 + 70 + ri * 72;
-      panel.add(this.add.text(width / 2 - pw / 2 + 16, ry - 6, `${row.label}`, {
-        fontFamily: 'sans-serif', fontSize: '13px', color: '#ffffff', fontStyle: 'bold',
-      }).setOrigin(0, 0.5));
-      panel.add(this.add.text(width / 2 - pw / 2 + 16 + row.label.length * 13 + 8, ry - 6, row.hint, {
-        fontFamily: 'sans-serif', fontSize: '10px', color: '#5f7a8c',
-      }).setOrigin(0, 0.5));
+    POKEMON_PLAYABLE.forEach((p, i) => {
+      const gx = startX + (i % cols) * cell;
+      const gy = startY + Math.floor(i / cols) * (cell + 20);
+      const color = TYPE_COLORS[p.type] ?? 0x449ddf;
+      const sel = p.move === this.selectedStarter;
 
-      const valText = this.add.text(width / 2 + pw / 2 - 16, ry - 6, `${save[row.key]}×`, {
-        fontFamily: 'monospace', fontSize: '15px', color: '#449ddf', fontStyle: 'bold',
-      }).setOrigin(1, 0.5);
-      panel.add(valText);
+      const cellBox = this.add.rectangle(gx, gy, cell - 8, cell - 4, sel ? 0x16293a : 0x0e1a24)
+        .setStrokeStyle(2, sel ? color : 0x24404f)
+        .setInteractive({ useHandCursor: true });
+      panel.add(cellBox);
 
-      // 左右步进
-      const mk = (dx: number, dir: -1 | 1, sym: string) => {
-        const b = this.add.rectangle(width / 2 + dx, ry + 20, 34, 30, 0x16293a)
-          .setStrokeStyle(1.5, 0x2b4256).setInteractive({ useHandCursor: true });
-        const t = this.add.text(width / 2 + dx, ry + 20, sym, {
-          fontFamily: 'monospace', fontSize: '16px', color: '#ffffff',
-        }).setOrigin(0.5);
-        b.on('pointerdown', () => {
-          const arr = row.steps;
-          let idx = arr.findIndex((v) => Math.abs(v - save[row.key]) < 1e-6);
-          if (idx < 0) idx = arr.findIndex((v) => v >= save[row.key]);
-          idx = Phaser.Math.Clamp(idx + dir, 0, arr.length - 1);
-          save[row.key] = arr[idx];
-          writeSave(save);
-          valText.setText(`${arr[idx]}×`);
-        });
-        panel.add([b, t]);
-      };
-      mk(-30, -1, '−');
-      mk(30, 1, '+');
-
-      // 快捷预设
-      if (row.key === 'devTakenMul') {
-        const q = this.add.text(width / 2 + 30 + 26, ry + 20, '无敌', {
-          fontFamily: 'sans-serif', fontSize: '11px', color: '#63c256',
-        }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
-        q.on('pointerdown', () => {
-          save.devTakenMul = 0;
-          writeSave(save);
-          valText.setText('0×');
-        });
-        panel.add(q);
+      // 图标：容器内必须显式 add
+      const pkKey = `pk_${p.id}`;
+      if (this.textures.exists(pkKey)) {
+        const icon = this.add.image(gx, gy - 6, pkKey).setScale((cell - 26) / 64);
+        panel.add(icon);
       }
+
+      const name = this.add.text(gx, gy + cell / 2 - 11, p.name, {
+        fontFamily: 'sans-serif', fontSize: '9px', color: sel ? '#ffffff' : '#8fa8b8',
+      }).setOrigin(0.5);
+      panel.add(name);
+
+      cellBox.on('pointerdown', () => {
+        this.selectedStarter = p.move;
+        onPick();
+        panel.destroy(true);
+      });
     });
 
-    const closeBtn = this.add.rectangle(width / 2, height / 2 + ph / 2 - 22, 90, 28, 0x449ddf)
-      .setInteractive({ useHandCursor: true });
-    const closeTxt = this.add.text(width / 2, height / 2 + ph / 2 - 22, '关闭', {
-      fontFamily: 'sans-serif', fontSize: '13px', color: '#041018', fontStyle: 'bold',
+    const closeBtn = this.add.rectangle(cx, cy + ph / 2 - 20, 90, 26, 0x16293a)
+      .setStrokeStyle(1.5, 0x2b4256).setInteractive({ useHandCursor: true });
+    const closeTxt = this.add.text(cx, cy + ph / 2 - 20, '取消', {
+      fontFamily: 'sans-serif', fontSize: '12px', color: '#a8c4d8',
     }).setOrigin(0.5);
-    closeBtn.on('pointerdown', () => panel.setVisible(false));
+    closeBtn.on('pointerdown', () => panel.destroy(true));
     panel.add([closeBtn, closeTxt]);
-
-    btn.on('pointerdown', () => panel.setVisible(!panel.visible));
   }
 
   private startRun() {
-    this.scene.start('Game', { trait: this.selected });
+    this.scene.start('Game', { trait: this.selected, starterMove: this.selectedStarter });
   }
 }

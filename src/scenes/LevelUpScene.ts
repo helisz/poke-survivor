@@ -87,7 +87,7 @@ export class LevelUpScene extends Phaser.Scene {
 
     if (this.vertical) {
       const num = this.add.text(-w / 2 + 14, -h / 2 + 14, `${index + 1}`, {
-        fontFamily: 'monospace', fontSize: '16px', color: '#449ddf', fontStyle: 'bold',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '16px', color: '#449ddf', fontStyle: 'bold',
       });
       const tag = this.add.text(-w / 2 + 34, -h / 2 + 16, badge, { fontFamily: 'sans-serif', fontSize: '11px', color: badgeColor, fontStyle: isEvo ? 'bold' : 'normal' });
       const title = this.add.text(-w / 2 + 14, -h / 2 + 40, opt.title, {
@@ -100,7 +100,7 @@ export class LevelUpScene extends Phaser.Scene {
       });
       c.add([num, tag, title, desc]);
     } else {
-      const num = this.add.text(0, -h / 2 + 12, `[${index + 1}]`, { fontFamily: 'monospace', fontSize: '13px', color: '#4c6272' }).setOrigin(0.5, 0);
+      const num = this.add.text(0, -h / 2 + 12, `[${index + 1}]`, { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '13px', color: '#4c6272' }).setOrigin(0.5, 0);
       const tag = this.add.text(0, -h / 2 + 34, badge, { fontFamily: 'sans-serif', fontSize: '11px', color: badgeColor }).setOrigin(0.5, 0);
       const title = this.add.text(0, -h / 2 + 60, opt.title, {
         fontFamily: 'sans-serif', fontSize: '14px', color: '#ffffff', fontStyle: 'bold',
