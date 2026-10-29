@@ -183,6 +183,18 @@ export class GameScene extends Phaser.Scene {
     if (this.elapsed >= RUN_SECONDS) this.endRun(true);
   }
 
+  get mapThemeIndex() { return this.mapIndex; }
+
+  /** 调试：直接跳到指定地图，并把局内计时对齐到该段开头，避免立刻被进度覆盖 */
+  jumpToMap(index: number) {
+    const i = Math.max(0, Math.min(MAP_THEMES.length - 1, index));
+    this.mapIndex = i;
+    // 对齐到该段的起点（稍微偏移一点，避免落在边界上）
+    this.elapsed = (i / MAP_THEMES.length) * RUN_SECONDS + 0.5;
+    this.ground.applyTheme(i);
+    this.onMapChange(i);
+  }
+
   /** 切换地图时的横幅提示 */
   private onMapChange(index: number) {
     const theme = MAP_THEMES[index];

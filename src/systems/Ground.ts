@@ -52,6 +52,9 @@ export class Ground {
     if (this.ambientRect) {
       this.ambientRect.setFillStyle(t.ambient, t.ambientAlpha);
     }
+    // 立即按当前视野重铺装饰物（相机没移动时不会自然触发）
+    const cam = this.scene.cameras.main;
+    this.fillDecorations(cam.scrollX, cam.scrollY, this.scene.scale.width, this.scene.scale.height);
   }
 
   /** 相机移动时更新滚动 + 按视野补装饰物 */

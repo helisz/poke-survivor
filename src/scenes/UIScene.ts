@@ -3,6 +3,7 @@ import { MOVES, RARITY_ZH } from '../data/moves';
 import { RUN_SECONDS, MAX_SLOTS } from '../data/stats';
 import { POKEMON_PLAYABLE } from '../data/pokedex';
 import { openDevPanel, makeDevButton } from '../ui/DevPanel';
+import { MAP_THEMES } from '../data/maps';
 import type { GameScene } from './GameScene';
 
 /** 招式类别中文名 */
@@ -79,6 +80,11 @@ export class UIScene extends Phaser.Scene {
       }, () => {
         this.gs.paused = false;
         this.gs.scene.resume();
+      }, {
+        // 地图快捷跳转：调试时直接看各张图
+        themes: MAP_THEMES.map((t) => ({ name: t.name, nameJp: t.nameJp })),
+        current: () => this.gs.mapThemeIndex,
+        jump: (i: number) => this.gs.jumpToMap(i),
       });
     }, 1900);
 

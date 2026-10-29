@@ -11,6 +11,12 @@ export function openDevPanel(
   scene: Phaser.Scene,
   onChange?: (save: SaveData) => void,
   onClose?: () => void,
+  /** 游戏内传入：提供地图跳转能力 */
+  mapJump?: {
+    themes: { name: string; nameJp: string }[];
+    current: () => number;
+    jump: (index: number) => void;
+  },
 ) {
   const { width, height } = scene.scale;
   const save = loadSave();
@@ -32,7 +38,9 @@ export function openDevPanel(
     { key: 'devExpMul', label: '经验倍率', hint: '默认 3 倍', steps: [1, 2, 3, 5, 8, 10] },
   ];
   const rowH = 68;
-  const ph = 96 + rows.length * rowH + 52;
+  // 地图跳转区高度（仅游戏内）
+  const mapH = mapJump ? 76 : 0;
+  const ph = 96 + rows.length * rowH + mapH + 52;
   const cx = width / 2, cy = height / 2;
 
   const bg = scene.add.rectangle(cx, cy, pw, ph, 0x0b151d, 0.99)
@@ -113,6 +121,53 @@ export function openDevPanel(
       panel.add([checkbox, tick, label]);
     }
   });
+
+  // 地图快捷跳转（仅游戏内）
+  if (mapJump) {
+    const my = cy - ph / 2 + 82 + rows.length * rowH;
+    panel.add(scene.add.text(cx - pw / 2 + 16, my - 8, '地图', {
+      fontFamily: 'sans-serif', fontSize: '13px', color: '#ffffff', fontStyle: 'bold',
+    }).setOrigin(0, 0.5));
+    panel.add(scene.add.text(cx - pw / 2 + 16 + 34, my - 8, '点击直接跳转（调试用）', {
+      fontFamily: 'sans-serif', fontSize: '10px', color: '#5f7a8c',
+    }).setOrigin(0, 0.5));
+
+    // 一行 3 个，共 6 张图
+    const cols = 3;
+    const gap = 6;
+    const bw = (pw - 32 - gap * (cols - 1)) / cols;
+    const bh = 26;
+    const btns: { bg: Phaser.GameObjects.Rectangle; txt: Phaser.GameObjects.Text }[] = [];
+
+    const refreshBtns = () => {
+      const cur = mapJump.current();
+      btns.forEach((b, i) => {
+        const on = i === cur;
+        b.bg.setFillStyle(on ? 0x449ddf : 0x16293a);
+        b.bg.setStrokeStyle(1.5, on ? 0x449ddf : 0x2b4256);
+        b.txt.setColor(on ? '#041018' : '#9cc4dc');
+      });
+    };
+
+    mapJump.themes.forEach((t, i) => {
+      const col = i % cols, row = Math.floor(i / cols);
+      const bx = cx - pw / 2 + 16 + col * (bw + gap) + bw / 2;
+      const by = my + 22 + row * (bh + gap);
+      const bg = scene.add.rectangle(bx, by, bw, bh, 0x16293a)
+        .setStrokeStyle(1.5, 0x2b4256).setInteractive({ useHandCursor: true });
+      const txt = scene.add.text(bx, by, t.name, {
+        fontFamily: 'sans-serif', fontSize: '12px', color: '#9cc4dc',
+      }).setOrigin(0.5);
+      bg.on('pointerdown', () => {
+        mapJump.jump(i);
+        refreshBtns();
+      });
+      panel.add([bg, txt]);
+      btns.push({ bg, txt });
+    });
+    refreshBtns();
+    panel.setData('refreshMapBtns', refreshBtns);
+  }
 
   const closeBtn = scene.add.rectangle(cx, cy + ph / 2 - 26, 100, 30, 0x449ddf)
     .setInteractive({ useHandCursor: true });
