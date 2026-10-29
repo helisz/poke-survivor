@@ -50,6 +50,24 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.followers.push(img);
   }
 
+  /** 进化换图：follower 顺序与招式槽一致 */
+  updateFollowerTexture(moveId: string, newKey: string) {
+    const idx = this.moves.indexOf(moveId);
+    if (idx < 0) return;
+    const f = this.followers[idx];
+    if (!f) return;
+    // 进化特效：放大闪光
+    f.setTexture(newKey);
+    this.scene.tweens.add({
+      targets: f, scale: { from: 0.75, to: 0.375 }, duration: 420, ease: 'Back.easeOut',
+    });
+    const flash = this.scene.add.circle(f.x, f.y, 26, 0xffffff, 0.85).setDepth(12);
+    this.scene.tweens.add({
+      targets: flash, scale: 2.4, alpha: 0, duration: 420,
+      onComplete: () => flash.destroy(),
+    });
+  }
+
   /** 同步跟随宝可梦环绕位置 */
   layoutFollowers() {
     const n = this.followers.length;

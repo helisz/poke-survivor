@@ -6,14 +6,17 @@ import { CombatSystem } from '../systems/CombatSystem';
 import { EnemySystem } from '../systems/EnemySystem';
 import { Ground } from '../systems/Ground';
 import type { TraitId } from '../data/stats';
+import { EVOLUTIONS, canEvolve, type EvolutionDef } from '../data/evolutions';
 
 export interface UpgradeOption {
-  kind: 'newmove' | 'upgrade' | 'stat';
+  kind: 'newmove' | 'upgrade' | 'stat' | 'evolve';
   id: string;
   title: string;
   desc: string;
   color: number;
   apply: () => void;
+  /** 进化卡专用：进化后的宝可梦图鉴 ID，用于卡片显示大图 */
+  portraitId?: number;
 }
 
 export class GameScene extends Phaser.Scene {
@@ -276,9 +279,38 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** 找出当前满足条件、且本局还没进化到那一步的进化项 */
+  pendingEvolutions(): { moveId: string; evo: EvolutionDef }[] {
+    const out: { moveId: string; evo: EvolutionDef }[] = [];
+    const ctx = { elapsed: this.elapsed, level: this.level, ownedMove: '' };
+    for (const moveId of this.combat.slotIds) {
+      const chain = EVOLUTIONS[moveId];
+      if (!chain) continue;
+      const stage = this.combat.getEvoStage(moveId);
+      // 一局每个招式最多进化 1 次（策划案：一局最多进化 2 次，按招式计）
+      if (stage >= 1) continue;
+      const next = chain[stage];
+      if (!next) continue;
+      if (canEvolve(next, ctx)) out.push({ moveId, evo: next });
+    }
+    return out;
+  }
+
   buildUpgradeOptions(): UpgradeOption[] {
     const pool: UpgradeOption[] = [];
     const owned = this.combat.slotIds;
+
+    // ── 进化：满足条件的优先塞进池子（策划案 §4.4） ──
+    this.pendingEvolutions().forEach(({ moveId, evo }) => {
+      pool.push({
+        kind: 'evolve', id: `evo_${moveId}_${evo.toId}`,
+        title: `进化 · ${evo.name}`,
+        desc: evo.note,
+        color: MOVES[moveId].color,
+        portraitId: evo.toId,
+        apply: () => this.combat.evolve(moveId, evo),
+      });
+    });
 
     // 招式升级
     for (const id of owned) {
@@ -313,15 +345,24 @@ export class GameScene extends Phaser.Scene {
     ];
     pool.push(...statUpgrades);
 
-    // 抽 3 个不重复
+    // 抽 3 个不重复；进化卡优先占位
     Phaser.Utils.Array.Shuffle(pool);
     const chosen: UpgradeOption[] = [];
     const usedTitles = new Set<string>();
+
+    // 先进化卡（保证满足条件时一定能看到）
     for (const o of pool) {
+      if (o.kind !== 'evolve') continue;
+      if (chosen.length >= 3) break;
+      usedTitles.add(o.title);
+      chosen.push(o);
+    }
+
+    for (const o of pool) {
+      if (chosen.length >= 3) break;
       if (usedTitles.has(o.title)) continue;
       usedTitles.add(o.title);
       chosen.push(o);
-      if (chosen.length >= 3) break;
     }
     return chosen;
   }

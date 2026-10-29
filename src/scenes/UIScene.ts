@@ -206,7 +206,8 @@ export class UIScene extends Phaser.Scene {
       if (def) {
         box.setFillStyle(0x0e1a24, 0.92);
         box.setStrokeStyle(2, def.color);
-        icon.setVisible(true).setTexture(`pk_${def.pokeId}`);
+        const pkId = this.gs.combat.getDisplayPokeId(id);
+        icon.setVisible(true).setTexture(`pk_${pkId}`);
         icon.setScale((size / 64) * 0.9);
         lv.setVisible(true).setPosition(size / 2 - 3, size / 2 - 3)
           .setText(String(this.gs.combat.getMoveLevel(id)));
@@ -244,8 +245,10 @@ export class UIScene extends Phaser.Scene {
       const d = MOVES[id];
       const lvl = this.gs.combat.getMoveLevel(id);
       const p = POKEMON_PLAYABLE.find((x) => x.move === id);
-      title = `${d.name}  Lv.${lvl}`;
-      sub = `${p ? p.name : ''} · ${d.type} · ${CAT_ZH[d.category] || d.category}`;
+      const evoName = this.gs.combat.getDisplayName(id);
+      const evoStage = this.gs.combat.getEvoStage(id);
+      title = `${evoName}  Lv.${lvl}${evoStage > 0 ? ' ★' : ''}`;
+      sub = `${evoStage > 0 ? '已进化' : (p ? p.name : '')} · ${d.type} · ${CAT_ZH[d.category] || d.category}`;
       body = `${d.desc}\n伤害 ${d.baseDamage}　冷却 ${(d.cooldown / 1000).toFixed(2)}s` +
         (d.count ? `　弹数 ${d.count}` : '') +
         (d.pierce ? `　穿透 ${d.pierce}` : '');

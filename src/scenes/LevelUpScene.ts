@@ -42,10 +42,11 @@ export class LevelUpScene extends Phaser.Scene {
     this.options.forEach((opt, i) => {
       let x: number, y: number;
       if (this.vertical) {
+        // 垂直：从屏幕 22% 开始往下排，整体居中偏上
         const totalH = n * cardH + (n - 1) * gap;
+        const startY = Math.max(height * 0.20, (height - totalH) / 2 - height * 0.06);
         x = width / 2;
-        y = height * 0.3 + i * (cardH + gap) + cardH / 2 - totalH / 2 + cardH;
-        y = height * 0.28 + i * (cardH + gap) + cardH / 2;
+        y = startY + i * (cardH + gap) + cardH / 2;
       } else {
         const totalW = n * cardW + (n - 1) * gap;
         x = width / 2 - totalW / 2 + cardW / 2 + i * (cardW + gap);
@@ -61,16 +62,42 @@ export class LevelUpScene extends Phaser.Scene {
     const accent = this.add.rectangle(0, -h / 2 + 4, w - 8, 5, opt.color).setOrigin(0.5, 0);
     c.add([bg, accent]);
 
-    const badge = opt.kind === 'newmove' ? '新招式' : opt.kind === 'upgrade' ? '强化' : '属性';
-    const badgeColor = opt.kind === 'newmove' ? '#63c256' : opt.kind === 'upgrade' ? '#f7d02c' : '#449ddf';
+    const badge = opt.kind === 'evolve' ? '★ 进化' : opt.kind === 'newmove' ? '新招式' : opt.kind === 'upgrade' ? '强化' : '属性';
+    const badgeColor = opt.kind === 'evolve' ? '#ffd75e' : opt.kind === 'newmove' ? '#63c256' : opt.kind === 'upgrade' ? '#f7d02c' : '#449ddf';
+    const isEvo = opt.kind === 'evolve';
+
+    // 进化卡：金色描边 + 进化后宝可梦大图
+    if (isEvo) {
+      bg.setStrokeStyle(2.5, 0xffd75e);
+      accent.setFillStyle(0xffd75e);
+    }
+    if (isEvo && opt.portraitId) {
+      const key = `pk_${opt.portraitId}`;
+      if (this.textures.exists(key)) {
+        // 卡片内可用高度有限，图必须缩到卡片内
+        const maxImgH = this.vertical ? h * 0.62 : h * 0.42;
+        const scale = maxImgH / 64;
+        const px = this.vertical ? w / 2 - 42 : 0;
+        const py = this.vertical ? 4 : -h * 0.08;
+        const glow = this.add.circle(px, py, (64 * scale) / 2 + 4, 0xffd75e, 0.16);
+        const portrait = this.add.image(px, py, key).setScale(scale);
+        c.add([glow, portrait]);
+      }
+    }
 
     if (this.vertical) {
       const num = this.add.text(-w / 2 + 14, -h / 2 + 14, `${index + 1}`, {
         fontFamily: 'monospace', fontSize: '16px', color: '#449ddf', fontStyle: 'bold',
       });
-      const tag = this.add.text(-w / 2 + 34, -h / 2 + 16, badge, { fontFamily: 'sans-serif', fontSize: '11px', color: badgeColor });
-      const title = this.add.text(-w / 2 + 14, -h / 2 + 40, opt.title, { fontFamily: 'sans-serif', fontSize: '15px', color: '#ffffff', fontStyle: 'bold' });
-      const desc = this.add.text(-w / 2 + 14, -h / 2 + 64, opt.desc, { fontFamily: 'sans-serif', fontSize: '11px', color: '#8fa8b8', wordWrap: { width: w - 40 } });
+      const tag = this.add.text(-w / 2 + 34, -h / 2 + 16, badge, { fontFamily: 'sans-serif', fontSize: '11px', color: badgeColor, fontStyle: isEvo ? 'bold' : 'normal' });
+      const title = this.add.text(-w / 2 + 14, -h / 2 + 40, opt.title, {
+        fontFamily: 'sans-serif', fontSize: '15px', color: isEvo ? '#ffd75e' : '#ffffff', fontStyle: 'bold',
+        wordWrap: { width: w - (isEvo ? 96 : 40) },
+      });
+      const desc = this.add.text(-w / 2 + 14, -h / 2 + 64, opt.desc, {
+        fontFamily: 'sans-serif', fontSize: '11px', color: '#8fa8b8',
+        wordWrap: { width: w - (isEvo ? 96 : 40) },
+      });
       c.add([num, tag, title, desc]);
     } else {
       const num = this.add.text(0, -h / 2 + 12, `[${index + 1}]`, { fontFamily: 'monospace', fontSize: '13px', color: '#4c6272' }).setOrigin(0.5, 0);

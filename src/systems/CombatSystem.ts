@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { MOVES, type MoveDef } from '../data/moves';
+import type { EvolutionDef } from '../data/evolutions';
 import type { Player } from '../objects/Player';
 import type { EnemySystem } from './EnemySystem';
 
@@ -7,6 +8,16 @@ interface ActiveSlot {
   moveId: string;
   level: number;
   timer: number;
+  /** 已进化次数（0 = 原始形态） */
+  evoStage?: number;
+  /** 进化带来的伤害倍率 */
+  evoDmgMul?: number;
+  /** 进化带来的冷却倍率 */
+  evoCdMul?: number;
+  /** 进化后的图鉴 ID（换图用） */
+  evoPokeId?: number;
+  /** 进化后的显示名 */
+  evoName?: string;
 }
 
 /** 玩家持有的招式 → 自动释放 */
@@ -65,6 +76,37 @@ export class CombatSystem {
     return this.slots.find((s) => s.moveId === id)?.level ?? 0;
   }
 
+  /** 某招式当前的进化阶段（0 = 未进化） */
+  getEvoStage(id: string) {
+    return this.slots.find((s) => s.moveId === id)?.evoStage ?? 0;
+  }
+
+  /** 某招式进化后的图鉴 ID（未进化返回原始） */
+  getDisplayPokeId(moveId: string) {
+    const s = this.slots.find((x) => x.moveId === moveId);
+    return s?.evoPokeId ?? MOVES[moveId]?.pokeId;
+  }
+
+  /** 某招式当前显示名（进化后是进化名） */
+  getDisplayName(moveId: string) {
+    const s = this.slots.find((x) => x.moveId === moveId);
+    return s?.evoName ?? MOVES[moveId]?.name ?? moveId;
+  }
+
+  /** 执行进化：换图、叠倍率、记阶段 */
+  evolve(moveId: string, evo: EvolutionDef): boolean {
+    const slot = this.slots.find((s) => s.moveId === moveId);
+    if (!slot) return false;
+    slot.evoStage = (slot.evoStage ?? 0) + 1;
+    slot.evoDmgMul = (slot.evoDmgMul ?? 1) * evo.dmgMul;
+    slot.evoCdMul = (slot.evoCdMul ?? 1) * evo.cdMul;
+    slot.evoPokeId = evo.toId;
+    slot.evoName = evo.name;
+    // 跟随宝可梦换图
+    this.player.updateFollowerTexture(moveId, `pk_${evo.toId}`);
+    return true;
+  }
+
   private now = 0;
 
   update(dtMs: number, time: number) {
@@ -75,7 +117,7 @@ export class CombatSystem {
       const def = MOVES[slot.moveId];
       slot.timer -= dtMs;
       if (slot.timer > 0) return;
-      const cdMul = this.player.stats.cooldownMul / (1 + (slot.level - 1) * 0.12);
+      const cdMul = this.player.stats.cooldownMul / (1 + (slot.level - 1) * 0.12) * (slot.evoCdMul ?? 1);
       slot.timer = def.cooldown * cdMul;
       const origin = followers[i] ?? { x: this.player.x, y: this.player.y };
       this.fire(def, slot.level, origin.x, origin.y);
@@ -101,7 +143,9 @@ export class CombatSystem {
   }
 
   private fire(def: MoveDef, level: number, ox: number, oy: number) {
-    const dmgMul = this.player.stats.damageMul * (1 + (level - 1) * 0.18);
+    const slot = this.slots.find((s) => s.moveId === def.id);
+    const evoMul = slot?.evoDmgMul ?? 1;
+    const dmgMul = this.player.stats.damageMul * (1 + (level - 1) * 0.18) * evoMul;
     const damage = def.baseDamage * dmgMul;
 
     switch (def.category) {
