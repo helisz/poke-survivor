@@ -94,10 +94,10 @@ export class UIScene extends Phaser.Scene {
     this.lvText.setPosition(pad, hpY + hpH / 2 + 8);
     this.killText.setPosition(pad, hpY + hpH / 2 + 26);
 
-    // 招式槽参数：手机底部手势条/浏览器栏会盖住 → 用 CSS 安全区高度抬高
+    // 招式槽参数：手机底部手势条/浏览器栏会盖住 → 用安全区 + 额外余量抬高
     const size = narrow ? 38 : 46;
     const safeBottom = this.readSafeBottom();
-    const bottomPad = (narrow ? 30 : 20) + safeBottom;
+    const bottomPad = narrow ? 44 + safeBottom : 20;
     this.L.slotSize = size;
     this.L.slotGap = narrow ? 5 : 6;
     this.L.slotY = height - bottomPad - size / 2;
