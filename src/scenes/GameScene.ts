@@ -316,26 +316,27 @@ export class GameScene extends Phaser.Scene {
     // 终局 BOSS 阶段：不再刷任何小怪
     if (this.finalBossSpawned) return;
     const t = this.elapsed;
-    // 刷怪速率：按 5 分钟局压缩（原 15 分钟参数 ×3）
-    // 开局 ~1.2/s，之后每 20 秒 +1.2/s，封顶 12/s
-    const rate = Math.min(1.2 + t * 0.06, 12);
+    // 刷怪速率：极平缓的幂曲线，全程几乎线性微增
+    // 开局 0.5/s，120 秒 2.2/s，300 秒 3.5/s
+    const rate = 0.5 + 3.0 * Math.pow(Math.min(t, RUN_SECONDS) / RUN_SECONDS, 0.65);
     this.spawnAccum += dt * rate;
-    const hpMul = 1 + t / 40;
-    const speedMul = (1 + t / 200) * this.ground.theme.enemySpeedMul;
+    const hpMul = 1 + t / 45;
+    const speedMul = (1 + t / 220) * this.ground.theme.enemySpeedMul;
 
     const cap = 260;
-    const batch = t < 40 ? 1 : t < 100 ? 2 : t < 180 ? 3 : 4;
+    // 每帧最多批量刷出数：全程保持 1-2，避免整屏瞬间涌出
+    const batch = t < 120 ? 1 : t < 240 ? 2 : 3;
     while (this.spawnAccum >= 1) {
       this.spawnAccum -= 1;
       if (this.enemies.countActive() >= cap) continue;
       for (let i = 0; i < batch; i++) this.spawnRing(hpMul, speedMul);
     }
 
-    // 精英：每 20 秒一波（原 60 秒）
+    // 精英：每 30 秒一波，数量随时间缓慢增加
     this.eliteTimer += dt;
-    if (this.eliteTimer >= 20) {
+    if (this.eliteTimer >= 30) {
       this.eliteTimer = 0;
-      const n = 1 + Math.floor(t / 80);
+      const n = 1 + Math.floor(t / 120);
       for (let i = 0; i < n; i++) {
         const p = this.ringPosition(360);
         this.enemies.spawn('elite', p.x, p.y, hpMul + 0.5, speedMul, 16);
