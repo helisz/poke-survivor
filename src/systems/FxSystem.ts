@@ -421,14 +421,8 @@ export class FxSystem {
       const size = p.shrink ? p.size * (0.35 + 0.65 * t) : p.size;
       const alpha = Math.min(1, t * 1.4);
 
-      // 霓虹发光：外层大一圈的半透明光晕 + 内层近白的亮度核心。
-      // 这正是 bloom 会catch到的部分，粒子的"亮"由此产生。
-      g.fillStyle(p.color, alpha * 0.2);
-      g.fillCircle(p.x, p.y, size * 1.7);
-      g.fillStyle(p.color, alpha * 0.92);
+      g.fillStyle(p.color, alpha * 0.9);
       g.fillCircle(p.x, p.y, size);
-      g.fillStyle(0xffffff, alpha * 0.55);
-      g.fillCircle(p.x, p.y, size * 0.36);
     }
   }
 
