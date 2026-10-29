@@ -77,8 +77,9 @@ export class TraitSelectScene extends Phaser.Scene {
   }
 
   private refresh() {
+    if (!this.cardRefs.length || !this.nextBtn) return;
     this.cardRefs.forEach((r, i) => {
-      const on = this.choices[i].id === this.selected;
+      const on = this.choices[i]?.id === this.selected;
       r.box.setStrokeStyle(2, on ? 0x449ddf : 0x1e3344);
       r.box.setFillStyle(on ? 0x16293a : 0x11202c);
       r.name.setColor(on ? '#449ddf' : '#ffffff');

@@ -105,8 +105,10 @@ export class PartnerSelectScene extends Phaser.Scene {
   }
 
   private refresh() {
+    if (!this.cardRefs.length || !this.startBtn) return;
     this.cardRefs.forEach((r, i) => {
       const p = this.choices[i];
+      if (!p) return;
       const on = p.move === this.selected;
       const color = TYPE_COLORS[p.type] ?? 0x449ddf;
       r.box.setStrokeStyle(2, on ? color : 0x1e3344);
