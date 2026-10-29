@@ -64,6 +64,7 @@ export class GameScene extends Phaser.Scene {
   private bossNameText?: Phaser.GameObjects.Text;
   private bossBarW = 300;
   private orbGroup!: Phaser.Physics.Arcade.Group;
+  private healGroup!: Phaser.Physics.Arcade.Group;
 
   onLevelUp?: () => void;
 
@@ -106,6 +107,9 @@ export class GameScene extends Phaser.Scene {
 
     // 经验球组
     this.orbGroup = this.physics.add.group({ allowGravity: false });
+    // 回血球组
+    this.healGroup = this.physics.add.group({ allowGravity: false });
+    this.makeHealOrbTexture();
 
     this.combat = new CombatSystem(this, this.player, this.enemies);
     this.combat.onKill = (x, y, isElite, isBoss) => {
@@ -115,6 +119,13 @@ export class GameScene extends Phaser.Scene {
       const base = isBoss ? 60 : isElite ? 18 : 1;
       this.dropOrb(x, y, Math.max(1, Math.round(base * timeMul)), isElite, isBoss);
       if (isBoss) this.cameras.main.shake(300, 0.01);
+
+      // 回血球：1% 概率掉落（BOSS 必掉 2 颗，精英 20%）
+      const healChance = isBoss ? 1 : isElite ? 0.2 : 0.01;
+      if (Math.random() < healChance) {
+        this.dropHealOrb(x, y);
+        if (isBoss) this.dropHealOrb(x + 18, y + 10);
+      }
 
       // 终局 BOSS 死亡 → 过关
       if (isBoss && this.finalBossSpawned) {
@@ -353,6 +364,30 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  /** 掉落回血球（恢复 20% 最大生命） */
+  private dropHealOrb(x: number, y: number) {
+    const orb = this.healGroup.get(x, y, 'healorb') as Phaser.Physics.Arcade.Image | null;
+    if (!orb) return;
+    orb.setActive(true).setVisible(true).setDepth(5).setScale(0.9);
+    orb.setData('heal', 0.2);
+    orb.setAlpha(1);
+    orb.clearTint();
+    const body = orb.body as Phaser.Physics.Arcade.Body;
+    body.setEnable(true);
+    body.reset(x, y);
+
+    // 光晕：绿色脉冲，跟经验球区分
+    const glow = this.add.circle(x, y, 14, 0x2bd85a, 0.4).setDepth(4);
+    this.tweens.add({
+      targets: glow, scale: 1.7, alpha: 0, duration: 650, repeat: 2,
+      onComplete: () => glow.destroy(),
+    });
+    // 出现时轻微弹跳
+    this.tweens.add({
+      targets: orb, scale: { from: 1.25, to: 0.9 }, duration: 260, ease: 'Back.Out',
+    });
+  }
+
   private dropOrb(x: number, y: number, value: number, isElite = false, isBoss = false) {
     const orb = this.orbGroup.get(x, y, 'orb') as Phaser.Physics.Arcade.Image | null;
     if (!orb) return;
@@ -406,6 +441,40 @@ export class GameScene extends Phaser.Scene {
       }
       if (d > 3000) { o.setActive(false).setVisible(false); (o.body as Phaser.Physics.Arcade.Body).setEnable(false); }
     }
+
+    // 回血球拾取（同样的吸附范围，但恢复 20% 最大生命）
+    for (const h of this.healGroup.getChildren() as Phaser.Physics.Arcade.Image[]) {
+      if (!h.active) continue;
+      const d = Phaser.Math.Distance.Between(px, py, h.x, h.y);
+      if (d < pickup) {
+        const ang = Math.atan2(py - h.y, px - h.x);
+        h.x += Math.cos(ang) * 420 * dt;
+        h.y += Math.sin(ang) * 420 * dt;
+      }
+      if (d < 20) {
+        const pct = (h.getData('heal') as number) ?? 0.2;
+        const amount = Math.round(this.player.stats.maxHp * pct);
+        this.player.heal(amount);
+        this.combat.fx.burst(h.x, h.y, 0x2bd85a, 14, 200, 3, 300);
+        // 飘字提示
+        this.showHealFloat(h.x, h.y, amount);
+        h.setActive(false).setVisible(false);
+        (h.body as Phaser.Physics.Arcade.Body).setEnable(false);
+      }
+      if (d > 3000) { h.setActive(false).setVisible(false); (h.body as Phaser.Physics.Arcade.Body).setEnable(false); }
+    }
+  }
+
+  /** 拾取回血球的绿色飘字 */
+  private showHealFloat(x: number, y: number, amount: number) {
+    const t = this.add.text(x, y - 8, `+${amount}`, {
+      fontFamily: 'sans-serif', fontSize: '15px', fontStyle: 'bold',
+      color: '#5cf07a', stroke: '#062b10', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(9);
+    this.tweens.add({
+      targets: t, y: y - 40, alpha: 0, duration: 700,
+      onComplete: () => t.destroy(),
+    });
   }
 
   gainExp(amount: number) {
@@ -774,6 +843,39 @@ export class GameScene extends Phaser.Scene {
     g.fillCircle(cx + 2.2, cy + 2.4, 1.4);
 
     g.generateTexture('orb', S, S);
+    g.destroy();
+  }
+
+  /** 回血球纹理：绿色珍珠 + 十字医疗符号 */
+  private makeHealOrbTexture() {
+    if (this.textures.exists('healorb')) return;
+    const S = 18, cx = 9, cy = 9, R = 7;
+    const g = this.make.graphics({ x: 0, y: 0 }, false);
+
+    // 球面渐变（绿色）
+    const STEPS = 7;
+    for (let i = STEPS; i >= 1; i--) {
+      const t = i / STEPS;
+      const lum = 0.55 + 0.45 * (1 - t);
+      const col = Phaser.Display.Color.GetColor(
+        Math.round(40 * lum), Math.round(220 * lum), Math.round(90 * lum));
+      g.fillStyle(col, 1);
+      g.fillCircle(cx, cy, R * t);
+    }
+    // 外圈描边
+    g.lineStyle(1.5, 0x0a3a18, 0.7);
+    g.strokeCircle(cx, cy, R - 0.5);
+    // 白色十字（医疗符号）
+    g.fillStyle(0xffffff, 0.95);
+    g.fillRect(cx - 1.5, cy - 4, 3, 8);
+    g.fillRect(cx - 4, cy - 1.5, 8, 3);
+    // 左上高光
+    g.fillStyle(0xffffff, 0.6);
+    g.fillCircle(cx - 2.6, cy - 2.6, 2);
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(cx - 2.8, cy - 2.8, 1.1);
+
+    g.generateTexture('healorb', S, S);
     g.destroy();
   }
 
