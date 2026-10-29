@@ -7,6 +7,7 @@ export class UIScene extends Phaser.Scene {
   private gs!: GameScene;
   private hpBar!: Phaser.GameObjects.Rectangle;
   private hpBg!: Phaser.GameObjects.Rectangle;
+  private hpText!: Phaser.GameObjects.Text;
   private expBar!: Phaser.GameObjects.Rectangle;
   private expBg!: Phaser.GameObjects.Rectangle;
   private timeText!: Phaser.GameObjects.Text;
@@ -26,9 +27,14 @@ export class UIScene extends Phaser.Scene {
 
     this.hpBg = this.add.rectangle(0, 0, 200, 14, 0x33121a).setOrigin(0, 0.5);
     this.hpBar = this.add.rectangle(0, 0, 200, 14, 0x63c256).setOrigin(0, 0.5);
+    this.hpText = this.add.text(0, 0, '140/140', {
+      fontFamily: 'monospace', fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0, 0.5);
 
     this.expBg = this.add.rectangle(0, 0, 300, 6, 0x11202c).setOrigin(0, 0);
-    this.expBar = this.add.rectangle(0, 0, 0, 6, 0x449ddf).setOrigin(0, 0);
+    // 宽度必须 > 0：Rectangle 的 displayWidth = width * scaleX，width=0 时 scaleX 永远算不出
+    this.expBar = this.add.rectangle(0, 0, 1, 6, 0x449ddf).setOrigin(0, 0);
 
     this.timeText = this.add.text(0, 0, '0:00', {
       fontFamily: 'monospace', fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
@@ -89,6 +95,7 @@ export class UIScene extends Phaser.Scene {
     this.L.hpH = hpH;
     this.hpBg.setPosition(pad, hpY).setDisplaySize(hpW, hpH);
     this.hpBar.setPosition(pad, hpY).setDisplaySize(hpW * this.hpRatio(), hpH);
+    this.hpText.setPosition(pad + hpW + 6, hpY).setFontSize(narrow ? 10 : 11);
 
     // 等级/击杀：血条下方（不贴底，避开招式槽与手机安全区）
     this.lvText.setPosition(pad, hpY + hpH / 2 + 8);
@@ -121,6 +128,10 @@ export class UIScene extends Phaser.Scene {
     const ratio = this.hpRatio();
     this.hpBar.setDisplaySize(this.L.hpW * ratio, this.L.hpH);
     this.hpBar.setFillStyle(ratio > 0.5 ? 0x63c256 : ratio > 0.25 ? 0xf7d02c : 0xd0402c);
+
+    // HP 数字：显示四舍五入后的当前/上限
+    const st = this.gs.stats;
+    this.hpText.setText(`${Math.ceil(st.hp)}/${Math.round(st.maxHp)}`);
 
     this.expBar.setDisplaySize(this.L.barW * this.expRatio(), 6);
 
