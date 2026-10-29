@@ -1,0 +1,361 @@
+import Phaser from 'phaser';
+import { MOVES, MOVE_LIST } from '../data/moves';
+import { expForLevel, RUN_SECONDS, type PlayerStats } from '../data/stats';
+import { Player } from '../objects/Player';
+import { CombatSystem } from '../systems/CombatSystem';
+import { EnemySystem } from '../systems/EnemySystem';
+import { Ground } from '../systems/Ground';
+import type { TraitId } from '../data/stats';
+
+export interface UpgradeOption {
+  kind: 'newmove' | 'upgrade' | 'stat';
+  id: string;
+  title: string;
+  desc: string;
+  color: number;
+  apply: () => void;
+}
+
+export class GameScene extends Phaser.Scene {
+  player!: Player;
+  combat!: CombatSystem;
+  enemies!: EnemySystem;
+  private ground!: Ground;
+  private keys!: Record<string, Phaser.Input.Keyboard.Key>;
+  private joystick?: { x: number; y: number };
+
+  level = 1;
+  exp = 0;
+  expNext = expForLevel(1);
+  elapsed = 0;
+  paused = false;
+  runEnded = false;
+  private spawnAccum = 0;
+  private eliteTimer = 0;
+  private bossSpawned = { 600: false, 840: false } as Record<number, boolean>;
+  private bossRef: Phaser.Physics.Arcade.Sprite | null = null;
+  private orbGroup!: Phaser.Physics.Arcade.Group;
+
+  onLevelUp?: () => void;
+
+  constructor() { super('Game'); }
+
+  create(data: { trait: TraitId }) {
+    this.runEnded = false;
+    this.paused = false;
+    this.level = 1;
+    this.exp = 0;
+    this.expNext = expForLevel(1);
+    this.elapsed = 0;
+    this.spawnAccum = 0;
+    this.eliteTimer = 0;
+    this.pendingLevelUps = 0;
+    this.bossSpawned = { 600: false, 840: false };
+
+    this.makeDotTexture();
+    this.makeOrbTexture();
+
+    this.cameras.main.setBackgroundColor('#0a0f14');
+    this.ground = new Ground(this);
+
+    // 世界无限：给一个很大的边界
+    this.physics.world.setBounds(-1e6, -1e6, 2e6, 2e6);
+
+    this.player = new Player(this, 0, 0, data.trait);
+    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+
+    this.enemies = new EnemySystem(this);
+
+    // 经验球组
+    this.orbGroup = this.physics.add.group({ allowGravity: false });
+
+    this.combat = new CombatSystem(this, this.player, this.enemies);
+    this.combat.onKill = (x, y, isElite, isBoss) => {
+      this.dropOrb(x, y, isBoss ? 60 : isElite ? 18 : 1);
+      if (isBoss) this.cameras.main.shake(300, 0.01);
+    };
+
+    // 初始招式：随机给一个池内招式
+    const startMove = Phaser.Utils.Array.GetRandom(MOVE_LIST.filter((m) => m.category !== 'summon')).id;
+    this.combat.addMove(startMove);
+
+    // 输入
+    const kb = this.input.keyboard!;
+    this.keys = kb.addKeys('W,A,S,D,UP,LEFT,DOWN,RIGHT') as any;
+
+    // 启动 UI
+    this.scene.launch('UI', { game: this });
+
+    // 简单虚拟摇杆（触屏）
+    this.setupTouch();
+  }
+
+  private setupTouch() {
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (this.paused || this.runEnded) return;
+      this.joystick = { x: p.x, y: p.y };
+    });
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (!this.joystick || !p.isDown) return;
+      const dx = p.x - this.joystick.x;
+      const dy = p.y - this.joystick.y;
+      if (Math.hypot(dx, dy) > 6) {
+        (this as any).__joyVec = { x: dx, y: dy };
+      }
+    });
+    this.input.on('pointerup', () => {
+      this.joystick = undefined;
+      (this as any).__joyVec = undefined;
+    });
+  }
+
+  update(time: number, delta: number) {
+    const dt = delta / 1000;
+    if (this.runEnded || this.paused) {
+      this.player.moveWith(0, 0, dt);
+      return;
+    }
+    this.elapsed += dt;
+
+    // 移动输入
+    let vx = 0, vy = 0;
+    if (this.keys.A.isDown || this.keys.LEFT.isDown) vx -= 1;
+    if (this.keys.D.isDown || this.keys.RIGHT.isDown) vx += 1;
+    if (this.keys.W.isDown || this.keys.UP.isDown) vy -= 1;
+    if (this.keys.S.isDown || this.keys.DOWN.isDown) vy += 1;
+    const joy = (this as any).__joyVec;
+    if (joy && vx === 0 && vy === 0) { vx = joy.x; vy = joy.y; }
+
+    this.player.moveWith(vx, vy, dt);
+    this.player.layoutFollowers();
+    this.player.updateTimers(dt);
+
+    this.ground.update(this.cameras.main.scrollX, this.cameras.main.scrollY);
+
+    // 刷怪
+    this.updateSpawning(dt);
+    this.enemies.update(this.player.x, this.player.y, time);
+
+    // 战斗
+    this.combat.update(delta, time);
+
+    // 敌人接触伤害
+    this.checkPlayerHit();
+
+    // 经验球吸附
+    this.updateOrbs(dt);
+
+    if (this.player.isDead) this.endRun(false);
+    if (this.elapsed >= RUN_SECONDS) this.endRun(true);
+  }
+
+  private updateSpawning(dt: number) {
+    const t = this.elapsed;
+    // 刷怪速率：开局 ~1.2/s，之后每 60 秒 +1.2/s，封顶 12/s
+    const rate = Math.min(1.2 + t * 0.02, 12);
+    this.spawnAccum += dt * rate;
+    const hpMul = 1 + t / 120;
+    const speedMul = 1 + t / 600;
+
+    const cap = 260;
+    const batch = t < 120 ? 1 : t < 300 ? 2 : t < 540 ? 3 : 4;
+    while (this.spawnAccum >= 1) {
+      this.spawnAccum -= 1;
+      if (this.enemies.countActive() >= cap) continue;
+      for (let i = 0; i < batch; i++) this.spawnRing(hpMul, speedMul);
+    }
+
+    // 精英
+    this.eliteTimer += dt;
+    if (this.eliteTimer >= 60) {
+      this.eliteTimer = 0;
+      const n = 1 + Math.floor(t / 240);
+      for (let i = 0; i < n; i++) {
+        const p = this.ringPosition(360);
+        this.enemies.spawn('elite', p.x, p.y, hpMul + 0.5, speedMul, 16);
+      }
+    }
+
+    // BOSS
+    for (const sec of [600, 840]) {
+      if (!this.bossSpawned[sec] && this.elapsed >= sec) {
+        this.bossSpawned[sec] = true;
+        const p = this.ringPosition(420);
+        this.bossRef = this.enemies.spawn('boss', p.x, p.y, 1, 1, 26);
+        this.cameras.main.flash(400, 120, 0, 0);
+        this.events.emit('boss-announce');
+      }
+    }
+  }
+
+  private ringPosition(dist: number) {
+    const ang = Math.random() * Math.PI * 2;
+    const d = dist + Math.random() * 60;
+    return { x: this.player.x + Math.cos(ang) * d, y: this.player.y + Math.sin(ang) * d };
+  }
+
+  private spawnRing(hpMul: number, speedMul: number) {
+    const p = this.ringPosition(560);
+    this.enemies.spawn('normal', p.x, p.y, hpMul, speedMul, 8);
+  }
+
+  private checkPlayerHit() {
+    if (this.player.hurtTimer > 0) return;  // 无敌帧内不做检测，避免一次性被多只怪叠死
+    const hb = this.player.getBounds();
+    let hit = false;
+    this.enemies.forEachActive((e) => {
+      if (hit) return;
+      if (Phaser.Geom.Intersects.RectangleToRectangle(hb, e.getBounds())) {
+        // 接触伤害 = 基础伤害的 55%，避免瞬间暴毙
+        this.player.takeDamage((e.getData('dmg') as number) * 0.55);
+        hit = true;
+      }
+    });
+  }
+
+  private dropOrb(x: number, y: number, value: number) {
+    const orb = this.orbGroup.get(x, y, 'orb') as Phaser.Physics.Arcade.Image | null;
+    if (!orb) return;
+    orb.setActive(true).setVisible(true).setDepth(5);
+    orb.setData('value', value);
+    orb.setAlpha(1);
+    orb.setScale(value > 10 ? 1.4 : value > 3 ? 1.1 : 0.85);
+    orb.setTint(value > 10 ? 0xf7d02c : value > 3 ? 0x63c256 : 0x4592e0);
+    (orb.body as Phaser.Physics.Arcade.Body).setEnable(true);
+    (orb.body as Phaser.Physics.Arcade.Body).reset(x, y);
+  }
+
+  private updateOrbs(dt: number) {
+    const px = this.player.x, py = this.player.y;
+    const pickup = this.player.stats.pickup;
+    for (const o of this.orbGroup.getChildren() as Phaser.Physics.Arcade.Image[]) {
+      if (!o.active) continue;
+      const d = Phaser.Math.Distance.Between(px, py, o.x, o.y);
+      if (d < pickup) {
+        // 吸附
+        const ang = Math.atan2(py - o.y, px - o.x);
+        o.x += Math.cos(ang) * 420 * dt;
+        o.y += Math.sin(ang) * 420 * dt;
+      }
+      if (d < 18) {
+        const gain = (o.getData('value') as number) * this.player.stats.expMul;
+        o.setActive(false).setVisible(false);
+        (o.body as Phaser.Physics.Arcade.Body).setEnable(false);
+        this.gainExp(gain);
+      }
+      if (d > 3000) { o.setActive(false).setVisible(false); (o.body as Phaser.Physics.Arcade.Body).setEnable(false); }
+    }
+  }
+
+  gainExp(amount: number) {
+    this.exp += amount;
+    while (this.exp >= this.expNext) {
+      this.exp -= this.expNext;
+      this.level++;
+      this.expNext = expForLevel(this.level);
+      this.pendingLevelUps++;
+    }
+    if (this.pendingLevelUps > 0 && !this.paused) {
+      this.paused = true;
+      this.scene.pause();
+      this.scene.launch('LevelUp', { game: this });
+    }
+  }
+
+  pendingLevelUps = 0;
+
+  /** UI 层调用：卡牌选择完成 */
+  resumeFromLevelUp() {
+    this.pendingLevelUps--;
+    if (this.pendingLevelUps > 0) {
+      this.scene.launch('LevelUp', { game: this });
+    } else {
+      this.paused = false;
+      this.scene.resume();
+    }
+  }
+
+  buildUpgradeOptions(): UpgradeOption[] {
+    const pool: UpgradeOption[] = [];
+    const owned = this.combat.slotIds;
+
+    // 招式升级
+    for (const id of owned) {
+      const def = MOVES[id];
+      const lv = this.combat.getMoveLevel(id);
+      pool.push({
+        kind: 'upgrade', id: `up_${id}`, title: `${def.name}  Lv.${lv + 1}`,
+        desc: `伤害 +18%（当前 Lv.${lv}）`, color: def.color,
+        apply: () => this.combat.upgradeMove(id),
+      });
+    }
+
+    // 新招式（未满 6 格）
+    if (owned.length < 6) {
+      const avail = MOVE_LIST.filter((m) => !owned.includes(m.id) && m.id !== 'morningsun');
+      for (const def of avail) {
+        pool.push({
+          kind: 'newmove', id: `new_${def.id}`, title: `新招式 · ${def.name}`,
+          desc: def.desc, color: def.color,
+          apply: () => this.combat.addMove(def.id),
+        });
+      }
+    }
+
+    // 属性加成
+    const statUpgrades: UpgradeOption[] = [
+      { kind: 'stat', id: 'atk', title: '力量强化', desc: '伤害 +12%', color: 0xf0703c, apply: () => { this.player.stats.damageMul *= 1.12; } },
+      { kind: 'stat', id: 'spd', title: '疾行', desc: '移速 +8%', color: 0x449ddf, apply: () => { this.player.stats.speed *= 1.08; } },
+      { kind: 'stat', id: 'hp', title: '体力强化', desc: '最大 HP +20 并回满', color: 0x63c256, apply: () => { this.player.stats.maxHp += 20; this.player.stats.hp = this.player.stats.maxHp; } },
+      { kind: 'stat', id: 'pick', title: '磁力', desc: '拾取范围 +25%', color: 0xf7d02c, apply: () => { this.player.stats.pickup *= 1.25; } },
+      { kind: 'stat', id: 'cd', title: '迅捷', desc: '招式冷却 -8%', color: 0x8a5fbf, apply: () => { this.player.stats.cooldownMul *= 0.92; } },
+    ];
+    pool.push(...statUpgrades);
+
+    // 抽 3 个不重复
+    Phaser.Utils.Array.Shuffle(pool);
+    const chosen: UpgradeOption[] = [];
+    const usedTitles = new Set<string>();
+    for (const o of pool) {
+      if (usedTitles.has(o.title)) continue;
+      usedTitles.add(o.title);
+      chosen.push(o);
+      if (chosen.length >= 3) break;
+    }
+    return chosen;
+  }
+
+  private endRun(survived: boolean) {
+    if (this.runEnded) return;
+    this.runEnded = true;
+    this.scene.launch('GameOver', {
+      game: this,
+      survived,
+      time: this.elapsed,
+      level: this.level,
+      kills: this.combat.kills,
+    });
+  }
+
+  private makeDotTexture() {
+    if (this.textures.exists('dot')) return;
+    const g = this.make.graphics({ x: 0, y: 0 }, false);
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(6, 6, 6);
+    g.generateTexture('dot', 12, 12);
+    g.destroy();
+  }
+
+  private makeOrbTexture() {
+    if (this.textures.exists('orb')) return;
+    const g = this.make.graphics({ x: 0, y: 0 }, false);
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(6, 6, 5);
+    g.fillStyle(0xffffff, 0.55);
+    g.fillCircle(4, 4, 2);
+    g.generateTexture('orb', 12, 12);
+    g.destroy();
+  }
+
+  get stats(): PlayerStats { return this.player.stats; }
+}
