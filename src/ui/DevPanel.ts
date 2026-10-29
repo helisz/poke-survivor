@@ -175,9 +175,25 @@ export function openDevPanel(
     panel.setData('refreshMapBtns', refreshBtns);
   }
 
-  const closeBtn = scene.add.rectangle(cx, cy + ph / 2 - 26, 100, 30, 0x449ddf)
+  // 重置全部：所有倍率回到 1，并取消无敌
+  const resetBtn = scene.add.rectangle(cx - 62, cy + ph / 2 - 26, 100, 30, 0x1c3344)
+    .setStrokeStyle(1.5, 0x2f4b60).setInteractive({ useHandCursor: true });
+  const resetTxt = scene.add.text(cx - 62, cy + ph / 2 - 26, '重置全部', {
+    fontFamily: 'sans-serif', fontSize: '13px', color: '#9cc4dc', fontStyle: 'bold',
+  }).setOrigin(0.5);
+  resetBtn.on('pointerdown', () => {
+    // 所有倍率回 1（含 devTakenMul —— 1 即关闭无敌）
+    resetFns.forEach((fn) => fn());
+    writeSave(save);
+    onChange?.(save);
+    resetTxt.setText('已重置');
+    scene.time.delayedCall(900, () => resetTxt.setText('重置全部'));
+  });
+  panel.add([resetBtn, resetTxt]);
+
+  const closeBtn = scene.add.rectangle(cx + 62, cy + ph / 2 - 26, 100, 30, 0x449ddf)
     .setInteractive({ useHandCursor: true });
-  const closeTxt = scene.add.text(cx, cy + ph / 2 - 26, '关闭', {
+  const closeTxt = scene.add.text(cx + 62, cy + ph / 2 - 26, '关闭', {
     fontFamily: 'sans-serif', fontSize: '13px', color: '#041018', fontStyle: 'bold',
   }).setOrigin(0.5);
   const close = () => { panel.destroy(true); onClose?.(); };
