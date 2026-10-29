@@ -3,6 +3,7 @@ import { MOVES, RARITY_ZH } from '../data/moves';
 import { RUN_SECONDS, MAX_SLOTS } from '../data/stats';
 import { POKEMON_PLAYABLE } from '../data/pokedex';
 import { openDevPanel, makeDevButton } from '../ui/DevPanel';
+import { Sfx } from '../systems/Sfx';
 import { MAP_THEMES } from '../data/maps';
 import type { GameScene } from './GameScene';
 
@@ -94,7 +95,7 @@ export class UIScene extends Phaser.Scene {
         themes: MAP_THEMES.map((t) => ({ name: t.name, nameJp: t.nameJp })),
         current: () => this.gs.mapThemeIndex,
         jump: (i: number) => this.gs.jumpToMap(i),
-      });
+      }, () => this.quitToMenu());
     }, 1900);
 
     this.scale.on('resize', this.onResize, this);
@@ -484,5 +485,15 @@ export class UIScene extends Phaser.Scene {
       b.bg.setSize(bs, bs).setPosition(x, y);
       b.txt.setPosition(x, y).setFontSize(Math.max(10, Math.round(bs * 0.52)));
     }
+  }
+
+  /** 放弃本局：清场回主菜单，不结算金币 */
+  private quitToMenu() {
+    Sfx.click();
+    this.gs.paused = false;
+    this.scene.stop('LevelUp');
+    this.scene.stop('Game');
+    this.scene.stop();
+    this.scene.start('Menu');
   }
 }

@@ -17,6 +17,8 @@ export function openDevPanel(
     current: () => number;
     jump: (index: number) => void;
   },
+  /** 提供后显示「放弃本局」，点两次确认才生效 */
+  onQuit?: () => void,
 ) {
   const { width, height } = scene.scale;
   const save = loadSave();
@@ -40,7 +42,7 @@ export function openDevPanel(
   const rowH = 68;
   // 地图跳转区高度（仅游戏内）
   const mapH = mapJump ? 76 : 0;
-  const ph = 96 + rows.length * rowH + mapH + 52;
+  const ph = 96 + rows.length * rowH + mapH + 52 + (onQuit ? 38 : 0);
   const cx = width / 2, cy = height / 2;
 
   const bg = scene.add.rectangle(cx, cy, pw, ph, 0x0b151d, 0.99)
@@ -173,6 +175,36 @@ export function openDevPanel(
     });
     refreshBtns();
     panel.setData('refreshMapBtns', refreshBtns);
+  }
+
+  // 放弃本局：需要点两次确认，避免误触（放在底部按钮行上方）
+  if (onQuit) {
+    const qy = cy + ph / 2 - 64;
+    const quitBtn = scene.add.rectangle(cx, qy, 200, 32, 0x3a1f22)
+      .setStrokeStyle(1.5, 0x6f3a3f).setInteractive({ useHandCursor: true });
+    const quitTxt = scene.add.text(cx, qy, '放弃本局', {
+      fontFamily: 'sans-serif', fontSize: '13px', color: '#e08a90', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    let armed = false;
+    let armTimer: Phaser.Time.TimerEvent | null = null;
+    quitBtn.on('pointerdown', () => {
+      if (!armed) {
+        armed = true;
+        quitTxt.setText('再点一次确认放弃');
+        quitBtn.setFillStyle(0x5a2a2e).setStrokeStyle(1.5, 0x9a4a52);
+        armTimer?.remove();
+        armTimer = scene.time.delayedCall(3000, () => {
+          armed = false;
+          quitTxt.setText('放弃本局');
+          quitBtn.setFillStyle(0x3a1f22).setStrokeStyle(1.5, 0x6f3a3f);
+        });
+        return;
+      }
+      armTimer?.remove();
+      panel.destroy(true);
+      onQuit();
+    });
+    panel.add([quitBtn, quitTxt]);
   }
 
   // 重置全部：所有倍率回到 1，并取消无敌
