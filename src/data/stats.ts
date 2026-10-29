@@ -25,7 +25,7 @@ export interface PlayerStats {
 }
 
 export const BASE_STATS: PlayerStats = {
-  hp: 180, maxHp: 180, speed: 185, damageMul: 0.75, cooldownMul: 1,
+  hp: 180, maxHp: 180, speed: 111, damageMul: 0.75, cooldownMul: 1,
   pickup: 85, expMul: 1, damageTakenMul: 1, radius: 11,
 };
 
@@ -88,7 +88,10 @@ export type PermKey = keyof PermLevels;
 
 export function permCost(key: PermKey, level: number): number {
   const def = PERM_UPGRADES.find((u) => u.key === key)!;
-  return Math.round(def.baseCost * Math.pow(1.55, level));
+  // 每购买一次，下一级价格只涨 5%（逐级取整再累乘，避免浮点误差滚雪球）
+  let price: number = def.baseCost;
+  for (let i = 0; i < level; i++) price = Math.round(price * 1.05);
+  return price;
 }
 
 /** 把永久升级折算进一局的开局属性 */

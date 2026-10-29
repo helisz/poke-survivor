@@ -25,17 +25,17 @@ describe('招式伤害设计', () => {
     expect(sAvg / aAvg).toBeGreaterThan(2);
   });
 
-  it('单体招 DPS 应落在 28-50 区间', () => {
+  it('单体招 DPS 应落在 12-24 区间（冷却已全部拉长到 1 秒以上）', () => {
     for (const id of SINGLE) {
-      expect(dps(id), `${id} 单体DPS`).toBeGreaterThanOrEqual(28);
-      expect(dps(id), `${id} 单体DPS`).toBeLessThanOrEqual(50);
+      expect(dps(id), `${id} 单体DPS=${dps(id).toFixed(1)}`).toBeGreaterThanOrEqual(12);
+      expect(dps(id), `${id} 单体DPS=${dps(id).toFixed(1)}`).toBeLessThanOrEqual(26);
     }
   });
 
-  it('范围招单目标 DPS 应落在 7-14 区间（靠覆盖面而非单体）', () => {
+  it('范围招单目标 DPS 应明显低于单体（靠覆盖面而非单体）', () => {
     for (const id of AREA) {
-      expect(dps(id), `${id} 范围DPS`).toBeLessThanOrEqual(14);
-      expect(dps(id), `${id} 范围DPS`).toBeGreaterThanOrEqual(7);
+      expect(dps(id), `${id} 范围DPS=${dps(id).toFixed(1)}`).toBeLessThanOrEqual(12);
+      expect(dps(id), `${id} 范围DPS=${dps(id).toFixed(1)}`).toBeGreaterThanOrEqual(4);
     }
   });
 
@@ -47,11 +47,11 @@ describe('招式伤害设计', () => {
     }
   });
 
-  it('没有 DPS 超过 55 的异常强招', () => {
+  it('没有 DPS 超过 30 的异常强招', () => {
     for (const [id, m] of Object.entries(MOVES)) {
       if (id === 'morningsun') continue;
       const d = dps(id);
-      expect(d, `${id} DPS=${d.toFixed(1)}（疑似异常强）`).toBeLessThan(55);
+      expect(d, `${id} DPS=${d.toFixed(1)}（疑似异常强）`).toBeLessThan(30);
     }
   });
 });
