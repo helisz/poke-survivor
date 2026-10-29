@@ -188,7 +188,8 @@ export class GameScene extends Phaser.Scene {
       if (!this.joystick || !p.isDown) return;
       const dx = p.x - this.joystick.x;
       const dy = p.y - this.joystick.y;
-      if (Math.hypot(dx, dy) > 6) {
+      // 死区收到 3px：轻推即响应，不用大幅拖才能动
+      if (Math.hypot(dx, dy) > 3) {
         (this as any).__joyVec = { x: dx, y: dy };
       }
     });
@@ -213,7 +214,8 @@ export class GameScene extends Phaser.Scene {
     if (this.keys.W.isDown || this.keys.UP.isDown) vy -= 1;
     if (this.keys.S.isDown || this.keys.DOWN.isDown) vy += 1;
     const joy = (this as any).__joyVec;
-    if (joy && vx === 0 && vy === 0) { vx = joy.x; vy = joy.y; }
+    // 摇杆优先于键盘（触屏时通常无键盘输入）
+    if (joy) { vx = joy.x; vy = joy.y; }
 
     this.player.moveWith(vx, vy, dt);
     this.player.layoutFollowers();

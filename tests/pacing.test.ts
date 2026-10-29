@@ -36,10 +36,15 @@ describe('移动速度：比普通怪快约 10%', () => {
   const ENEMY_SPEED = 74;
   const ENEMY_SPEED_MEAN = ENEMY_SPEED * 0.99;
 
-  it('主角移速比小怪均值快 8%~13%', () => {
+  it('主角移速比小怪均值快至少 40%（留足甩怪余量）', () => {
     const ratio = BASE_STATS.speed / ENEMY_SPEED_MEAN;
-    expect(ratio).toBeGreaterThanOrEqual(1.08);
-    expect(ratio).toBeLessThanOrEqual(1.13);
+    expect(ratio).toBeGreaterThanOrEqual(1.4);
+    expect(ratio).toBeLessThanOrEqual(2.0);
+  });
+
+  it('比最快的精英怪还快（否则会被精英贴脸）', () => {
+    const ELITE_SPEED = 92;
+    expect(BASE_STATS.speed).toBeGreaterThan(ELITE_SPEED);
   });
 
   it('即使遇到最快的个体浮动，主角仍能拉开距离', () => {
@@ -47,8 +52,8 @@ describe('移动速度：比普通怪快约 10%', () => {
     expect(BASE_STATS.speed).toBeGreaterThan(fastest);
   });
 
-  it('主角不该快到可以无视走位（上限 100）', () => {
-    expect(BASE_STATS.speed).toBeLessThanOrEqual(100);
+  it('主角不该快到完全无视走位（上限 150）', () => {
+    expect(BASE_STATS.speed).toBeLessThanOrEqual(150);
   });
 
   it('永久强化仍能在降速后提升移速', () => {
