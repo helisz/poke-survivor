@@ -29,6 +29,38 @@ const scenes = [
 ];
 const read = (name: string) => readFileSync(resolve(root, 'src/scenes', `${name}.ts`), 'utf8');
 
+describe('场景渲染顺序', () => {
+  it('SceneFlow 的 SCENE_ORDER 必须与 main.ts 的 scene 数组完全一致', () => {
+    // 不做这个断言就会复发：mgr.add() 追加到末尾，Game 会盖住 UI，
+    // 进游戏后整个 HUD 消失。
+    const flow = readFileSync(flowPath, 'utf8');
+    const main = readFileSync(resolve(root, 'src/main.ts'), 'utf8');
+
+    // 抓 `const SCENE_ORDER = [ ... ];` 整段（非贪婪跨行）
+    const orderMatch = flow.match(/const SCENE_ORDER\s*=\s*\[([\s\S]*?)\]\s*;/);
+    expect(orderMatch, 'SceneFlow 缺少 SCENE_ORDER').toBeTruthy();
+    const flowKeys = (orderMatch as RegExpMatchArray)[1]
+      .split(',')
+      .map(s => s.trim().replace(/^['"]|['"]$/g, ''))
+      .filter(Boolean);
+
+    const mainMatch = main.match(/scene:\s*\[([\s\S]*?)\]/);
+    expect(mainMatch, 'main.ts 缺少 scene 数组').toBeTruthy();
+    const mainKeys = (mainMatch as RegExpMatchArray)[1]
+      .split(',')
+      .map(s => s.trim().replace(/Scene$/, ''))
+      .filter(Boolean);
+
+    expect(flowKeys, 'SCENE_ORDER 与 main.ts scene 数组顺序不一致').toEqual(mainKeys);
+  });
+
+  it('goTo 重建场景后会调用 restoreSceneOrder 修正渲染顺序', () => {
+    const src = readFileSync(flowPath, 'utf8');
+    const goToBlock = src.slice(src.indexOf('export function goTo'));
+    expect(goToBlock).toContain('restoreSceneOrder');
+  });
+});
+
 describe('SceneFlow 统一入口', () => {
   it('模块存在', () => {
     expect(existsSync(flowPath)).toBe(true);

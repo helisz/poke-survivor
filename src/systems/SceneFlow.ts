@@ -24,6 +24,18 @@ type SceneKeyActivity = 'Menu' | 'TraitSelect' | 'PartnerSelect' | 'Game' | 'Sho
 /** 场景构造器注册表：新增场景时要登记，供重建时 new 一个干净实例 */
 const FACTORIES: Record<string, () => Phaser.Scene> = {};
 
+/**
+ * 场景的原始渲染顺序（必须与 main.ts 的 scene 数组一致）。
+ *
+ * 血泪教训：`mgr.add()` 会把场景追加到数组末尾，而渲染顺序就等于数组顺序，
+ * 结果 Game 被排到 UI 后面、直接盖住整个 HUD，进游戏后"什么 UI 都没有"。
+ * 重建后必须按这个表把场景挪回原来的位置。
+ */
+const SCENE_ORDER = [
+  'Boot', 'Menu', 'TraitSelect', 'PartnerSelect',
+  'Shop', 'Game', 'UI', 'LevelUp', 'GameOver',
+];
+
 /** 注册场景构造器。main.ts 里对可重开的场景调用一次。 */
 export function registerScene(key: string, factory: () => Phaser.Scene) {
   FACTORIES[key] = factory;
@@ -48,6 +60,34 @@ export function disposeTextTextures(scene: Phaser.Scene) {
 /** 给场景挂 Text 纹理清理钩子 */
 export function installTextTextureCleanup(scene: Phaser.Scene) {
   scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => disposeTextTextures(scene));
+}
+
+/**
+ * 把被重建的场景挪回 SCENE_ORDER 里声明的相对位置。
+ *
+ * Phaser 的 SceneManager 用 `scenes` 数组决定渲染顺序（后面的画在上面）。
+ * mgr.add() 是 push 到末尾，所以重建 Game/UI 之后顺序会乱。
+ * 这里按期望顺序重排整个数组——只动已有的场景，不增不减。
+ */
+function restoreSceneOrder(mgr: Phaser.Scenes.SceneManager, target: string) {
+  const desired = SCENE_ORDER.indexOf(target);
+  if (desired < 0) return;
+
+  const current = mgr.scenes;
+  const scene = mgr.getScene(target);
+  if (!scene) return;
+
+  // 只保留仍注册着的场景，按 SCENE_ORDER 排序；不在表里的保持相对顺序放最后
+  const known = current
+    .slice()
+    .sort((a, b) => {
+      const ia = SCENE_ORDER.indexOf(a.sys.settings.key);
+      const ib = SCENE_ORDER.indexOf(b.sys.settings.key);
+      return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+    });
+
+  current.length = 0;
+  for (const s of known) current.push(s);
 }
 
 /**
@@ -86,6 +126,10 @@ export function goTo(
   } else {
     mgr.start(target, data);
   }
+
+  // 2.5 把重建的场景挪回原始渲染位置。mgr.add 是追加到末尾的，不修正的话
+  //     Game 会盖在 UI 上面，进游戏后整个 HUD 消失。
+  restoreSceneOrder(mgr, target);
 
   // 3. 停掉除目标外的所有活跃场景。先收集 key 再停：mgr.stop() 会实时改动
   //    getScenes(true) 返回的数组，边遍历边停会漏停或把目标自己停掉。
