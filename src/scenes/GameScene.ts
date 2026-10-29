@@ -449,7 +449,10 @@ export class GameScene extends Phaser.Scene {
     // 血量成长：原 1 + t/45 在 2 分钟就涨到 3.7 倍，太陡。
     // 改为 300 秒内从 1 涨到 2.2 倍，前段几乎持平，后段缓慢加速。
     const hpMul = (1 + 1.2 * Math.pow(Math.min(t, 300) / 300, 1.35)) * (theme.enemyHpMul ?? 1);
-    const speedMul = (1 + t / 220) * theme.enemySpeedMul;
+    // 速度成长：原 1 + t/220 在 5 分钟涨到 2.36 倍，主角固定速度必被追上。
+    // 改为 300 秒内只涨到 1.18 倍，且前 90 秒完全不加速。
+    const speedMul = (1 + 0.18 * Math.pow(Math.max(0, Math.min(t, 300) - 90) / 210, 1.5))
+      * theme.enemySpeedMul;
 
     const cap = 260;
     // 每帧最多批量刷出数：全程保持 1-2，避免整屏瞬间涌出

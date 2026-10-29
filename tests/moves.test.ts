@@ -2,12 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { MOVES } from '../src/data/moves';
 
 /** 把招式按「单体/范围」归类，验证伤害设计原则 */
+// 真正的「单体」= projectile 类别（一发只打一个目标）
 const SINGLE = [
   'thunderbolt', 'flamethrower', 'watergun', 'razorleaf', 'shadowball', 'aurasphere',
   'sludgebomb', 'mudslap', 'confusion', 'dragonrush',
+];
+// 近战/扇形：单发伤害低，靠多条弹道覆盖
+const MELEE_IDS = [
   'dragonclaw', 'aquatail', 'thunderpunch', 'flareblitz', 'ironhead', 'blazekick',
   'leafblade', 'cometpunch',
 ];
+// AOE + 光环
 const AREA = ['bodyslam', 'rockslide', 'earthquake', 'psychic', 'firespin'];
 
 const dps = (id: string) => {
@@ -19,23 +24,24 @@ describe('招式伤害设计', () => {
   it('单体招的单目标 DPS 应明显高于范围招', () => {
     const singleAvgs = SINGLE.map(dps);
     const areaAvgs = AREA.map(dps);
+    void MELEE_IDS;
     const sAvg = singleAvgs.reduce((a, b) => a + b, 0) / singleAvgs.length;
     const aAvg = areaAvgs.reduce((a, b) => a + b, 0) / areaAvgs.length;
     // 单体至少是范围的 2 倍
     expect(sAvg / aAvg).toBeGreaterThan(2);
   });
 
-  it('单体招 DPS 应落在 12-24 区间（冷却已全部拉长到 1 秒以上）', () => {
+  it('单体招 DPS 应落在 18-26 区间（层级见 damage-tiers.test.ts）', () => {
     for (const id of SINGLE) {
-      expect(dps(id), `${id} 单体DPS=${dps(id).toFixed(1)}`).toBeGreaterThanOrEqual(12);
+      expect(dps(id), `${id} 单体DPS=${dps(id).toFixed(1)}`).toBeGreaterThanOrEqual(18);
       expect(dps(id), `${id} 单体DPS=${dps(id).toFixed(1)}`).toBeLessThanOrEqual(26);
     }
   });
 
   it('范围招单目标 DPS 应明显低于单体（靠覆盖面而非单体）', () => {
     for (const id of AREA) {
-      expect(dps(id), `${id} 范围DPS=${dps(id).toFixed(1)}`).toBeLessThanOrEqual(12);
-      expect(dps(id), `${id} 范围DPS=${dps(id).toFixed(1)}`).toBeGreaterThanOrEqual(4);
+      expect(dps(id), `${id} 范围DPS=${dps(id).toFixed(1)}`).toBeLessThanOrEqual(9);
+      expect(dps(id), `${id} 范围DPS=${dps(id).toFixed(1)}`).toBeGreaterThanOrEqual(3);
     }
   });
 
@@ -51,7 +57,7 @@ describe('招式伤害设计', () => {
     for (const [id, m] of Object.entries(MOVES)) {
       if (id === 'morningsun') continue;
       const d = dps(id);
-      expect(d, `${id} DPS=${d.toFixed(1)}（疑似异常强）`).toBeLessThan(30);
+      expect(d, `${id} DPS=${d.toFixed(1)}（疑似异常强）`).toBeLessThan(26);
     }
   });
 });

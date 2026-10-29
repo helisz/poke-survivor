@@ -31,6 +31,9 @@ export class CombatSystem {
   private enemies: EnemySystem;
   slots: ActiveSlot[] = [];
   private projectiles: Phaser.Physics.Arcade.Group;
+  /** 近战批次去重：volleyId → 该批已命中的敌人 */
+  private volleyHit = new Map<number, Set<Phaser.Physics.Arcade.Sprite>>();
+  private volleySeq = 1;
   private slashFx: Phaser.GameObjects.Graphics[] = [];
   fx: FxSystem;
   damageDealt = 0;
@@ -53,6 +56,18 @@ export class CombatSystem {
       // 只对「屏幕可见范围内」的敌人造成伤害：
       // 弹道会直线飞出屏幕，若目标在视野外则穿过去不结算
       if (!this.onScreen(enemy.x, enemy.y)) return;
+
+      // 近战去重：同一次出招的多条弹道重叠时，同一只怪只吃一次伤害。
+      // 用 volleyId 标记同批弹道，perVolley 记录该批已命中的敌人。
+      const volleyId = proj.getData('volleyId') as number | undefined;
+      if (volleyId !== undefined) {
+        const hit = this.volleyHit.get(volleyId);
+        if (hit) {
+          if (hit.has(enemy)) { this.killProjectile(proj); return; }
+          hit.add(enemy);
+        }
+      }
+
       this.hitEnemy(enemy, proj.getData('damage') as number);
 
       // 记录命中，供追踪/连锁查重
@@ -383,9 +398,10 @@ export class CombatSystem {
       const arcs = 7 + Math.min(lvl * 2, 6);
       // 初期弧度压低 40%（1.5 → 0.9），升级再逐步张开
       const spread = 0.9 + lvl * 0.12;
+      const vid = this.newVolley();
       for (let i = 0; i < arcs; i++) {
         const a = ang - spread / 2 + (spread * i) / (arcs - 1);
-        this.meleeBolt(ox, oy, a, range, def, damage, 0.34);
+        this.meleeBolt(ox, oy, a, range, def, damage, 0.34, vid);
       }
       this.fx.burst(ox + Math.cos(ang) * 26, oy + Math.sin(ang) * 26, def.color, 8, 130, 2.8, 180);
     } else if (def.style === 'lightning') {
@@ -398,24 +414,38 @@ export class CombatSystem {
       // 并排弹道齐射：3 条 → 5 条，间距逐渐拉开
       const lanes = 3 + Math.min(Math.floor(lvl / 2), 2);
       const gap = 12 + lvl * 1.5;
+      const vid = this.newVolley();
       for (let i = 0; i < lanes; i++) {
         const off = (i - (lanes - 1) / 2) * gap;
         const px = ox + Math.cos(ang + Math.PI / 2) * off;
         const py = oy + Math.sin(ang + Math.PI / 2) * off;
         if (def.style === 'fist') this.fx.fistWave(px, py, ang, def.color);
-        this.meleeBolt(px, py, ang, range * 1.15, def, damage, 0.26);
+        this.meleeBolt(px, py, ang, range * 1.15, def, damage, 0.26, vid);
       }
     } else {
       // 扇形散射：弹道数量随等级增加
       const shots = 3 + Math.min(lvl, 4);
       // 初期弧度压低 40%（0.55 → 0.33），升级再逐步张开
       const spread = 0.33 + lvl * 0.09;
+      const vid = this.newVolley();
       for (let i = 0; i < shots; i++) {
         const a = ang - spread / 2 + (spread * i) / Math.max(1, shots - 1);
         if (def.style === 'fist') this.fx.fistWave(ox, oy, a, def.color);
-        this.meleeBolt(ox, oy, a, range, def, damage, 0.3);
+        this.meleeBolt(ox, oy, a, range, def, damage, 0.3, vid);
       }
     }
+  }
+
+  /** 开一批新弹道，返回批次号（用于同批去重） */
+  private newVolley(): number {
+    const id = this.volleySeq++;
+    this.volleyHit.set(id, new Set());
+    // 只保留最近 12 批，避免长期运行内存增长
+    if (this.volleyHit.size > 12) {
+      const oldest = this.volleyHit.keys().next().value;
+      if (oldest !== undefined && oldest < id - 8) this.volleyHit.delete(oldest);
+    }
+    return id;
   }
 
   /** 电系投射：从施法者向外放电，命中沿电弧路径的敌人 */
@@ -453,6 +483,7 @@ export class CombatSystem {
   private meleeBolt(
     ox: number, oy: number, ang: number, range: number,
     def: MoveDef, damage: number, scale: number,
+    volleyId?: number,
   ) {
     const p = this.projectiles.get(ox, oy, 'dot') as Phaser.Physics.Arcade.Image | null;
     if (!p) return;
@@ -467,6 +498,7 @@ export class CombatSystem {
     p.setData('color', def.color);
     p.setData('fx', 'slash');
     p.setData('hitList', []);
+    if (volleyId !== undefined) p.setData('volleyId', volleyId);
     p.setVelocity(Math.cos(ang) * speed, Math.sin(ang) * speed);
     const body = p.body as Phaser.Physics.Arcade.Body;
     body.setEnable(true);
@@ -543,9 +575,18 @@ export class CombatSystem {
       const a = (Math.PI * 2 * i) / 12;
       this.fx.burst(cx + Math.cos(a) * radius * 0.9, cy + Math.sin(a) * radius * 0.9, def.color, 2, 70, 2.4, 260);
     }
-    this.enemies.forEachActive((e) => {
-      if (Phaser.Math.Distance.Between(cx, cy, e.x, e.y) <= radius) this.hitEnemy(e, damage);
-    });
+    // 持续灼烧：首跳全额，之后 2 跳各 40%（每 0.35 秒一跳）
+    const tick = (n: number) => {
+      if (n <= 0) return;
+      const px = this.player.x, py = this.player.y;
+      this.enemies.forEachActive((e) => {
+        if (Phaser.Math.Distance.Between(px, py, e.x, e.y) <= radius) {
+          this.hitEnemy(e, damage * (n === 3 ? 1 : 0.4));
+        }
+      });
+      if (n > 1) this.scene.time.delayedCall(350, () => tick(n - 1));
+    };
+    tick(3);
   }
 
   private playerAngle() {
