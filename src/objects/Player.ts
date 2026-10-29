@@ -9,6 +9,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private followers: Phaser.GameObjects.Image[] = [];
   private followerRadius = 46;
   private bob = 0;
+  /** 最近一次受击：数值 / 序号 / 时间戳，供 UI 显示扣血数字 */
+  lastDamage = 0;
+  damageSeq = 0;
+  damageAt = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number, trait: TraitId) {
     super(scene, x, y, 'ash', 0);
@@ -82,7 +86,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** 受击：闪烁 + 变红，不用半透明（保持角色可见） */
   takeDamage(amount: number) {
     if (this.hurtTimer > 0) return;
-    this.stats.hp = Math.max(0, this.stats.hp - amount * this.stats.damageTakenMul);
+    const real = amount * this.stats.damageTakenMul;
+    this.stats.hp = Math.max(0, this.stats.hp - real);
+    // 供 UI 显示扣血飘字：记录数值 + 序号（同一帧多次伤害可分辨）
+    this.lastDamage = real;
+    this.damageSeq++;
+    this.damageAt = this.scene.time.now;
     this.hurtTimer = 0.5;
     this.setTint(0xff6b6b);
     this.scene.time.delayedCall(120, () => {

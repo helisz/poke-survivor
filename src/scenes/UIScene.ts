@@ -1,7 +1,13 @@
 import Phaser from 'phaser';
 import { MOVES } from '../data/moves';
-import { RUN_SECONDS } from '../data/stats';
+import { RUN_SECONDS, MAX_SLOTS } from '../data/stats';
+import { POKEMON_PLAYABLE } from '../data/pokedex';
 import type { GameScene } from './GameScene';
+
+/** 招式类别中文名 */
+const CAT_ZH: Record<string, string> = {
+  melee: '近战', projectile: '弹道', aura: '光环', aoe: '范围', summon: '召唤',
+};
 
 export class UIScene extends Phaser.Scene {
   private gs!: GameScene;
@@ -15,9 +21,13 @@ export class UIScene extends Phaser.Scene {
   private killText!: Phaser.GameObjects.Text;
   private slotIcons: Phaser.GameObjects.Container[] = [];
   private slotRoot!: Phaser.GameObjects.Container;
+  private moveTip?: Phaser.GameObjects.Container;
+  /** 扣血飘字：只在 damageSeq 变化时生成 */
+  private lastDmgSeq = -1;
+  private dmgFlash?: Phaser.GameObjects.Text;
 
   /** 布局参数，唯一由 relayout() 计算 */
-  private L = { hpW: 200, hpH: 14, barW: 300, slotSize: 46, slotGap: 6, slotY: 600 };
+  private L = { hpW: 200, hpH: 14, hpY: 56, barW: 300, slotSize: 46, slotGap: 6, slotY: 600 };
 
   constructor() { super('UI'); }
 
@@ -93,6 +103,7 @@ export class UIScene extends Phaser.Scene {
     const hpY = narrow ? 52 : 56;
     this.L.hpW = hpW;
     this.L.hpH = hpH;
+    this.L.hpY = hpY;
     this.hpBg.setPosition(pad, hpY).setDisplaySize(hpW, hpH);
     this.hpBar.setPosition(pad, hpY).setDisplaySize(hpW * this.hpRatio(), hpH);
     this.hpText.setPosition(pad + hpW + 6, hpY).setFontSize(narrow ? 10 : 11);
@@ -133,6 +144,13 @@ export class UIScene extends Phaser.Scene {
     const st = this.gs.stats;
     this.hpText.setText(`${Math.ceil(st.hp)}/${Math.round(st.maxHp)}`);
 
+    // 扣血飘字：血条右侧弹出 -N，快速上浮淡出
+    const p = this.gs.player;
+    if (p.damageSeq !== this.lastDmgSeq) {
+      this.lastDmgSeq = p.damageSeq;
+      this.flashDamage(p.lastDamage);
+    }
+
     this.expBar.setDisplaySize(this.L.barW * this.expRatio(), 6);
 
     const left = Math.max(0, RUN_SECONDS - this.gs.elapsed);
@@ -147,59 +165,181 @@ export class UIScene extends Phaser.Scene {
 
   private syncSlots() {
     const ids = this.gs.combat.slotIds;
+    const size = this.L.slotSize;
 
-    while (this.slotIcons.length < ids.length) {
+    // 固定 6 格：有招式显示图标，空的显示占位框
+    while (this.slotIcons.length < MAX_SLOTS) {
       const c = this.add.container(0, 0);
       const box = this.add.rectangle(0, 0, 46, 46, 0x0e1a24).setStrokeStyle(2, 0x24404f);
-      const icon = this.add.image(0, 0, 'pk_25').setScale(0.55);
+      const icon = this.add.image(0, 0, 'pk_25').setScale(0.55).setVisible(false);
       const lv = this.add.text(16, 16, '1', {
         fontFamily: 'monospace', fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
-      }).setOrigin(1, 1);
+      }).setOrigin(1, 1).setVisible(false);
       c.add([box, icon, lv]);
+      (c as any).__box = box;
       (c as any).__icon = icon;
       (c as any).__lv = lv;
+
+      // 点击 → 弹说明气泡
+      box.setInteractive({ useHandCursor: true });
+      box.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
+        ev?.stopPropagation?.();
+        this.showMoveTip(this.slotIcons.indexOf(c));
+      });
+
       this.slotRoot.add(c);
       this.slotIcons.push(c);
     }
 
-    const size = this.L.slotSize;
-    ids.forEach((id, i) => {
+    for (let i = 0; i < MAX_SLOTS; i++) {
       const c = this.slotIcons[i];
-      c.setVisible(true);
-      const def = MOVES[id];
-      const box = c.list[0] as Phaser.GameObjects.Rectangle;
-      box.setDisplaySize(size, size);
-      box.setStrokeStyle(2, def ? def.color : 0x24404f);
+      const box = (c as any).__box as Phaser.GameObjects.Rectangle;
       const icon = (c as any).__icon as Phaser.GameObjects.Image;
-      if (def) {
-        icon.setTexture(`pk_${def.pokeId}`);
-        icon.setScale((size / 64) * 0.9);
-      }
       const lv = (c as any).__lv as Phaser.GameObjects.Text;
-      lv.setPosition(size / 2 - 3, size / 2 - 3);
-      lv.setText(String(this.gs.combat.getMoveLevel(id)));
-    });
+      const id = ids[i];
+      const def = id ? MOVES[id] : undefined;
 
-    for (let i = ids.length; i < this.slotIcons.length; i++) {
-      this.slotIcons[i].setVisible(false);
+      c.setVisible(true);
+      c.setScale(1);
+      box.setDisplaySize(size, size);
+
+      if (def) {
+        box.setFillStyle(0x0e1a24, 0.92);
+        box.setStrokeStyle(2, def.color);
+        icon.setVisible(true).setTexture(`pk_${def.pokeId}`);
+        icon.setScale((size / 64) * 0.9);
+        lv.setVisible(true).setPosition(size / 2 - 3, size / 2 - 3)
+          .setText(String(this.gs.combat.getMoveLevel(id)));
+      } else {
+        // 空槽：暗底 + 虚线感（低透明度描边）+ 小加号
+        box.setFillStyle(0x0a1219, 0.55);
+        box.setStrokeStyle(1, 0x2b4051, 0.9);
+        icon.setVisible(false);
+        lv.setVisible(false);
+      }
+      (c as any).__id = id ?? null;
     }
 
     this.layoutSlots();
   }
 
-  /** 招式槽排列：底部居中，按可见项排布 */
+  /** 点击招式槽 → 气泡显示招式说明 */
+  private showMoveTip(index: number) {
+    const c = this.slotIcons[index];
+    if (!c) return;
+    const id = (c as any).__id as string | null;
+
+    this.hideMoveTip();
+
+    const size = this.L.slotSize;
+    const width = this.scale.width;
+    const height = this.scale.height;
+
+    let title = '空槽位';
+    let sub = '升级时可选择招式填入';
+    let body = '';
+    let color = 0x7d96a8;
+
+    if (id && MOVES[id]) {
+      const d = MOVES[id];
+      const lvl = this.gs.combat.getMoveLevel(id);
+      const p = POKEMON_PLAYABLE.find((x) => x.move === id);
+      title = `${d.name}  Lv.${lvl}`;
+      sub = `${p ? p.name : ''} · ${d.type} · ${CAT_ZH[d.category] || d.category}`;
+      body = `${d.desc}\n伤害 ${d.baseDamage}　冷却 ${(d.cooldown / 1000).toFixed(2)}s` +
+        (d.count ? `　弹数 ${d.count}` : '') +
+        (d.pierce ? `　穿透 ${d.pierce}` : '');
+      color = d.color;
+    }
+
+    const tip = this.add.container(0, 0).setDepth(999);
+    const padX = 11, padY = 9, maxW = Math.min(width - 32, 260);
+    const tTitle = this.add.text(padX, padY, title, {
+      fontFamily: 'monospace', fontSize: '14px', color: '#ffffff', fontStyle: 'bold',
+      wordWrap: { width: maxW - padX * 2 },
+    });
+    const tSub = this.add.text(padX, tTitle.y + tTitle.height + 3, sub, {
+      fontFamily: 'monospace', fontSize: '11px', color: '#8fa8b8',
+      wordWrap: { width: maxW - padX * 2 },
+    });
+    const parts: Phaser.GameObjects.GameObject[] = [tTitle, tSub];
+    let lastY = tSub.y + tSub.height;
+
+    if (body) {
+      const tBody = this.add.text(padX, lastY + 6, body, {
+        fontFamily: 'monospace', fontSize: '11.5px', color: '#c8dae6', lineSpacing: 3,
+        wordWrap: { width: maxW - padX * 2 },
+      });
+      parts.push(tBody);
+      lastY = tBody.y + tBody.height;
+    }
+
+    const boxW = maxW;
+    const boxH = lastY + padY;
+    const bg = this.add.rectangle(0, 0, boxW, boxH, 0x0b151d, 0.97)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1.5, color, 0.9);
+    tip.add([bg, ...parts]);
+
+    // 位置：气泡在格子正上方，超出屏幕则夹紧
+    let tx = c.x + size / 2 - boxW / 2;
+    let ty = c.y - size / 2 - boxH - 8;
+    if (ty < 60) ty = c.y + size / 2 + 8;      // 上方放不下 → 放下面
+    tx = Phaser.Math.Clamp(tx, 8, width - boxW - 8);
+    ty = Phaser.Math.Clamp(ty, 8, height - boxH - 8);
+    tip.setPosition(tx, ty);
+
+    this.moveTip = tip;
+
+    // 点空白处关闭
+    this.input.once('pointerdown', () => this.hideMoveTip());
+    this.time.delayedCall(60, () => {
+      if (this.moveTip === tip) {
+        this.input.once('pointerdown', () => this.hideMoveTip());
+      }
+    });
+  }
+
+  private hideMoveTip() {
+    if (this.moveTip) {
+      this.moveTip.destroy(true);
+      this.moveTip = undefined;
+    }
+  }
+
+  /** 血条右侧弹出扣血数字，400ms 内上浮淡出 */
+  private flashDamage(amount: number) {
+    const n = Math.max(1, Math.round(amount));
+    const x = this.hpText.x + this.hpText.displayWidth + 8;
+    const y = this.L.hpY;
+
+    const t = this.add.text(x, y, `-${n}`, {
+      fontFamily: 'monospace', fontSize: '15px', color: '#ff5252', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0, 0.5).setDepth(950);
+
+    this.dmgFlash?.destroy();
+    this.dmgFlash = t;
+
+    this.tweens.add({
+      targets: t, y: y - 16, alpha: 0, scale: 1.25,
+      duration: 420, ease: 'Quad.easeOut',
+      onComplete: () => { t.destroy(); if (this.dmgFlash === t) this.dmgFlash = undefined; },
+    });
+  }
+
+  /** 招式槽排列：固定 6 格，整体居中 */
   private layoutSlots() {
     const { width } = this.scale;
-    const visible = this.slotIcons.filter((c) => c.visible);
-    const n = visible.length;
-    if (!n) return;
+    const n = MAX_SLOTS;
     const size = this.L.slotSize;
     const gap = this.L.slotGap;
     const totalW = n * size + (n - 1) * gap;
     const startX = (width - totalW) / 2 + size / 2;
 
-    visible.forEach((c, i) => {
-      c.setPosition(startX + i * (size + gap), this.L.slotY);
-    });
+    for (let i = 0; i < Math.min(n, this.slotIcons.length); i++) {
+      this.slotIcons[i].setPosition(startX + i * (size + gap), this.L.slotY);
+    }
+    this.hideMoveTip();
   }
 }
