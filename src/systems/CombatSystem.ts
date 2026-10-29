@@ -49,6 +49,9 @@ export class CombatSystem {
       const proj = projObj as Phaser.Physics.Arcade.Image;
       const enemy = enemyObj as Phaser.Physics.Arcade.Sprite;
       if (!proj.active || !enemy.active) return;
+      // 只对「屏幕可见范围内」的敌人造成伤害：
+      // 弹道会直线飞出屏幕，若目标在视野外则穿过去不结算
+      if (!this.onScreen(enemy.x, enemy.y)) return;
       this.hitEnemy(enemy, proj.getData('damage') as number);
 
       // 记录命中，供追踪/连锁查重
@@ -183,6 +186,25 @@ export class CombatSystem {
     return this.nearestEnemyExcluding(x, y, maxDist, []);
   }
 
+  /**
+   * 屏幕上可见的索敌半径：以玩家为中心，取相机可视区域的半对角线。
+   * 保证只打「看得见」的敌人，掉落物不会掉在屏幕外。
+   */
+  private screenAimRadius(): number {
+    const cam = this.scene.cameras.main;
+    const halfW = cam.width / cam.zoom / 2;
+    const halfH = cam.height / cam.zoom / 2;
+    return Math.hypot(halfW, halfH);
+  }
+
+  /** 世界坐标是否在当前相机可视矩形内（带一点外扩余量） */
+  private onScreen(x: number, y: number, pad = 24): boolean {
+    const cam = this.scene.cameras.main;
+    const view = cam.worldView;
+    return x >= view.x - pad && x <= view.right + pad
+        && y >= view.y - pad && y <= view.bottom + pad;
+  }
+
   /** 最近敌人，跳过 exclude 列表中的目标 */
   private nearestEnemyExcluding(
     x: number, y: number, maxDist: number, exclude: Phaser.Physics.Arcade.Sprite[],
@@ -218,7 +240,7 @@ export class CombatSystem {
     const traits = def.traits ?? [];
     const homing = traits.includes('homing');
     const chain = traits.includes('chain');
-    const target = this.nearestEnemy(ox, oy);
+    const target = this.nearestEnemy(ox, oy, this.screenAimRadius());
     const count = (def.count ?? 1) + Math.floor((this.getMoveLevel(def.id) - 1) / 2);
     const baseAng = target ? Math.atan2(target.y - oy, target.x - ox) : 0;
     // spread 标签：扇形角度更大，否则默认小夹角
@@ -280,7 +302,7 @@ export class CombatSystem {
   /** 追踪弹每帧转向最近的敌人 */
   private updateHoming(p: Phaser.Physics.Arcade.Image) {
     const hitList = (p.getData('hitList') as Phaser.Physics.Arcade.Sprite[]) ?? [];
-    const target = this.nearestEnemy(p.x, p.y, 420);
+    const target = this.nearestEnemy(p.x, p.y, Math.min(420, this.screenAimRadius()));
     if (!target || hitList.includes(target)) return;
     const speed = (p.getData('speed') as number) ?? 320;
     const want = Math.atan2(target.y - p.y, target.x - p.x);
@@ -300,7 +322,7 @@ export class CombatSystem {
     const hits = def.count ?? 1;
 
     // sweep 优先贴最近敌人方向；没有敌人时朝面向
-    const target = this.nearestEnemy(ox, oy, range * 1.8);
+    const target = this.nearestEnemy(ox, oy, Math.min(range * 1.8, this.screenAimRadius()));
     const ang = target ? Math.atan2(target.y - oy, target.x - ox) : this.playerAngle();
 
     // 视觉：刀光弧 + 火花
@@ -339,7 +361,7 @@ export class CombatSystem {
     // slam：砸向最近敌人位置；否则自身爆发
     let cx = this.player.x, cy = this.player.y;
     if (slam) {
-      const t = this.nearestEnemy(ox, oy, 420);
+      const t = this.nearestEnemy(ox, oy, Math.min(420, this.screenAimRadius()));
       if (t) { cx = t.x; cy = t.y; }
     }
     const radius = (def.range ?? 120) + (this.getMoveLevel(def.id) - 1) * 10;
