@@ -28,8 +28,16 @@ export class UIScene extends Phaser.Scene {
   private timeText!: Phaser.GameObjects.Text;
   private lvText!: Phaser.GameObjects.Text;
   private killText!: Phaser.GameObjects.Text;
-  private slotIcons: { box: Phaser.GameObjects.Rectangle; icon: Phaser.GameObjects.Image; lv: Phaser.GameObjects.Text }[] = [];
+  private slotIcons: {
+    box: Phaser.GameObjects.Rectangle;
+    icon: Phaser.GameObjects.Image;
+    lv: Phaser.GameObjects.Text;
+    hit: Phaser.GameObjects.Rectangle;
+    cd: Phaser.GameObjects.Graphics;
+  }[] = [];
   private moveTip?: Phaser.GameObjects.Container;
+  /** 底部小图标：属性强化叠加层 */
+  private buffIcons: { bg: Phaser.GameObjects.Rectangle; icon: Phaser.GameObjects.Image; txt: Phaser.GameObjects.Text }[] = [];
   /** 扣血飘字：只在 damageSeq 变化时生成 */
   private lastDmgSeq = -1;
   private dmgFlash?: Phaser.GameObjects.Text;
@@ -66,6 +74,7 @@ export class UIScene extends Phaser.Scene {
     });
 
     this.layoutSlots();
+    this.refreshBuffs();
 
     // 游戏内也常驻开发者入口，随时可调
     makeDevButton(this, () => {
@@ -190,6 +199,73 @@ export class UIScene extends Phaser.Scene {
     this.killText.setText(`击杀 ${this.gs.combat.kills}`);
 
     this.syncSlots();
+    this.drawCooldowns();
+  }
+
+  /** 冷却扇形时钟：在技能格上画一块灰掉的扇形，随时间收窄 */
+  private drawCooldowns() {
+    const size = this.L.slotSize;
+    const half = size / 2;
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      const slot = this.slotIcons[i];
+      const id = this.gs.combat.slotIds[i];
+      if (!slot) continue;
+      const g = slot.cd;
+      g.clear();
+      if (!id) { g.setVisible(false); continue; }
+
+      const p = this.gs.combat.getCooldownProgress(i);
+      if (p <= 0.001) { g.setVisible(false); continue; }
+
+      g.setVisible(true);
+      // 灰罩从 12 点方向顺时针铺满 p 比例（剩余越多罩得越多）
+      const start = -Math.PI / 2;
+      const end = start + Math.PI * 2 * p;
+      g.fillStyle(0x000000, 0.62);
+      g.slice(0, 0, half, start, end, false);
+      g.fillPath();
+
+      // 边缘高亮，让「还在转」更明显
+      g.lineStyle(1.5, 0x9cc4dc, 0.5);
+      g.beginPath();
+      g.arc(0, 0, half - 1, start, end, false);
+      g.strokePath();
+    }
+  }
+
+  /** 同步底部属性强化小图标 */
+  refreshBuffs() {
+    const stacks = this.gs.statStacks ?? {};
+    const defs = [
+      { id: 'atk', label: '攻', color: 0xf0703c },
+      { id: 'spd', label: '速', color: 0x449ddf },
+      { id: 'hp', label: '体', color: 0x63c256 },
+      { id: 'pick', label: '磁', color: 0xf7d02c },
+      { id: 'cd', label: '冷', color: 0x8a5fbf },
+    ].filter((d) => (stacks[d.id] ?? 0) > 0);
+
+    // 图标对象数量对齐
+    while (this.buffIcons.length < defs.length) {
+      const bg = this.add.rectangle(0, 0, 18, 18, 0x0e1a24, 0.95).setDepth(496);
+      const icon = this.add.image(0, 0, 'pk_25').setDepth(497).setVisible(false);
+      const txt = this.add.text(0, 0, '', {
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif',
+        fontSize: '9px', color: '#ffffff', fontStyle: 'bold',
+      }).setOrigin(1, 1).setDepth(498);
+      this.buffIcons.push({ bg, icon, txt });
+    }
+
+    this.buffIcons.forEach((b, i) => {
+      const d = defs[i];
+      if (!d) { b.bg.setVisible(false); b.icon.setVisible(false); b.txt.setVisible(false); return; }
+      b.bg.setVisible(true).setStrokeStyle(1.5, d.color);
+      b.icon.setVisible(false);
+      b.txt.setVisible(true).setText(`${d.label}${stacks[d.id]}`)
+        .setColor(`#${d.color.toString(16).padStart(6, '0')}`)
+        .setOrigin(0.5, 0.5);
+    });
+
+    this.layoutBuffs();
   }
 
   private syncSlots() {
@@ -203,16 +279,23 @@ export class UIScene extends Phaser.Scene {
       const i = this.slotIcons.length;
       const box = this.add.rectangle(0, 0, 46, 46, 0x0e1a24)
         .setStrokeStyle(2, 0x24404f)
-        .setDepth(500)
-        .setInteractive({ useHandCursor: true });
+        .setDepth(500);
       const icon = this.add.image(0, 0, 'pk_25').setScale(0.55).setDepth(501).setVisible(false);
       const lv = this.add.text(0, 0, '1', {
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(1, 1).setDepth(502).setVisible(false);
 
-      box.on('pointerdown', () => this.showMoveTip(i));
+      // 冷却扇形时钟：盖在图标上，随剩余时间收窄
+      const cd = this.add.graphics().setDepth(503).setVisible(false);
 
-      this.slotIcons.push({ box, icon, lv });
+      // 独立透明命中层：不参与视觉，只负责点击，尺寸可以给得很大
+      // （视觉框本身不做 interactive，避免 setSize 每帧重置 hitArea 导致点不中）
+      const hit = this.add.rectangle(0, 0, 46, 46, 0xffffff, 0)
+        .setDepth(504)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => this.showMoveTip(i));
+
+      this.slotIcons.push({ box, icon, lv, hit, cd });
     }
 
     for (let i = 0; i < MAX_SLOTS; i++) {
@@ -224,10 +307,11 @@ export class UIScene extends Phaser.Scene {
       box.setVisible(true);
       // 用 setSize 而不是 setDisplaySize：Rectangle 的几何尺寸变了，命中区才好同步
       box.setSize(size, size);
-      // 命中区比视觉大 8px，手指擦边也能点中
-      const hit = size + 8;
-      box.input!.hitArea.setSize(hit, hit);
-      box.input!.hitArea.setPosition(-hit / 2, -hit / 2);
+
+      // 命中层：比视觉大 10px（手指容错），独立对象所以每帧改尺寸不会破坏输入
+      const hitSize = size + 10;
+      slot.hit.setVisible(true);
+      slot.hit.setSize(hitSize, hitSize);
 
       if (def) {
         box.setFillStyle(0x0e1a24, 0.92);
@@ -374,7 +458,35 @@ export class UIScene extends Phaser.Scene {
       const sx = startX + i * (size + gap);
       s.box.setPosition(sx, this.L.slotY);
       s.icon.setPosition(sx, this.L.slotY);
+      s.hit.setPosition(sx, this.L.slotY);
       s.lv.setPosition(sx + size / 2 - 2, this.L.slotY + size / 2 - 1);
+      s.cd.setPosition(sx, this.L.slotY);
+    }
+
+    this.layoutBuffs();
+  }
+
+  /** 底部属性强化小图标：一排小方块，排在技能槽右侧 */
+  private layoutBuffs() {
+    const bs = Math.max(16, Math.round(this.L.slotSize * 0.44));
+    const gap = 3;
+    const list = this.buffIcons;
+
+    // 技能槽整体右边界
+    const { width } = this.scale;
+    const n = MAX_SLOTS;
+    const totalW = n * this.L.slotSize + (n - 1) * this.L.slotGap;
+    const rightEdge = (width + totalW) / 2;
+
+    // 从技能槽右边开始往右排；放不下就换到上一行
+    let x = rightEdge + 6 + bs / 2;
+    let y = this.L.slotY;
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (x + bs / 2 > width - 4) { x = rightEdge + 6 + bs / 2; y -= bs + gap; }
+      b.bg.setSize(bs, bs).setPosition(x, y);
+      b.txt.setPosition(x, y).setFontSize(Math.max(8, Math.round(bs * 0.52)));
+      x += bs + gap;
     }
   }
 }

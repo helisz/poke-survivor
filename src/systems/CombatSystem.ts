@@ -8,6 +8,8 @@ interface ActiveSlot {
   moveId: string;
   level: number;
   timer: number;
+  /** 本次冷却的总时长（画冷却时钟用） */
+  total?: number;
   /** 已进化次数（0 = 原始形态） */
   evoStage?: number;
   /** 进化带来的伤害倍率 */
@@ -97,6 +99,15 @@ export class CombatSystem {
     return this.slots.find((s) => s.moveId === id)?.level ?? 0;
   }
 
+  /** 冷却进度：1 = 刚放完（满格等待），0 = 就绪。返回 0 表示可立即释放 */
+  getCooldownProgress(index: number): number {
+    const slot = this.slots[index];
+    if (!slot) return 0;
+    const total = slot.total ?? slot.timer;
+    if (!total || total <= 0) return 0;
+    return Phaser.Math.Clamp(slot.timer / total, 0, 1);
+  }
+
   /** 某招式当前的进化阶段（0 = 未进化） */
   getEvoStage(id: string) {
     return this.slots.find((s) => s.moveId === id)?.evoStage ?? 0;
@@ -140,6 +151,7 @@ export class CombatSystem {
       if (slot.timer > 0) return;
       const cdMul = this.player.stats.cooldownMul / (1 + (slot.level - 1) * 0.12) * (slot.evoCdMul ?? 1);
       slot.timer = def.cooldown * cdMul;
+      slot.total = slot.timer;
       const origin = followers[i] ?? { x: this.player.x, y: this.player.y };
       this.fire(def, slot.level, origin.x, origin.y);
     });

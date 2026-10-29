@@ -29,6 +29,15 @@ export class GameScene extends Phaser.Scene {
   private ground!: Ground;
   /** 当前地图主题索引 */
   private mapIndex = 0;
+  /** 属性强化的叠加层数（UI 底部小图标展示） */
+  statStacks: Record<string, number> = {};
+
+  /** 记录一次属性强化，同步给 UI */
+  addStatStack(id: string) {
+    this.statStacks[id] = (this.statStacks[id] ?? 0) + 1;
+    const ui = this.scene.get('UI') as any;
+    ui?.refreshBuffs?.();
+  }
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private joystick?: { x: number; y: number };
 
@@ -486,11 +495,11 @@ export class GameScene extends Phaser.Scene {
 
     // 属性加成
     const statUpgrades: UpgradeOption[] = [
-      { kind: 'stat', id: 'atk', title: '力量强化', desc: '伤害 +12%', color: 0xf0703c, apply: () => { this.player.stats.damageMul *= 1.12; } },
-      { kind: 'stat', id: 'spd', title: '疾行', desc: '移速 +8%', color: 0x449ddf, apply: () => { this.player.stats.speed *= 1.08; } },
-      { kind: 'stat', id: 'hp', title: '体力强化', desc: '最大 HP +20 并回满', color: 0x63c256, apply: () => { this.player.stats.maxHp += 20; this.player.stats.hp = this.player.stats.maxHp; } },
-      { kind: 'stat', id: 'pick', title: '磁力', desc: '拾取范围 +25%', color: 0xf7d02c, apply: () => { this.player.stats.pickup *= 1.25; } },
-      { kind: 'stat', id: 'cd', title: '迅捷', desc: '招式冷却 -8%', color: 0x8a5fbf, apply: () => { this.player.stats.cooldownMul *= 0.92; } },
+      { kind: 'stat', id: 'atk', title: '力量强化', desc: '伤害 +12%', color: 0xf0703c, apply: () => { this.player.stats.damageMul *= 1.12; this.addStatStack('atk'); } },
+      { kind: 'stat', id: 'spd', title: '疾行', desc: '移速 +8%', color: 0x449ddf, apply: () => { this.player.stats.speed *= 1.08; this.addStatStack('spd'); } },
+      { kind: 'stat', id: 'hp', title: '体力强化', desc: '最大 HP +20 并回满', color: 0x63c256, apply: () => { this.player.stats.maxHp += 20; this.player.stats.hp = this.player.stats.maxHp; this.addStatStack('hp'); } },
+      { kind: 'stat', id: 'pick', title: '磁力', desc: '拾取范围 +25%', color: 0xf7d02c, apply: () => { this.player.stats.pickup *= 1.25; this.addStatStack('pick'); } },
+      { kind: 'stat', id: 'cd', title: '迅捷', desc: '招式冷却 -8%', color: 0x8a5fbf, apply: () => { this.player.stats.cooldownMul *= 0.92; this.addStatStack('cd'); } },
     ];
     pool.push(...statUpgrades);
 
