@@ -7,6 +7,8 @@ import { CombatSystem } from '../systems/CombatSystem';
 import { EnemySystem } from '../systems/EnemySystem';
 import { Sfx } from '../systems/Sfx';
 import { Ground } from '../systems/Ground';
+import { applyNeonLook } from '../ui/NeonPost';
+import { NeonFloor } from '../systems/NeonFloor';
 import { PickupSystem } from '../systems/PickupSystem';
 import { PICKUP_DEFS, type PickupKind } from '../data/pickups';
 import type { TraitId } from '../data/stats';
@@ -36,6 +38,7 @@ export class GameScene extends Phaser.Scene {
   combat!: CombatSystem;
   enemies!: EnemySystem;
   private ground!: Ground;
+  private neonFloor!: NeonFloor;
   /** 当前地图主题索引 */
   private mapIndex = 0;
   /** 属性强化的叠加层数（UI 底部小图标展示） */
@@ -95,8 +98,23 @@ export class GameScene extends Phaser.Scene {
     this.makeDotTexture();
     this.makeOrbTexture();
 
-    this.cameras.main.setBackgroundColor('#0a0f14');
+    this.cameras.main.setBackgroundColor('#070d13');
     this.ground = new Ground(this);
+
+    // 地面霓虹层：网格线 + 漂移光斑 + 地平线光带
+    this.neonFloor = new NeonFloor(this);
+
+    // 不在这里手动销毁后处理管道：Phaser 在 shutdown 之后仍会走到一次渲染，
+    // 提前 resetPostPipeline 会释放正在使用的 render target，导致
+    // "Cannot read properties of null (reading 'drawImage')"。
+    // 相机销毁时 Phaser 会自动回收管道，只需清掉霓虹层自身的对象。
+    this.events.once('shutdown', () => {
+      this.neonFloor?.destroy();
+    });
+
+    // 霓虹后处理：泛光 + 暗角 + 降饱和压暗
+    // 参数调低：泛光过强会把画面糊成一团，暗角过重会压缩视野
+    applyNeonLook(this, { bloom: 0.55, vignette: 0.34, brightness: 0.94, saturation: 1.18 });
 
     // 世界无限：给一个很大的边界
     this.physics.world.setBounds(-1e6, -1e6, 2e6, 2e6);
@@ -223,6 +241,7 @@ export class GameScene extends Phaser.Scene {
 
     this.ground.update(this.cameras.main.scrollX, this.cameras.main.scrollY,
       this.scale.width, this.scale.height);
+    this.neonFloor.update(delta);
 
     // 地图推进：按整局进度切换主题
     const prog = this.elapsed / RUN_SECONDS;
@@ -448,7 +467,10 @@ export class GameScene extends Phaser.Scene {
     this.spawnAccum += dt * rate;
     // 血量成长：原 1 + t/45 在 2 分钟就涨到 3.7 倍，太陡。
     // 改为 300 秒内从 1 涨到 2.2 倍，前段几乎持平，后段缓慢加速。
-    const hpMul = (1 + 1.2 * Math.pow(Math.min(t, 300) / 300, 1.35)) * (theme.enemyHpMul ?? 1);
+    // 血量成长放缓：原 1.2 系数 → 0.55，指数 1.35 → 1.5。
+    // 后期（5 分钟）从 2.20 倍降到 1.55 倍，减负约 30%；
+    // 前 2 分钟几乎持平，避免开局变得太软。
+    const hpMul = (1 + 0.55 * Math.pow(Math.min(t, 300) / 300, 1.5)) * (theme.enemyHpMul ?? 1);
     // 速度成长：原 1 + t/220 在 5 分钟涨到 2.36 倍，主角固定速度必被追上。
     // 改为 300 秒内只涨到 1.18 倍，且前 90 秒完全不加速。
     const speedMul = (1 + 0.18 * Math.pow(Math.max(0, Math.min(t, 300) - 90) / 210, 1.5))
@@ -955,12 +977,30 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  /** 场景关闭前释放霓虹层（Phaser 会自动销毁游戏对象，这里只清引用） */
+  shutdownNeon() {
+    this.neonFloor?.destroy();
+  }
+
   private makeDotTexture() {
     if (this.textures.exists('dot')) return;
+    // 霓虹弹体：外层柔光晕 + 实心主体 + 近白核心。
+    // 单色实心圆在暗底上像"纸片"，加光晕后才有 Neon Abyss 那种发光弹感。
+    const S = 28;
+    const c = S / 2;
     const g = this.make.graphics({ x: 0, y: 0 }, false);
+    // 外晕：由外到内叠加，模拟高斯衰减
+    for (let i = 12; i >= 1; i--) {
+      g.fillStyle(0xffffff, 0.018 + (12 - i) * 0.006);
+      g.fillCircle(c, c, i + 2);
+    }
+    // 主体
+    g.fillStyle(0xffffff, 0.92);
+    g.fillCircle(c, c, 5);
+    // 核心过曝
     g.fillStyle(0xffffff, 1);
-    g.fillCircle(6, 6, 6);
-    g.generateTexture('dot', 12, 12);
+    g.fillCircle(c, c, 2.6);
+    g.generateTexture('dot', S, S);
     g.destroy();
   }
 

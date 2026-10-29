@@ -487,13 +487,34 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
-  /** 放弃本局：清场回主菜单，不结算金币 */
+  /**
+   * 放弃本局：清场回主菜单，不结算金币。
+   *
+   * 顺序与 GameOverScene 同源踩过的坑：
+   *  1. this.scene.stop() 停的是 UIScene 自己，调用后本方法后续语句可能不再执行
+   *     → 必须用 scene manager，并先 start('Menu') 再停别的
+   *  2. ScenePlugin.stop() 不是立即生效，它只是排队，因此不能靠"停自己"来收尾
+   *  3. 任何全屏遮罩/交互层留在最上层都会吞掉主菜单的指针事件
+   */
   private quitToMenu() {
     Sfx.click();
     this.gs.paused = false;
-    this.scene.stop('LevelUp');
-    this.scene.stop('Game');
-    this.scene.stop();
-    this.scene.start('Menu');
+    const mgr = this.scene.manager;
+    // 先建主菜单，保证后续无论停谁都有东西接住输入。
+    // Menu 可能处于 SLEEPING 状态（曾被 stop 过），此时 start 不会再跑 create，
+    // 必须用 wake 才能重新显示。
+    const menu = mgr.getScene('Menu');
+    if (menu && menu.sys.isSleeping()) mgr.wake('Menu');
+    else mgr.start('Menu');
+    // 停掉除 Menu 之外的一切场景。
+    // 只点名停 LevelUp/Game/UI 是不够的——TraitSelect、PartnerSelect、GameOver
+    // 等场景若残留活跃，会和 Menu 一起渲染、互相抢 pointer，表现为"点了没反应"。
+    //
+    // 注意：必须先收集 key 再停。mgr.stop() 会实时改动 getScenes() 返回的内部数组，
+    // 边遍历边停会漏停或误停（曾把 Menu 自己也停掉，导致整屏空白）。
+    const others = mgr.getScenes(true)
+      .map((sc) => sc.sys.settings.key)
+      .filter((key) => key !== 'Menu');
+    for (const key of others) mgr.stop(key);
   }
 }

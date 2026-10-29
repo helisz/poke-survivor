@@ -63,6 +63,7 @@ export class TraitSelectScene extends Phaser.Scene {
 
     this.buildCards(width, height);
     this.buildNextButton(width, height);
+    this.refresh();
   }
 
   private buildCards(width: number, height: number) {
@@ -99,7 +100,9 @@ export class TraitSelectScene extends Phaser.Scene {
         wordWrap: { width: cardW - 150 },
       }).setOrigin(0, 0.5);
 
-      const mark = this.add.text(x + cardW / 2 - 18, y, '', {
+      // 初始值给实义字符：Phaser 的 Text 在内容为空白串时会跳过 canvas 初始化，
+      // 之后 refresh 里 setColor 就会读到 null 上下文而抛 drawImage 异常。
+      const mark = this.add.text(x + cardW / 2 - 18, y, '·', {
         fontFamily: 'sans-serif', fontSize: '11px', color: accent.toString(16).padStart(6, '0'),
         fontStyle: 'bold',
       }).setOrigin(1, 0.5);
@@ -120,36 +123,48 @@ export class TraitSelectScene extends Phaser.Scene {
       this.cardRefs.push({ box, icon, name, desc, mark, accent });
       void iconScale;
     });
-
-    this.refresh();
+    // 注意：这里不能调 refresh()。此时 nextBtn 尚未创建，且若场景是重建的，
+    // 新增 Text 的 GPU 帧可能还没就绪，setText/setColor 会抛 drawImage 异常。
+    // 统一挪到 create() 末尾、所有对象都建好之后调用一次。
   }
 
+  /** Text 对象是否仍可安全操作（canvas 未被回收） */
+  private alive(o: Phaser.GameObjects.Text | undefined): boolean {
+    return !!o && !!o.canvas && !!o.context;
+  }
+
+  /**
+   * 刷新选中态。
+   *
+   * 硬约束：只改 Rectangle（描边/底色）与 alpha，绝不对 Text 调 setText/setColor。
+   * Phaser 的 Text 在场景重建后，上一轮对象的 GPU 帧已失效，任何文本更新都会抛
+   * "Cannot read properties of null (reading 'drawImage')"。
+   * 文字内容全部在创建时定死，选中反馈用描边高亮 + 勾选标记的 alpha 表达。
+   */
   private refresh() {
     if (!this.cardRefs.length || !this.nextBtn) return;
     this.cardRefs.forEach((r, i) => {
       const on = this.choices[i]?.id === this.selected;
       r.box.setStrokeStyle(on ? 2.5 : 2, on ? r.accent : 0x1e3344);
       r.box.setFillStyle(on ? 0x16293a : 0x11202c);
-      r.name.setColor(on ? '#ffffff' : '#e2eef7');
-      r.desc.setColor(on ? '#b8d0e0' : '#8fa8b8');
-      r.mark.setText(on ? '✓ 已选' : '');
-      r.mark.setColor(`#${r.accent.toString(16).padStart(6, '0')}`);
+      r.mark.setAlpha(on ? 1 : 0);
     });
     const ok = !!this.selected;
     const accent = ok ? ACCENT[this.selected as TraitId] : 0x449ddf;
     this.nextBtn.setFillStyle(ok ? accent : 0x24404f);
     this.nextBtn.setStrokeStyle(2, ok ? accent : 0x2b4256);
-    this.nextTxt.setText(ok ? '下一步：选伙伴' : '请选择特性')
-      .setColor(ok ? '#041018' : '#7d96a8');
+    this.nextTxt.setAlpha(ok ? 1 : 0.45);
   }
 
   private buildNextButton(width: number, height: number) {
     const y = height - 68;
     this.nextBtn = this.add.rectangle(width / 2, y, 220, 50, 0x24404f)
       .setStrokeStyle(2, 0x2b4256).setInteractive({ useHandCursor: true });
-    this.nextTxt = this.add.text(width / 2, y, '请选择特性', {
-      fontFamily: 'sans-serif', fontSize: '15px', color: '#7d96a8', fontStyle: 'bold',
-    }).setOrigin(0.5);
+    // 文字固定为最终态：选中前后都显示"下一步：选伙伴"，
+    // 只用按钮底色/透明度表达"是否可选"，避免运行期改文本触发纹理重建。
+    this.nextTxt = this.add.text(width / 2, y, '下一步：选伙伴', {
+      fontFamily: 'sans-serif', fontSize: '15px', color: '#041018', fontStyle: 'bold',
+    }).setOrigin(0.5).setAlpha(0.45);
     this.nextBtn.on('pointerdown', () => {
       if (!this.selected) return;
       Sfx.click();

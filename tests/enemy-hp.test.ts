@@ -3,10 +3,10 @@ import { describe, it, expect } from 'vitest';
 /**
  * 敌人血量成长曲线回归测试。
  * 历史问题：hpMul = 1 + t/45，2 分钟就涨到 3.67 倍，玩家打不动。
- * 现在的曲线：300 秒内从 1.0 平滑涨到 2.2 倍。
+ * 现在的曲线：300 秒内从 1.0 平滑涨到 1.55 倍（配合技能每级 +42% 成长）。
  */
 
-const hpMul = (t: number) => 1 + 1.2 * Math.pow(Math.min(t, 300) / 300, 1.35);
+const hpMul = (t: number) => 1 + 0.55 * Math.pow(Math.min(t, 300) / 300, 1.5);
 const BASE_HP = 26;
 
 describe('敌人血量成长', () => {
@@ -26,9 +26,9 @@ describe('敌人血量成长', () => {
     expect(BASE_HP * hpMul(120)).toBeLessThan(40);
   });
 
-  it('5 分钟封顶约 2.2 倍', () => {
-    expect(hpMul(300)).toBeCloseTo(2.2, 2);
-    expect(hpMul(600)).toBeCloseTo(2.2, 2); // 超出后不再增长
+  it('5 分钟封顶约 1.55 倍（显著放缓）', () => {
+    expect(hpMul(300)).toBeCloseTo(1.55, 2);
+    expect(hpMul(600)).toBeCloseTo(1.55, 2); // 超出 300 秒封顶，不再增长
   });
 
   it('比其他任何阶段都更平缓（旧曲线对比）', () => {

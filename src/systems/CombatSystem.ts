@@ -273,7 +273,9 @@ export class CombatSystem {
   private fire(def: MoveDef, level: number, ox: number, oy: number) {
     const slot = this.slots.find((s) => s.moveId === def.id);
     const evoMul = slot?.evoDmgMul ?? 1;
-    const dmgMul = this.player.stats.damageMul * (1 + (level - 1) * 0.18) * evoMul;
+    // 技能升级成长显著提高：每级 +18% → +42%。
+    // 让"升级"成为主要的强度来源，玩家能明显感到越打越强。
+    const dmgMul = this.player.stats.damageMul * (1 + (level - 1) * 0.42) * evoMul;
     const damage = def.baseDamage * dmgMul;
 
     switch (def.category) {
