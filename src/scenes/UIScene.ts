@@ -153,7 +153,9 @@ export class UIScene extends Phaser.Scene {
     // 招式槽参数：手机底部手势条/浏览器栏会盖住 → 用安全区 + 额外余量抬高
     const size = narrow ? 38 : 46;
     const safeBottom = this.readSafeBottom();
-    const bottomPad = narrow ? 44 + safeBottom : 20;
+    // 属性强化一行在技能槽下方，需要额外预留它的高度
+    const buffRow = Math.max(22, Math.round(size * 0.62)) + 6;
+    const bottomPad = narrow ? 44 + safeBottom + buffRow : 20 + buffRow;
     this.L.slotSize = size;
     this.L.slotGap = narrow ? 5 : 6;
     this.L.slotY = height - bottomPad - size / 2;
@@ -202,7 +204,7 @@ export class UIScene extends Phaser.Scene {
     this.drawCooldowns();
   }
 
-  /** 冷却扇形时钟：在技能格上画一块灰掉的扇形，随时间收窄 */
+  /** 冷却矩形遮罩：从上往下退，越少越快放完 */
   private drawCooldowns() {
     const size = this.L.slotSize;
     const half = size / 2;
@@ -218,18 +220,14 @@ export class UIScene extends Phaser.Scene {
       if (p <= 0.001) { g.setVisible(false); continue; }
 
       g.setVisible(true);
-      // 灰罩从 12 点方向顺时针铺满 p 比例（剩余越多罩得越多）
-      const start = -Math.PI / 2;
-      const end = start + Math.PI * 2 * p;
-      g.fillStyle(0x000000, 0.62);
-      g.slice(0, 0, half, start, end, false);
-      g.fillPath();
+      // 剩余比例 p：遮罩从顶部盖到这里，往下退
+      const h = size * p;
+      g.fillStyle(0x000000, 0.6);
+      g.fillRect(-half, -half, size, h);
 
-      // 边缘高亮，让「还在转」更明显
-      g.lineStyle(1.5, 0x9cc4dc, 0.5);
-      g.beginPath();
-      g.arc(0, 0, half - 1, start, end, false);
-      g.strokePath();
+      // 遮罩下沿一条浅蓝细线，让边界清楚
+      g.fillStyle(0x9cc4dc, 0.55);
+      g.fillRect(-half, -half + h - 1, size, 1.5);
     }
   }
 
@@ -466,27 +464,25 @@ export class UIScene extends Phaser.Scene {
     this.layoutBuffs();
   }
 
-  /** 底部属性强化小图标：一排小方块，排在技能槽右侧 */
+  /** 底部属性强化小图标：居中一行，放在技能槽正下方 */
   private layoutBuffs() {
-    const bs = Math.max(16, Math.round(this.L.slotSize * 0.44));
-    const gap = 3;
-    const list = this.buffIcons;
-
-    // 技能槽整体右边界
     const { width } = this.scale;
-    const n = MAX_SLOTS;
-    const totalW = n * this.L.slotSize + (n - 1) * this.L.slotGap;
-    const rightEdge = (width + totalW) / 2;
+    const n = this.buffIcons.length;
+    if (!n) return;
 
-    // 从技能槽右边开始往右排；放不下就换到上一行
-    let x = rightEdge + 6 + bs / 2;
-    let y = this.L.slotY;
-    for (let i = 0; i < list.length; i++) {
-      const b = list[i];
-      if (x + bs / 2 > width - 4) { x = rightEdge + 6 + bs / 2; y -= bs + gap; }
+    // 尺寸放大：约为技能格的 0.62
+    const bs = Math.max(22, Math.round(this.L.slotSize * 0.62));
+    const gap = 4;
+    const totalW = n * bs + (n - 1) * gap;
+    const startX = (width - totalW) / 2 + bs / 2;
+    // 技能槽底边往下 6px
+    const y = this.L.slotY + this.L.slotSize / 2 + 6 + bs / 2;
+
+    for (let i = 0; i < n; i++) {
+      const b = this.buffIcons[i];
+      const x = startX + i * (bs + gap);
       b.bg.setSize(bs, bs).setPosition(x, y);
-      b.txt.setPosition(x, y).setFontSize(Math.max(8, Math.round(bs * 0.52)));
-      x += bs + gap;
+      b.txt.setPosition(x, y).setFontSize(Math.max(10, Math.round(bs * 0.52)));
     }
   }
 }
