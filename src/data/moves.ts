@@ -25,6 +25,8 @@ export interface MoveDef {
   pokeId: number;
   type: string;
   category: MoveCategory;
+  /** 视觉表现风格：lightning = 劈出的闪电；fist = 挥出的拳头；fireball = 分裂火球 */
+  style?: 'lightning' | 'fist' | 'fireball';
   color: number;
   baseDamage: number;
   cooldown: number;      // ms/shot
@@ -56,7 +58,7 @@ export const RARITY_ZH: Record<Rarity, string> = {
 
 export const MOVES: Record<string, MoveDef> = {
   thunderbolt: {
-    id: 'thunderbolt', name: '十万伏特', pokeId: 25, type: '电', category: 'projectile',
+    id: 'thunderbolt', name: '十万伏特', pokeId: 25, type: '电', category: 'projectile', style: 'lightning',
     color: 0xf7d02c, baseDamage: 20, cooldown: 600, projectileSpeed: 520, pierce: 1,
     desc: '向最近的敌人发射电球',
     traits: ['homing'],
@@ -64,7 +66,7 @@ export const MOVES: Record<string, MoveDef> = {
     hasEvolution: true,
   },
   flamethrower: {
-    id: 'flamethrower', name: '喷射火焰', pokeId: 6, type: '火', category: 'projectile',
+    id: 'flamethrower', name: '喷射火焰', pokeId: 6, type: '火', category: 'projectile', style: 'fireball',
     color: 0xf0703c, baseDamage: 18, cooldown: 520, projectileSpeed: 460, pierce: 1,
     desc: '快速喷出穿透火焰',
     traits: ['pierce', 'spread'],
@@ -103,7 +105,7 @@ export const MOVES: Record<string, MoveDef> = {
     hasEvolution: true,
   },
   dragonclaw: {
-    id: 'dragonclaw', name: '龙之爪', pokeId: 149, type: '龙', category: 'melee',
+    id: 'dragonclaw', name: '龙之爪', pokeId: 149, type: '龙', category: 'melee', style: 'fist',
     color: 0x6a4fd0, baseDamage: 32, cooldown: 720, range: 90,
     desc: '身前横扫近战',
     traits: ['sweep'],
@@ -143,14 +145,14 @@ export const MOVES: Record<string, MoveDef> = {
     hasEvolution: true,
   },
   thunderpunch: {
-    id: 'thunderpunch', name: '雷光拳', pokeId: 466, type: '电', category: 'melee',
+    id: 'thunderpunch', name: '雷光拳', pokeId: 466, type: '电', category: 'melee', style: 'lightning',
     color: 0xf7d02c, baseDamage: 28, cooldown: 640, range: 80,
     desc: '快速电拳',
     traits: ['flurry'],
     rarity: 'common',
   },
   flareblitz: {
-    id: 'flareblitz', name: '闪焰冲锋', pokeId: 78, type: '火', category: 'melee',
+    id: 'flareblitz', name: '闪焰冲锋', pokeId: 78, type: '火', category: 'melee', style: 'fireball',
     color: 0xf0703c, baseDamage: 36, cooldown: 880, range: 95,
     desc: '冲锋火焰近战',
     traits: ['sweep'],
@@ -171,7 +173,7 @@ export const MOVES: Record<string, MoveDef> = {
     rarity: 'common',
   },
   ironhead: {
-    id: 'ironhead', name: '铁头', pokeId: 208, type: '钢', category: 'melee',
+    id: 'ironhead', name: '铁头', pokeId: 208, type: '钢', category: 'melee', style: 'fist',
     color: 0x9aa8b8, baseDamage: 30, cooldown: 740, range: 85,
     desc: '钢之头槌',
     traits: ['sweep'],
@@ -192,7 +194,7 @@ export const MOVES: Record<string, MoveDef> = {
     rarity: 'common',
   },
   blazekick: {
-    id: 'blazekick', name: '火焰踢', pokeId: 257, type: '火', category: 'melee',
+    id: 'blazekick', name: '火焰踢', pokeId: 257, type: '火', category: 'melee', style: 'fist',
     color: 0xf0703c, baseDamage: 32, cooldown: 780, range: 90,
     desc: '火焰飞踢',
     traits: ['sweep'],
@@ -220,7 +222,7 @@ export const MOVES: Record<string, MoveDef> = {
     rarity: 'common',
   },
   cometpunch: {
-    id: 'cometpunch', name: '连续拳', pokeId: 115, type: '一般', category: 'melee',
+    id: 'cometpunch', name: '连续拳', pokeId: 115, type: '一般', category: 'melee', style: 'fist',
     color: 0xd0b090, baseDamage: 15, cooldown: 330, range: 70,
     desc: '超快三段拳',
     traits: ['flurry', 'spread'],

@@ -28,6 +28,16 @@ export interface MapTheme {
   ambientAlpha: number;
   /** 该地图怪物移动速度倍率 */
   enemySpeedMul: number;
+  /** 该地图专属小怪池（宝可梦图鉴编号），为空则用全局池 */
+  enemyPool?: number[];
+  /** 该地图专属精英池 */
+  elitePool?: number[];
+  /** 该地图怪物血量倍率 */
+  enemyHpMul?: number;
+  /** 该地图刷怪数量倍率（<1 更稀疏，>1 更密集） */
+  spawnMul?: number;
+  /** 该地图怪物额外掉落经验倍率 */
+  expMul?: number;
 }
 
 export const MAP_THEMES: MapTheme[] = [
@@ -41,6 +51,10 @@ export const MAP_THEMES: MapTheme[] = [
     ambient: 0x8ecf7a,
     ambientAlpha: 0.05,
     enemySpeedMul: 1,
+    enemyPool: [19, 20, 16, 10, 13, 43, 69, 46],
+    enemyHpMul: 1,
+    spawnMul: 1,
+    expMul: 1,
     decorations: [
       { type: 'bush', color: 0x3d7243, scale: 1 },
       { type: 'bush', color: 0x356b3a, scale: 0.8 },
@@ -56,7 +70,12 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x142818,
     ambient: 0x3f9b5c,
     ambientAlpha: 0.1,
-    enemySpeedMul: 1.05,
+    enemySpeedMul: 1.1,
+    enemyPool: [10, 11, 12, 13, 14, 48, 123, 127],
+    elitePool: [127, 123],
+    enemyHpMul: 0.9,
+    spawnMul: 1.15,
+    expMul: 1.05,
     decorations: [
       { type: 'tree', color: 0x2a5a34, scale: 1.15 },
       { type: 'tree', color: 0x1c4227, scale: 0.9 },
@@ -73,7 +92,12 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x1a1a20,
     ambient: 0x6f7bd6,
     ambientAlpha: 0.12,
-    enemySpeedMul: 1,
+    enemySpeedMul: 0.95,
+    enemyPool: [41, 42, 74, 75, 95, 27, 50, 129],
+    elitePool: [95, 75],
+    enemyHpMul: 1.35,
+    spawnMul: 0.85,
+    expMul: 1.2,
     decorations: [
       { type: 'rock', color: 0x45454f, scale: 1.1 },
       { type: 'rock', color: 0x353542, scale: 0.8 },
@@ -89,7 +113,12 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x1a221a,
     ambient: 0x7fb04a,
     ambientAlpha: 0.11,
-    enemySpeedMul: 0.92,
+    enemySpeedMul: 0.85,
+    enemyPool: [23, 24, 88, 89, 43, 44, 194, 195],
+    elitePool: [89, 24],
+    enemyHpMul: 1.1,
+    spawnMul: 1.35,
+    expMul: 1.1,
     decorations: [
       { type: 'reed', color: 0x4a6b3a, scale: 1 },
       { type: 'reed', color: 0x3c5730, scale: 0.85 },
@@ -106,7 +135,12 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x1e0f0b,
     ambient: 0xff6a33,
     ambientAlpha: 0.13,
-    enemySpeedMul: 1.12,
+    enemySpeedMul: 1.2,
+    enemyPool: [37, 38, 58, 59, 77, 78, 126, 219],
+    elitePool: [78, 59],
+    enemyHpMul: 1.2,
+    spawnMul: 1.1,
+    expMul: 1.3,
     decorations: [
       { type: 'rock', color: 0x4a2c22, scale: 1.1 },
       { type: 'lava', color: 0xff5a22, scale: 1 },
@@ -123,7 +157,12 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x1a1824,
     ambient: 0xb08cff,
     ambientAlpha: 0.14,
-    enemySpeedMul: 1.15,
+    enemySpeedMul: 1.28,
+    enemyPool: [92, 93, 200, 201, 337, 338, 353, 354],
+    elitePool: [93, 354],
+    enemyHpMul: 1.15,
+    spawnMul: 1.2,
+    expMul: 1.45,
     decorations: [
       { type: 'pillar', color: 0x4a4560, scale: 1.2 },
       { type: 'pillar', color: 0x38354a, scale: 0.9 },

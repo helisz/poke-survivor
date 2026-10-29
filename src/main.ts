@@ -3,6 +3,7 @@ import { BootScene } from './scenes/BootScene';
 import { MenuScene } from './scenes/MenuScene';
 import { TraitSelectScene } from './scenes/TraitSelectScene';
 import { PartnerSelectScene } from './scenes/PartnerSelectScene';
+import { ShopScene } from './scenes/ShopScene';
 import { GameScene } from './scenes/GameScene';
 import { UIScene } from './scenes/UIScene';
 import { LevelUpScene } from './scenes/LevelUpScene';
@@ -42,7 +43,7 @@ const config: Phaser.Types.Core.GameConfig = {
     default: 'arcade',
     arcade: { gravity: { x: 0, y: 0 }, debug: false },
   },
-  scene: [BootScene, MenuScene, TraitSelectScene, PartnerSelectScene, GameScene, UIScene, LevelUpScene, GameOverScene],
+  scene: [BootScene, MenuScene, TraitSelectScene, PartnerSelectScene, ShopScene, GameScene, UIScene, LevelUpScene, GameOverScene],
 };
 
 const game = new Phaser.Game(config);

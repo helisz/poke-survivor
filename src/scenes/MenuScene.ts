@@ -31,6 +31,15 @@ export class MenuScene extends Phaser.Scene {
       fontSize: '12px', color: '#a8c4d8',
     }).setOrigin(0.5);
 
+    // 商店入口
+    const shopY = height * 0.20 + 112;
+    const shopBtn = this.add.rectangle(width / 2, shopY, 132, 32, 0x14293a)
+      .setStrokeStyle(1.5, 0x2f6f96).setInteractive({ useHandCursor: true });
+    this.add.text(width / 2, shopY, '永 久 强 化', {
+      fontFamily: 'sans-serif', fontSize: '12px', color: '#63b4ef', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    shopBtn.on('pointerdown', () => { Sfx.init(); Sfx.click(); this.scene.start('Shop'); });
+
     // 操作指引
     const tips = [
       '直接拖动屏幕即可平移，不用点方向键',

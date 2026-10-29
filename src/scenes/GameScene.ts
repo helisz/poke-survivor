@@ -7,8 +7,11 @@ import { CombatSystem } from '../systems/CombatSystem';
 import { EnemySystem } from '../systems/EnemySystem';
 import { Sfx } from '../systems/Sfx';
 import { Ground } from '../systems/Ground';
+import { PickupSystem } from '../systems/PickupSystem';
+import { PICKUP_DEFS, type PickupKind } from '../data/pickups';
 import type { TraitId } from '../data/stats';
 import { EVOLUTIONS, canEvolve, type EvolutionDef } from '../data/evolutions';
+import { applyPerm } from '../data/stats';
 import { POKEMON_PLAYABLE } from '../data/pokedex';
 
 export interface UpgradeOption {
@@ -66,6 +69,12 @@ export class GameScene extends Phaser.Scene {
   private bossBarW = 300;
   private orbGroup!: Phaser.Physics.Arcade.Group;
   private healGroup!: Phaser.Physics.Arcade.Group;
+  private pickups!: PickupSystem;
+  /** 护盾剩余秒数（>0 无敌） */
+  private shieldTimer = 0;
+  /** 利剑剩余秒数（>0 双倍伤害） */
+  private swordTimer = 0;
+  private pickupArrowGfx?: Phaser.GameObjects.Graphics;
 
   onLevelUp?: () => void;
 
@@ -93,6 +102,18 @@ export class GameScene extends Phaser.Scene {
     this.physics.world.setBounds(-1e6, -1e6, 2e6, 2e6);
 
     this.player = new Player(this, 0, 0, data.trait);
+    // 应用商店购买的局外永久升级
+    {
+      const sv = loadSave();
+      const boosted = applyPerm(this.player.stats, sv.perm);
+      this.player.stats.maxHp = boosted.maxHp;
+      this.player.stats.hp = boosted.maxHp;
+      this.player.stats.damageMul = boosted.damageMul;
+      this.player.stats.speed = boosted.speed;
+      this.player.stats.pickup = boosted.pickup;
+      this.player.stats.expMul = boosted.expMul;
+      this.player.stats.cooldownMul = boosted.cooldownMul;
+    }
     // 开发者模式倍率（主菜单/游戏内 ⚙ 可调）
     const save = loadSave();
     // 记下不含 dev 倍率的基础值，改倍率时用它重算，避免连乘
@@ -110,6 +131,7 @@ export class GameScene extends Phaser.Scene {
     this.orbGroup = this.physics.add.group({ allowGravity: false });
     // 回血球组
     this.healGroup = this.physics.add.group({ allowGravity: false });
+    this.pickups = new PickupSystem(this);
     this.makeHealOrbTexture();
 
     this.combat = new CombatSystem(this, this.player, this.enemies);
@@ -118,7 +140,8 @@ export class GameScene extends Phaser.Scene {
       const t = this.elapsed;
       const timeMul = 1 + Math.min(t / 200, 1.6);
       const base = isBoss ? 120 : isElite ? 36 : 2;
-      this.dropOrb(x, y, Math.max(1, Math.round(base * timeMul)), isElite, isBoss);
+      const mapExp = this.ground.theme.expMul ?? 1;
+      this.dropOrb(x, y, Math.max(1, Math.round(base * timeMul * mapExp)), isElite, isBoss);
       if (isBoss) this.cameras.main.shake(300, 0.01);
 
       // 回血球：1% 概率掉落（BOSS 必掉 2 颗，精英 20%）
@@ -220,6 +243,7 @@ export class GameScene extends Phaser.Scene {
 
     // 经验球吸附
     this.updateOrbs(dt);
+    this.updatePickups(dt);
 
     if (this.player.isDead) { this.endRun(false); return; }
     // 时间到不再直接过关 —— 必须击杀终局 BOSS
@@ -315,16 +339,113 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: flash, alpha: 0, duration: 700, onComplete: () => flash.destroy() });
   }
 
+  private updatePickups(dt: number) {
+    if (!this.pickups) return;
+    const cam = this.cameras.main;
+    this.pickups.update(dt, this.player.x, this.player.y, cam);
+
+    // 护盾/利剑倒计时
+    if (this.shieldTimer > 0) this.shieldTimer = Math.max(0, this.shieldTimer - dt);
+    if (this.swordTimer > 0) {
+      this.swordTimer = Math.max(0, this.swordTimer - dt);
+      const base = this.baseDamageMul;
+      this.player.stats.damageMul = this.swordTimer > 0 ? base * 2 : base;
+    }
+
+    // 拾取判定
+    for (const obj of this.pickups.groupRef.getChildren() as Phaser.Physics.Arcade.Image[]) {
+      if (!obj.active) continue;
+      const d = Phaser.Math.Distance.Between(obj.x, obj.y, this.player.x, this.player.y);
+      if (d < 26) this.applyPickup(obj);
+    }
+
+    this.drawPickupArrows();
+  }
+
+  private applyPickup(obj: Phaser.Physics.Arcade.Image) {
+    const kind = obj.getData('kind') as PickupKind;
+    const def = PICKUP_DEFS[kind];
+    if (kind === 'magnet') {
+      // 吸取全场经验球
+      for (const o of this.orbGroup.getChildren() as Phaser.Physics.Arcade.Image[]) {
+        if (!o.active) continue;
+        o.setData('magnetized', true);
+      }
+      this.cameras.main.flash(220, 120, 40, 40);
+    } else if (kind === 'shield') {
+      this.shieldTimer = 15;
+      this.cameras.main.flash(220, 60, 130, 200);
+    } else {
+      this.baseDamageMul = this.player.stats.damageMul;
+      this.swordTimer = 15;
+      this.cameras.main.flash(220, 200, 170, 50);
+    }
+    Sfx.select();
+    const label = this.add.text(obj.x, obj.y - 10, `${def.name}!`, {
+      fontFamily: 'sans-serif', fontSize: '14px', fontStyle: 'bold',
+      color: `#${def.color.toString(16).padStart(6, '0')}`,
+      stroke: '#041018', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(9);
+    this.tweens.add({
+      targets: label, y: obj.y - 44, alpha: 0, duration: 800,
+      onComplete: () => label.destroy(),
+    });
+    this.pickups.consume(obj);
+  }
+
+  /** 屏幕外道具在屏幕边缘画箭头 */
+  private drawPickupArrows() {
+    if (!this.pickupArrowGfx) {
+      this.pickupArrowGfx = this.add.graphics().setScrollFactor(0).setDepth(480);
+    }
+    const g = this.pickupArrowGfx;
+    g.clear();
+    const cam = this.cameras.main;
+    const w = this.scale.width, h = this.scale.height;
+    const margin = 34;
+
+    for (const a of this.pickups.arrows) {
+      if (a.onScreen) continue;
+      // 世界坐标 → 屏幕坐标
+      const sx = (a.x - cam.worldView.x) * cam.zoom;
+      const sy = (a.y - cam.worldView.y) * cam.zoom;
+      const cxs = w / 2, cys = h / 2;
+      const ang = Math.atan2(sy - cys, sx - cxs);
+      // 投影到屏幕边缘矩形
+      const hw = w / 2 - margin, hh = h / 2 - margin;
+      const t = Math.min(
+        Math.abs(hw / Math.cos(ang)) || Infinity,
+        Math.abs(hh / Math.sin(ang)) || Infinity,
+      );
+      const ax = cxs + Math.cos(ang) * t;
+      const ay = cys + Math.sin(ang) * t;
+
+      const color = PICKUP_DEFS[a.kind].color;
+      g.fillStyle(color, 0.95);
+      g.beginPath();
+      const s = 9;
+      g.moveTo(ax + Math.cos(ang) * s, ay + Math.sin(ang) * s);
+      g.lineTo(ax + Math.cos(ang + 2.5) * s, ay + Math.sin(ang + 2.5) * s);
+      g.lineTo(ax + Math.cos(ang - 2.5) * s, ay + Math.sin(ang - 2.5) * s);
+      g.closePath();
+      g.fillPath();
+    }
+  }
+
   private updateSpawning(dt: number) {
     // 终局 BOSS 阶段：不再刷任何小怪
     if (this.finalBossSpawned) return;
     const t = this.elapsed;
     // 刷怪速率：极平缓的幂曲线，全程几乎线性微增
     // 开局 0.5/s，120 秒 2.2/s，300 秒 3.5/s
-    const rate = 0.62 + 3.3 * Math.pow(Math.min(t, RUN_SECONDS) / RUN_SECONDS, 0.65);
+    const theme = this.ground.theme;
+    // 地图同步给怪物池
+    this.enemies.theme = theme;
+    const rate = (0.62 + 3.3 * Math.pow(Math.min(t, RUN_SECONDS) / RUN_SECONDS, 0.65))
+      * (theme.spawnMul ?? 1);
     this.spawnAccum += dt * rate;
-    const hpMul = 1 + t / 45;
-    const speedMul = (1 + t / 220) * this.ground.theme.enemySpeedMul;
+    const hpMul = (1 + t / 45) * (theme.enemyHpMul ?? 1);
+    const speedMul = (1 + t / 220) * theme.enemySpeedMul;
 
     const cap = 260;
     // 每帧最多批量刷出数：全程保持 1-2，避免整屏瞬间涌出
@@ -370,6 +491,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private checkPlayerHit() {
+    if (this.shieldTimer > 0) return;   // 护盾期间完全无敌
     if (this.player.hurtTimer > 0) return;  // 无敌帧内不做检测，避免一次性被多只怪叠死
     const hb = this.player.getBounds();
     let hit = false;
@@ -447,11 +569,12 @@ export class GameScene extends Phaser.Scene {
     for (const o of this.orbGroup.getChildren() as Phaser.Physics.Arcade.Image[]) {
       if (!o.active) continue;
       const d = Phaser.Math.Distance.Between(px, py, o.x, o.y);
-      if (d < pickup) {
-        // 吸附
+      // 磁铁效果：全场经验无视距离高速飞向玩家
+      if (d < pickup || o.getData('magnetized')) {
         const ang = Math.atan2(py - o.y, px - o.x);
-        o.x += Math.cos(ang) * 420 * dt;
-        o.y += Math.sin(ang) * 420 * dt;
+        const spd = o.getData('magnetized') ? 1200 : 420;
+        o.x += Math.cos(ang) * spd * dt;
+        o.y += Math.sin(ang) * spd * dt;
       }
       if (d < 18) {
         const gain = (o.getData('value') as number) * this.player.stats.expMul;

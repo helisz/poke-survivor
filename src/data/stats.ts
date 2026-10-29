@@ -58,6 +58,50 @@ export interface SaveData {
   devTakenMul: number;
   /** 开发者模式：经验获取倍率（默认 3 倍，测试期加速成长） */
   devExpMul: number;
+  /** 局外永久升级等级（商店购买） */
+  perm: PermLevels;
+}
+
+/** 局外永久升级：等级越高越强，用金币购买 */
+export interface PermLevels {
+  hp: number;        // 最大 HP +12/级
+  damage: number;    // 伤害 +6%/级
+  speed: number;     // 移速 +4%/级
+  pickup: number;    // 拾取范围 +10%/级
+  exp: number;       // 经验 +8%/级
+  cd: number;        // 冷却 -4%/级
+}
+
+export const PERM_EMPTY: PermLevels = { hp: 0, damage: 0, speed: 0, pickup: 0, exp: 0, cd: 0 };
+
+/** 永久升级定义：max 上限，cost(n) 为从 n 升到 n+1 的金币价 */
+export const PERM_UPGRADES = [
+  { key: 'hp',     name: '体魄',   desc: '最大 HP +12',    max: 10, baseCost: 60 },
+  { key: 'damage', name: '威力',   desc: '伤害 +6%',       max: 10, baseCost: 80 },
+  { key: 'speed',  name: '脚力',   desc: '移速 +4%',       max: 8,  baseCost: 70 },
+  { key: 'pickup', name: '磁引',   desc: '拾取范围 +10%',  max: 8,  baseCost: 50 },
+  { key: 'exp',    name: '悟性',   desc: '经验 +8%',       max: 10, baseCost: 90 },
+  { key: 'cd',     name: '节律',   desc: '冷却 -4%',       max: 8,  baseCost: 110 },
+] as const;
+
+export type PermKey = keyof PermLevels;
+
+export function permCost(key: PermKey, level: number): number {
+  const def = PERM_UPGRADES.find((u) => u.key === key)!;
+  return Math.round(def.baseCost * Math.pow(1.55, level));
+}
+
+/** 把永久升级折算进一局的开局属性 */
+export function applyPerm(stats: PlayerStats, perm: PermLevels): PlayerStats {
+  const s = { ...stats };
+  s.maxHp += perm.hp * 12;
+  s.hp = s.maxHp;
+  s.damageMul *= 1 + perm.damage * 0.06;
+  s.speed *= 1 + perm.speed * 0.04;
+  s.pickup *= 1 + perm.pickup * 0.10;
+  s.expMul *= 1 + perm.exp * 0.08;
+  s.cooldownMul *= Math.max(0.5, 1 - perm.cd * 0.04);
+  return s;
 }
 
 const SAVE_KEY = 'poke-survivor-save-v1';
@@ -66,11 +110,16 @@ export function loadSave(): SaveData {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (raw) {
-      const d = { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 0, devExpMul: 3, ...JSON.parse(raw) };
+      const raw2 = JSON.parse(raw);
+      const d: SaveData = {
+        coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, devExpMul: 3,
+        ...raw2,
+        perm: { ...PERM_EMPTY, ...(raw2.perm ?? {}) },
+      };
       return d;
     }
   } catch { /* ignore */ }
-  return { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 0, devExpMul: 3 };
+  return { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, devExpMul: 3, perm: { ...PERM_EMPTY } };
 }
 
 export function writeSave(data: SaveData) {

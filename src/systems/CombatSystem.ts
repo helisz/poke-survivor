@@ -171,6 +171,13 @@ export class CombatSystem {
       p.setData('life', life);
       if (life <= 0) { this.killProjectile(p); continue; }
 
+      // 火球分裂：飞出一段距离后炸成环状小子弹
+      if (p.getData('splitDef') && !p.getData('splitDone')) {
+        const left = (p.getData('splitIn') as number) - dtMs;
+        if (left <= 0) { this.splitFireball(p); continue; }
+        p.setData('splitIn', left);
+      }
+
       // 弹体拖尾：炮弹/激光/闪电喷尾焰，近战弹道喷短促刃光
       const kind = p.getData('fx') as string;
       if (kind === 'shell' || kind === 'laser' || kind === 'bolt' || kind === 'slash') {
@@ -181,6 +188,34 @@ export class CombatSystem {
     }
 
     this.fx.update(dtMs);
+  }
+
+  /** 火球炸裂：主弹体消失，向四周撒出 6 颗小子弹 */
+  private splitFireball(src: Phaser.Physics.Arcade.Image) {
+    const def = src.getData('splitDef') as MoveDef;
+    const damage = (src.getData('damage') as number) * 0.45;
+    const color = src.getData('color') as number;
+    const n = 6;
+    this.fx.burst(src.x, src.y, color, 18, 200, 3.2, 320);
+    for (let i = 0; i < n; i++) {
+      const a = (Math.PI * 2 * i) / n + Math.random() * 0.3;
+      const p = this.projectiles.get(src.x, src.y, 'dot') as Phaser.Physics.Arcade.Image | null;
+      if (!p) continue;
+      p.setActive(true).setVisible(true);
+      p.setTintFill(color);
+      p.setScale(0.2);
+      p.setData('damage', damage);
+      p.setData('pierce', 0);
+      p.setData('life', 420);
+      p.setData('moveId', def.id);
+      p.setData('color', color);
+      p.setData('fx', 'shell');
+      p.setData('hitList', []);
+      p.setVelocity(Math.cos(a) * 380, Math.sin(a) * 380);
+      (p.body as Phaser.Physics.Arcade.Body).setEnable(true);
+      (p.body as Phaser.Physics.Arcade.Body).setSize(14, 14, true);
+    }
+    this.killProjectile(src);
   }
 
   private nearestEnemy(x: number, y: number, maxDist = 700) {
@@ -262,9 +297,21 @@ export class CombatSystem {
       p.setData('life', 1600);
       p.setData('moveId', def.id);
       p.setData('color', def.color);
+      // 电系：在出招点劈一道闪电强化观感
+      if (def.style === 'lightning') {
+        const tx = ox + Math.cos(Math.atan2((target?.y ?? oy) - oy, (target?.x ?? ox) - ox)) * 60;
+        const ty = oy + Math.sin(Math.atan2((target?.y ?? oy) - oy, (target?.x ?? ox) - ox)) * 60;
+        this.fx.boltStrike(tx, ty, def.color, 240);
+      }
       p.setData('fx', fxKind);
       p.setData('homing', homing);
       p.setData('chain', chain);
+      // 火系分裂火球：飞行 260ms 后炸成多颗小子弹
+      if (def.style === 'fireball') {
+        p.setData('splitIn', 260);
+        p.setData('splitDone', false);
+        p.setData('splitDef', def);
+      }
       p.setData('chainLeft', chain ? 2 : 0);
       p.setData('hitList', []);          // 已命中目标，避免连锁重复打同一个
       const speed = homing ? (def.projectileSpeed ?? 400) * 0.8 : (def.projectileSpeed ?? 400);
@@ -340,6 +387,16 @@ export class CombatSystem {
         this.meleeBolt(ox, oy, a, range, def, damage, 0.34);
       }
       this.fx.burst(ox + Math.cos(ang) * 26, oy + Math.sin(ang) * 26, def.color, 8, 130, 2.8, 180);
+    } else if (def.style === 'lightning') {
+      // 电系近战：劈出连锁闪电
+      const shots = 2 + Math.min(lvl, 3);
+      for (let i = 0; i < shots; i++) {
+        const a = ang + (Math.random() - 0.5) * 0.8;
+        const tx = ox + Math.cos(a) * range * 0.8;
+        const ty = oy + Math.sin(a) * range * 0.8;
+        this.fx.boltStrike(tx, ty, def.color, 200);
+        this.meleeBolt(ox, oy, a, range, def, damage, 0.28);
+      }
     } else if (flurry) {
       // 并排弹道齐射：3 条 → 5 条，间距逐渐拉开
       const lanes = 3 + Math.min(Math.floor(lvl / 2), 2);
@@ -348,6 +405,7 @@ export class CombatSystem {
         const off = (i - (lanes - 1) / 2) * gap;
         const px = ox + Math.cos(ang + Math.PI / 2) * off;
         const py = oy + Math.sin(ang + Math.PI / 2) * off;
+        if (def.style === 'fist') this.fx.fistWave(px, py, ang, def.color);
         this.meleeBolt(px, py, ang, range * 1.15, def, damage, 0.26);
       }
     } else {
@@ -356,6 +414,7 @@ export class CombatSystem {
       const spread = 0.55 + lvl * 0.05;
       for (let i = 0; i < shots; i++) {
         const a = ang - spread / 2 + (spread * i) / Math.max(1, shots - 1);
+        if (def.style === 'fist') this.fx.fistWave(ox, oy, a, def.color);
         this.meleeBolt(ox, oy, a, range, def, damage, 0.3);
       }
     }

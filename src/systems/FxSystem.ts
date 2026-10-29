@@ -249,6 +249,59 @@ export class FxSystem {
     }
   }
 
+  /** 闪电劈落：从天而降的折线 + 末端爆点 */
+  boltStrike(x: number, y: number, color: number, height = 260) {
+    const g = this.scene.add.graphics().setDepth(480);
+    let px = x + (Math.random() - 0.5) * 30, py = y - height;
+    g.lineStyle(3, color, 0.95);
+    g.beginPath();
+    g.moveTo(px, py);
+    const steps = 7;
+    for (let i = 1; i <= steps; i++) {
+      px = x + (Math.random() - 0.5) * (34 * (1 - i / steps));
+      py = y - height * (1 - i / steps);
+      g.lineTo(px, py);
+    }
+    g.strokePath();
+    // 内芯亮白
+    g.lineStyle(1.4, 0xffffff, 0.9);
+    g.strokePath();
+    this.burst(x, y, color, 14, 180, 3, 280);
+    this.shockRing(x, y, color, 10, 90);
+    this.scene.tweens.add({
+      targets: g, alpha: 0, duration: 190, ease: 'Quad.In',
+      onComplete: () => g.destroy(),
+    });
+  }
+
+  /** 拳头挥出：一个带残影的拳形块沿方向冲出 */
+  fistWave(x: number, y: number, ang: number, color: number) {
+    const g = this.scene.add.graphics().setDepth(478);
+    const draw = (t: number) => {
+      g.clear();
+      const d = 30 + t * 90;
+      const cx = x + Math.cos(ang) * d;
+      const cy = y + Math.sin(ang) * d;
+      const s = 15 * (1 - t * 0.35);
+      g.fillStyle(color, 0.9 * (1 - t * 0.6));
+      g.fillCircle(cx, cy, s);
+      g.lineStyle(2, 0xffffff, 0.5 * (1 - t));
+      g.strokeCircle(cx, cy, s);
+      // 指节小点
+      for (let k = -1; k <= 1; k++) {
+        const a2 = ang + Math.PI / 2;
+        g.fillStyle(0xffffff, 0.6 * (1 - t));
+        g.fillCircle(cx + Math.cos(a2) * k * s * 0.5, cy + Math.sin(a2) * k * s * 0.5, s * 0.16);
+      }
+    };
+    draw(0);
+    this.scene.tweens.addCounter({
+      from: 0, to: 1, duration: 170, ease: 'Quad.Out',
+      onUpdate: (tw) => draw(tw.getValue() ?? 0),
+      onComplete: () => g.destroy(),
+    });
+  }
+
   /** 近战刀光：弧形亮边 + 火花飞溅 */
   slash(ox: number, oy: number, ang: number, halfAngle: number, range: number, color: number, dur = 220) {
     const g = this.scene.add.graphics().setDepth(9);

@@ -63,9 +63,14 @@ export class EnemySystem {
     }
   }
 
+  /** 当前地图主题的专属怪物池（由 GameScene 每帧同步） */
+  theme: { enemyPool?: number[]; elitePool?: number[] } | null = null;
+
   private pickKey(kind: EnemyKind): string {
-    const rnd = this.scene.game.registry;
-    const list = kind === 'boss' ? BOSS_POOL : kind === 'elite' ? ELITE_POOL : ENEMY_POOL;
+    let list: number[];
+    if (kind === 'boss') list = BOSS_POOL;
+    else if (kind === 'elite') list = this.theme?.elitePool?.length ? this.theme.elitePool : ELITE_POOL;
+    else list = this.theme?.enemyPool?.length ? this.theme.enemyPool : ENEMY_POOL;
     const id = Phaser.Utils.Array.GetRandom(list);
     return `pk_${id}`;
   }
