@@ -25,7 +25,7 @@ export interface PlayerStats {
 }
 
 export const BASE_STATS: PlayerStats = {
-  hp: 180, maxHp: 180, speed: 185, damageMul: 1.25, cooldownMul: 1,
+  hp: 180, maxHp: 180, speed: 185, damageMul: 0.75, cooldownMul: 1,
   pickup: 85, expMul: 1, damageTakenMul: 1, radius: 11,
 };
 
@@ -76,12 +76,12 @@ export const PERM_EMPTY: PermLevels = { hp: 0, damage: 0, speed: 0, pickup: 0, e
 
 /** 永久升级定义：max 上限，cost(n) 为从 n 升到 n+1 的金币价 */
 export const PERM_UPGRADES = [
-  { key: 'hp',     name: '体魄',   desc: '最大 HP +12',    max: 10, baseCost: 60 },
-  { key: 'damage', name: '威力',   desc: '伤害 +6%',       max: 10, baseCost: 80 },
-  { key: 'speed',  name: '脚力',   desc: '移速 +4%',       max: 8,  baseCost: 70 },
-  { key: 'pickup', name: '磁引',   desc: '拾取范围 +10%',  max: 8,  baseCost: 50 },
-  { key: 'exp',    name: '悟性',   desc: '经验 +8%',       max: 10, baseCost: 90 },
-  { key: 'cd',     name: '节律',   desc: '冷却 -4%',       max: 8,  baseCost: 110 },
+  { key: 'hp',     name: '体魄',   desc: '最大 HP +1%',    max: 20, baseCost: 40,  step: 0.01, fmt: 'pct' },
+  { key: 'damage', name: '威力',   desc: '伤害 +1%',       max: 20, baseCost: 55,  step: 0.01, fmt: 'pct' },
+  { key: 'speed',  name: '脚力',   desc: '移速 +1%',       max: 15, baseCost: 50,  step: 0.01, fmt: 'pct' },
+  { key: 'pickup', name: '磁引',   desc: '拾取范围 +2%',   max: 15, baseCost: 35,  step: 0.02, fmt: 'pct' },
+  { key: 'exp',    name: '悟性',   desc: '经验 +1%',       max: 20, baseCost: 60,  step: 0.01, fmt: 'pct' },
+  { key: 'cd',     name: '节律',   desc: '冷却 -1%',       max: 15, baseCost: 75,  step: 0.01, fmt: 'pct' },
 ] as const;
 
 export type PermKey = keyof PermLevels;
@@ -94,13 +94,13 @@ export function permCost(key: PermKey, level: number): number {
 /** 把永久升级折算进一局的开局属性 */
 export function applyPerm(stats: PlayerStats, perm: PermLevels): PlayerStats {
   const s = { ...stats };
-  s.maxHp += perm.hp * 12;
+  s.maxHp *= 1 + perm.hp * 0.01;
   s.hp = s.maxHp;
-  s.damageMul *= 1 + perm.damage * 0.06;
-  s.speed *= 1 + perm.speed * 0.04;
-  s.pickup *= 1 + perm.pickup * 0.10;
-  s.expMul *= 1 + perm.exp * 0.08;
-  s.cooldownMul *= Math.max(0.5, 1 - perm.cd * 0.04);
+  s.damageMul *= 1 + perm.damage * 0.01;
+  s.speed *= 1 + perm.speed * 0.01;
+  s.pickup *= 1 + perm.pickup * 0.02;
+  s.expMul *= 1 + perm.exp * 0.01;
+  s.cooldownMul *= Math.max(0.5, 1 - perm.cd * 0.01);
   return s;
 }
 
