@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BASE_STATS, TRAITS, MAX_SLOTS, type PlayerStats, type TraitId } from '../data/stats';
+import { BASE_STATS, TRAITS, MAX_SLOTS, PLAYER_SCALE, GLOBAL_SCALE, type PlayerStats, type TraitId } from '../data/stats';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   stats: PlayerStats;
@@ -7,7 +7,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   hurtTimer = 0;
   moves: string[] = [];
   private followers: Phaser.GameObjects.Image[] = [];
-  private followerRadius = 46;
+  private followerRadius = Math.round(46 * GLOBAL_SCALE);
   private bob = 0;
   /** 最近一次受击：数值 / 序号 / 时间戳，供 UI 显示扣血数字 */
   lastDamage = 0;
@@ -26,7 +26,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     body.setCircle(this.stats.radius, 48 / 2 - this.stats.radius, 48 / 2 - this.stats.radius);
     body.setCollideWorldBounds(true);
     this.setDepth(10);
-    this.setScale(1.15);
+    // 与普通怪同尺寸（普通怪 0.62 × 0.75 全局缩放 ≈ 0.465）
+    this.setScale(PLAYER_SCALE);
   }
 
   private applyTrait(trait: TraitId) {
@@ -46,7 +47,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   addFollower(key: string) {
     const fx = this.x + 0;
-    const img = this.scene.add.image(fx, this.y, key).setScale(0.375).setDepth(9);
+    const img = this.scene.add.image(fx, this.y, key).setScale(0.375 * GLOBAL_SCALE).setDepth(9);
     this.followers.push(img);
   }
 
@@ -59,7 +60,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // 进化特效：放大闪光
     f.setTexture(newKey);
     this.scene.tweens.add({
-      targets: f, scale: { from: 0.75, to: 0.375 }, duration: 420, ease: 'Back.easeOut',
+      targets: f, scale: { from: 0.75 * GLOBAL_SCALE, to: 0.375 * GLOBAL_SCALE }, duration: 420, ease: 'Back.easeOut',
     });
     const flash = this.scene.add.circle(f.x, f.y, 26, 0xffffff, 0.85).setDepth(12);
     this.scene.tweens.add({

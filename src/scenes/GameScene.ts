@@ -85,7 +85,11 @@ export class GameScene extends Phaser.Scene {
 
     this.combat = new CombatSystem(this, this.player, this.enemies);
     this.combat.onKill = (x, y, isElite, isBoss) => {
-      this.dropOrb(x, y, isBoss ? 60 : isElite ? 18 : 1);
+      // 经验随时间成长：前 60 秒 1×，之后线性提升，5 分钟时约 2.6×
+      const t = this.elapsed;
+      const timeMul = 1 + Math.min(t / 200, 1.6);
+      const base = isBoss ? 60 : isElite ? 18 : 1;
+      this.dropOrb(x, y, Math.max(1, Math.round(base * timeMul)), isElite, isBoss);
       if (isBoss) this.cameras.main.shake(300, 0.01);
     };
 
@@ -232,14 +236,34 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private dropOrb(x: number, y: number, value: number) {
+  private dropOrb(x: number, y: number, value: number, isElite = false, isBoss = false) {
     const orb = this.orbGroup.get(x, y, 'orb') as Phaser.Physics.Arcade.Image | null;
     if (!orb) return;
     orb.setActive(true).setVisible(true).setDepth(5);
     orb.setData('value', value);
     orb.setAlpha(1);
-    orb.setScale(value > 10 ? 1.4 : value > 3 ? 1.1 : 0.85);
-    orb.setTint(value > 10 ? 0xf7d02c : value > 3 ? 0x63c256 : 0x4592e0);
+
+    // 颜色分层：BOSS 金 / 精英紫 / 普通按价值蓝绿
+    if (isBoss) {
+      orb.setTint(0xffd75e);      // 金色
+      orb.setScale(1.7);
+    } else if (isElite) {
+      orb.setTint(0xb06bff);      // 紫色，一眼分辨
+      orb.setScale(1.35);
+    } else {
+      orb.setTint(value >= 3 ? 0x63c256 : 0x4592e0);
+      orb.setScale(value >= 3 ? 1.05 : 0.85);
+    }
+
+    // 精英/BOSS 加一圈光晕，掉在地上也好找
+    if (isElite || isBoss) {
+      const glow = this.add.circle(x, y, isBoss ? 16 : 12, isBoss ? 0xffd75e : 0xb06bff, 0.28).setDepth(4);
+      this.tweens.add({
+        targets: glow, scale: 1.8, alpha: 0, duration: 700, repeat: 1,
+        onComplete: () => glow.destroy(),
+      });
+    }
+
     (orb.body as Phaser.Physics.Arcade.Body).setEnable(true);
     (orb.body as Phaser.Physics.Arcade.Body).reset(x, y);
   }

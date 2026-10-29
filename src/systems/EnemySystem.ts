@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ENEMY_POOL, ELITE_POOL, BOSS_POOL } from '../data/pokedex';
+import { GLOBAL_SCALE } from '../data/stats';
 
 export type EnemyKind = 'normal' | 'elite' | 'boss';
 
@@ -75,7 +76,7 @@ export class EnemySystem {
     e.setTexture(key);
     e.setAngle(0);
     e.setAlpha(1);
-    e.setScale(kind === 'boss' ? 2.1 : kind === 'elite' ? 1.35 : 0.62 + Math.random() * 0.08);
+    e.setScale((kind === 'boss' ? 2.1 : kind === 'elite' ? 1.35 : 0.62 + Math.random() * 0.08) * GLOBAL_SCALE);
 
     const baseHp = kind === 'boss' ? 3000 : kind === 'elite' ? 260 : 26;
     const baseSpeed = kind === 'boss' ? 62 : kind === 'elite' ? 92 : 74;
@@ -92,8 +93,9 @@ export class EnemySystem {
     else e.clearTint();
 
     const body = e.body as Phaser.Physics.Arcade.Body;
-    // 判定圈放大：普通 11→16，精英 20→26，BOSS 30→38
-    const r = kind === 'boss' ? 38 : kind === 'elite' ? 26 : 16;
+    // 判定圈：随 GLOBAL_SCALE 缩小，保持和视觉尺寸贴合
+    const base = kind === 'boss' ? 38 : kind === 'elite' ? 26 : 16;
+    const r = Math.round(base * GLOBAL_SCALE);
     body.setCircle(r, e.width / 2 - r, e.height / 2 - r);
     body.setEnable(true);
     body.reset(x, y);

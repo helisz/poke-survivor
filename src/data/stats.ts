@@ -20,10 +20,20 @@ export interface PlayerStats {
 
 export const BASE_STATS: PlayerStats = {
   hp: 180, maxHp: 180, speed: 185, damageMul: 1.25, cooldownMul: 1,
-  pickup: 85, expMul: 1, damageTakenMul: 1, radius: 16,
+  pickup: 85, expMul: 1, damageTakenMul: 1, radius: 11,
 };
 
 export const MAX_SLOTS = 6;
+/** 全局尺寸缩放：整体缩小 25% */
+export const GLOBAL_SCALE = 0.75;
+/**
+ * 主角缩放 —— 与普通怪同显示高度。
+ * 普通怪贴图 64px × 0.62 = 39.7px；主角贴图 48px，
+ * 因此 48 × PLAYER_SCALE ≈ 39.7 × GLOBAL_SCALE → PLAYER_SCALE ≈ 0.62。
+ */
+export const PLAYER_SCALE = 0.62;
+/** 主角判定圈半径（视觉缩小后同步收紧） */
+export const PLAYER_RADIUS = 11;
 /** 一局时长（测试期压缩到 5 分钟，正式版改回 15*60） */
 export const RUN_SECONDS = 5 * 60;
 export const ENEMY_CAP = 300;

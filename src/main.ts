@@ -22,12 +22,16 @@ function viewportSize() {
 
 const vp0 = viewportSize();
 
+// 按设备像素比渲染：Retina/高 DPI 屏幕上文字才不会糊。
+// 关键点是 zoom 保持 1（游戏坐标仍是逻辑像素），靠 resolution 提高 canvas 实际像素密度。
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: '#0a0f14',
-  // 关闭 pixelArt：它会让 canvas 文字也关闭抗锯齿、糊成像素块。
-  // 宝可梦图是 64px 整数倍缩放，关掉后依然锐利。
+  // 全局关闭 NEAREST：pixelArt:true 会把文字也一起做成硬边像素字。
+  // 像素精灵单独用 texture.setFilter(NEAREST) 保持硬边，见 BootScene。
   pixelArt: false,
   roundPixels: false,
   scale: {
@@ -45,6 +49,24 @@ const config: Phaser.Types.Core.GameConfig = {
 
 const game = new Phaser.Game(config);
 
+/**
+ * 提高 canvas 渲染分辨率（Retina / 高 DPI 屏让文字清晰）。
+ * Phaser 3 的 GameConfig 没有 resolution，正确做法是直接放大 backing store，
+ * 再用 CSS 把显示尺寸压回逻辑像素 —— 浏览器会按 DPR 重采样，文字变锐利。
+ */
+function applyHiDPI() {
+  if (DPR <= 1) return;
+  const w = game.scale.width, h = game.scale.height;
+  const c = game.canvas;
+  c.width = Math.round(w * DPR);
+  c.height = Math.round(h * DPR);
+  c.style.width = `${w}px`;
+  c.style.height = `${h}px`;
+  // 渲染器按新的 backing store 尺寸工作，但不改游戏逻辑坐标
+  (game.renderer as any).resize?.(Math.round(w * DPR), Math.round(h * DPR), false);
+}
+game.events.once(Phaser.Core.Events.READY, applyHiDPI);
+
 // 调试句柄：控制台 __PS__.scene.getScene('Game') 可查状态
 (window as any).__PS__ = game;
 
@@ -57,6 +79,15 @@ function syncViewport() {
     const cur = game.scale.gameSize;
     if (Math.abs(cur.width - w) > 1 || Math.abs(cur.height - h) > 1) {
       game.scale.resize(w, h);
+      // 同步按 DPR 重设 backing store，否则缩放后文字会糊回去
+      if (DPR > 1) {
+        const c = game.canvas;
+        c.width = Math.round(w * DPR);
+        c.height = Math.round(h * DPR);
+        c.style.width = `${w}px`;
+        c.style.height = `${h}px`;
+        (game.renderer as any).resize?.(Math.round(w * DPR), Math.round(h * DPR), false);
+      }
     }
   }, 120);
 }
