@@ -3,6 +3,7 @@ import { MOVES, type MoveDef } from '../data/moves';
 import type { EvolutionDef } from '../data/evolutions';
 import type { Player } from '../objects/Player';
 import type { EnemySystem } from './EnemySystem';
+import { FxSystem, SKILL_FX } from './FxSystem';
 
 interface ActiveSlot {
   moveId: string;
@@ -30,6 +31,7 @@ export class CombatSystem {
   slots: ActiveSlot[] = [];
   private projectiles: Phaser.Physics.Arcade.Group;
   private slashFx: Phaser.GameObjects.Graphics[] = [];
+  fx: FxSystem;
   damageDealt = 0;
   kills = 0;
 
@@ -40,6 +42,7 @@ export class CombatSystem {
     this.player = player;
     this.enemies = enemies;
     this.projectiles = scene.physics.add.group({ allowGravity: false, maxSize: 400 });
+    this.fx = new FxSystem(scene);
 
     // 弹道命中检测
     scene.physics.add.overlap(this.projectiles, enemies.group, (projObj, enemyObj) => {
@@ -156,14 +159,24 @@ export class CombatSystem {
       this.fire(def, slot.level, origin.x, origin.y);
     });
 
-    // 弹道出界回收 + 追踪弹转向
+    // 弹道出界回收 + 追踪弹转向 + 炮弹尾焰
     for (const p of this.projectiles.getChildren() as Phaser.Physics.Arcade.Image[]) {
       if (!p.active) continue;
       if (p.getData('homing')) this.updateHoming(p);
       const life = (p.getData('life') as number) - dtMs;
       p.setData('life', life);
-      if (life <= 0) this.killProjectile(p);
+      if (life <= 0) { this.killProjectile(p); continue; }
+
+      // 炮弹类：实时喷尾焰
+      const kind = p.getData('fx') as string;
+      if (kind === 'shell' || kind === 'laser' || kind === 'bolt') {
+        const v = p.body!.velocity;
+        const ang = Math.atan2(v.y, v.x);
+        this.fx.shellTrail(p, p.x, p.y, ang, p.getData('color') as number, dtMs);
+      }
     }
+
+    this.fx.update(dtMs);
   }
 
   private nearestEnemy(x: number, y: number, maxDist = 700) {
@@ -210,6 +223,9 @@ export class CombatSystem {
     const baseAng = target ? Math.atan2(target.y - oy, target.x - ox) : 0;
     // spread 标签：扇形角度更大，否则默认小夹角
     const spreadStep = traits.includes('spread') ? 0.3 : 0.16;
+    // 该招式的特效形态
+    const fxKind = SKILL_FX[def.id] ?? 'shell';
+    const isShell = fxKind === 'shell';
 
     for (let i = 0; i < count; i++) {
       const spread = count > 1 ? (i - (count - 1) / 2) * spreadStep : 0;
@@ -222,6 +238,8 @@ export class CombatSystem {
       p.setData('pierce', def.pierce ?? 0);
       p.setData('life', 1600);
       p.setData('moveId', def.id);
+      p.setData('color', def.color);
+      p.setData('fx', fxKind);
       p.setData('homing', homing);
       p.setData('chain', chain);
       p.setData('chainLeft', chain ? 2 : 0);
@@ -233,12 +251,29 @@ export class CombatSystem {
       p.setDepth(8);
 
       if (homing) {
-        // 追踪弹：稍微放大 + 光晕，视觉上区分
+        // 追踪弹：稍微放大，视觉上区分
         p.setScale(1.25);
         p.setData('speed', speed);
+      } else if (isShell) {
+        // 炮弹：弹体更粗壮
+        p.setScale(1.55);
       } else {
         p.setScale(1);
       }
+    }
+
+    // 出招特效：按形态区分
+    if (fxKind === 'bolt') {
+      // 闪电系：直接朝最近的敌人劈一道折线
+      if (target) this.fx.bolt(ox, oy, target.x, target.y, def.color);
+      this.fx.castPulse(ox, oy, def.color, 22);
+    } else if (fxKind === 'laser') {
+      // 激光系：瞬发一条亮线打到第一个敌人
+      if (target) this.fx.laser(ox, oy, target.x, target.y, def.color, 4);
+      this.fx.castPulse(ox, oy, def.color, 22);
+    } else {
+      // 炮弹系：起手能量圈，弹体自己带尾焰
+      this.fx.castPulse(ox, oy, def.color, 18);
     }
   }
 
@@ -268,23 +303,18 @@ export class CombatSystem {
     const target = this.nearestEnemy(ox, oy, range * 1.8);
     const ang = target ? Math.atan2(target.y - oy, target.x - ox) : this.playerAngle();
 
-    // 视觉
-    const g = this.scene.add.graphics().setDepth(9);
-    g.fillStyle(def.color, sweep ? 0.28 : 0.38);
-    g.slice(ox, oy, range, ang - halfAngle, ang + halfAngle, false);
-    g.fillPath();
-    if (sweep) {
-      g.lineStyle(2, def.color, 0.85);
-      g.beginPath();
-      g.arc(ox, oy, range, ang - halfAngle, ang + halfAngle, false);
-      g.strokePath();
+    // 视觉：刀光弧 + 火花
+    const dur = flurry ? 130 : sweep ? 260 : 200;
+    this.fx.slash(ox, oy, ang, halfAngle, range, def.color, dur);
+
+    // 连击：补一圈点状爆点，跟横扫区分开
+    if (flurry) {
+      for (let k = 0; k < 3; k++) {
+        const a = ang + (Math.random() - 0.5) * halfAngle * 1.6;
+        const r = range * (0.4 + Math.random() * 0.5);
+        this.fx.burst(ox + Math.cos(a) * r, oy + Math.sin(a) * r, def.color, 6, 150, 2.6, 220);
+      }
     }
-    const dur = flurry ? 110 : sweep ? 240 : 180;
-    this.scene.tweens.add({
-      targets: g, alpha: 0, duration: dur,
-      ...(sweep ? { scaleX: 1.08, scaleY: 1.08 } : {}),
-      onComplete: () => g.destroy(),
-    });
 
     // 命中判定：flurry 只看一帧但打多段，sweep 打全角度
     const targets: Phaser.Physics.Arcade.Sprite[] = [];
@@ -315,36 +345,35 @@ export class CombatSystem {
     const radius = (def.range ?? 120) + (this.getMoveLevel(def.id) - 1) * 10;
 
     if (slam) {
-      // 落点预警圈 + 砸击
-      const mark = this.scene.add.circle(cx, cy, radius, def.color, 0.2)
-        .setStrokeStyle(3, def.color, 0.9).setDepth(9);
+      // 落点预警圈 → 砸击爆开
+      const mark = this.scene.add.circle(cx, cy, radius * 0.3, def.color, 0.15)
+        .setStrokeStyle(2, def.color, 0.7).setDepth(9);
       this.scene.tweens.add({
-        targets: mark, scaleX: 1.12, scaleY: 1.12, alpha: 0, duration: 280,
-        onComplete: () => mark.destroy(),
+        targets: mark, duration: 180,
+        onUpdate: (tw) => mark.setRadius(radius * (0.3 + 0.7 * tw.progress)),
+        onComplete: () => {
+          mark.destroy();
+          // 砸地：径向爆发 + 冲击环
+          this.fx.burst(cx, cy, def.color, 26, 320, 4, 480);
+          this.fx.shockRing(cx, cy, def.color, radius, 300);
+        },
       });
     } else if (shockwave) {
-      // 冲击波：从中心向外扩散的圆环
-      const wave = this.scene.add.circle(cx, cy, 12, def.color, 0)
-        .setStrokeStyle(5, def.color, 0.95).setDepth(9);
-      this.scene.tweens.add({
-        targets: wave, radius: radius, duration: 320,
-        onUpdate: (tw) => {
-          wave.setRadius(12 + (radius - 12) * tw.progress);
-          wave.setStrokeStyle(5 * (1 - tw.progress * 0.7), def.color, 0.95 * (1 - tw.progress));
-        },
-        onComplete: () => wave.destroy(),
-      });
+      // 冲击波：多层扩散环，更强的「地面被掀开」感
+      this.fx.shockRing(cx, cy, def.color, radius, 340);
+      this.scene.time.delayedCall(90, () => this.fx.shockRing(cx, cy, def.color, radius * 0.72, 280));
+      this.fx.burst(cx, cy, def.color, 16, 200, 3, 380);
       const inner = this.scene.add.circle(cx, cy, radius, def.color, 0.1).setDepth(8);
       this.scene.tweens.add({ targets: inner, alpha: 0, duration: 320, onComplete: () => inner.destroy() });
     } else {
-      // nova：自身爆发
+      // nova：自身爆发 —— 中心闪光 + 径向粒子
+      this.fx.burst(cx, cy, def.color, 30, 300, 4.2, 460);
+      this.fx.shockRing(cx, cy, def.color, radius, 260);
       const g = this.scene.add.graphics().setDepth(9);
-      g.fillStyle(def.color, 0.4);
+      g.fillStyle(def.color, 0.3);
       g.fillCircle(cx, cy, radius);
-      g.lineStyle(3, def.color, 0.9);
-      g.strokeCircle(cx, cy, radius);
       this.scene.tweens.add({
-        targets: g, alpha: 0, scaleX: 1.15, scaleY: 1.15, duration: 260,
+        targets: g, alpha: 0, scaleX: 1.15, scaleY: 1.15, duration: 240,
         onComplete: () => g.destroy(),
       });
     }
@@ -366,6 +395,11 @@ export class CombatSystem {
       targets: [ring, edge], alpha: 0, duration: 340,
       onComplete: () => { ring.destroy(); edge.destroy(); },
     });
+    // 环上粒子：绕圈飞散，让光环有「持续灼烧」的感觉
+    for (let i = 0; i < 12; i++) {
+      const a = (Math.PI * 2 * i) / 12;
+      this.fx.burst(cx + Math.cos(a) * radius * 0.9, cy + Math.sin(a) * radius * 0.9, def.color, 2, 70, 2.4, 260);
+    }
     this.enemies.forEachActive((e) => {
       if (Phaser.Math.Distance.Between(cx, cy, e.x, e.y) <= radius) this.hitEnemy(e, damage);
     });
@@ -383,9 +417,9 @@ export class CombatSystem {
       const kind = e.getData('kind') as string;
       this.kills++;
       this.onKill?.(e.x, e.y, kind === 'elite', kind === 'boss');
-      // 小爆炸粒子感
-      const fx = this.scene.add.circle(e.x, e.y, 14, 0xffffff, 0.6).setDepth(8);
-      this.scene.tweens.add({ targets: fx, alpha: 0, scale: 2, duration: 200, onComplete: () => fx.destroy() });
+      // 击杀爆点：精英/BOSS 炸得更狠
+      const big = kind === 'boss' ? 3 : kind === 'elite' ? 2 : 1;
+      this.fx.burst(e.x, e.y, 0xfff2c4, 8 * big, 180 * big, 2.6 * big, 300);
     }
   }
 
@@ -393,5 +427,6 @@ export class CombatSystem {
     (p.body as Phaser.Physics.Arcade.Body).setEnable(false);
     p.setActive(false).setVisible(false);
     p.setVelocity(0, 0);
+    this.fx.forget(p);
   }
 }

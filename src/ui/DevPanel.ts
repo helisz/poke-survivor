@@ -94,16 +94,18 @@ export function openDevPanel(
     mk(-30, -1, '−');
     mk(30, 1, '+');
 
-    // 无敌勾选（只给承受伤害行）
+    // 无敌勾选（只给承受伤害行）：放到该行最右侧倍率值下面，避免遮挡 +/−
     let refreshInvincible = () => {};
     if (row.invincible) {
-      const checkbox = scene.add.rectangle(cx - 30 + 62, ry + 16, 18, 18, 0x16293a)
+      const cbX = cx + pw / 2 - 44;
+      const cbY = ry + 18;
+      const checkbox = scene.add.rectangle(cbX, cbY, 16, 16, 0x16293a)
         .setStrokeStyle(1.5, row.key === 'devTakenMul' && save.devTakenMul === 0 ? 0x63c256 : 0x2b4256)
         .setInteractive({ useHandCursor: true });
-      const tick = scene.add.text(cx - 30 + 62, ry + 16, '✓', {
-        fontFamily: 'sans-serif', fontSize: '13px', color: '#63c256', fontStyle: 'bold',
+      const tick = scene.add.text(cbX, cbY, '✓', {
+        fontFamily: 'sans-serif', fontSize: '12px', color: '#63c256', fontStyle: 'bold',
       }).setOrigin(0.5);
-      const label = scene.add.text(cx - 30 + 62 + 14, ry + 16, '无敌', {
+      const label = scene.add.text(cbX + 12, cbY, '无敌', {
         fontFamily: 'sans-serif', fontSize: '12px', color: '#63c256',
       }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
 
@@ -186,8 +188,9 @@ export function openDevPanel(
 /** 常驻的开发者入口按钮（右上角 ⚙） */
 export function makeDevButton(scene: Phaser.Scene, onClick: () => void, depth = 1900) {
   const { width } = scene.scale;
-  // 顶部状态条（时间/血条/等级/击杀）占了约 110px，齿轮要放到它下面，避免遮挡
-  const TOP_Y = 128;
+  // 与左上角血条同高（手机 hpY=52，桌面 56）
+  // 齿轮半径 17 比血条高 12 更大，视觉重心偏下 → 上移 2px 补偿对齐
+  const TOP_Y = (scene.scale.width < 640 ? 52 : 56) - 2;
   const btn = scene.add.container(width - 34, TOP_Y).setDepth(depth);
   const bg = scene.add.circle(0, 0, 17, 0x0e1a24, 0.92)
     .setStrokeStyle(1.5, 0x2b4256).setInteractive({ useHandCursor: true });
