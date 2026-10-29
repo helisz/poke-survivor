@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { MOVES, MOVE_LIST, RARITY_WEIGHT } from '../data/moves';
 import { expForLevel, RUN_SECONDS, loadSave, type PlayerStats } from '../data/stats';
+import { MAP_THEMES, themeIndexAtProgress } from '../data/maps';
 import { Player } from '../objects/Player';
 import { CombatSystem } from '../systems/CombatSystem';
 import { EnemySystem } from '../systems/EnemySystem';
@@ -26,6 +27,8 @@ export class GameScene extends Phaser.Scene {
   combat!: CombatSystem;
   enemies!: EnemySystem;
   private ground!: Ground;
+  /** 当前地图主题索引 */
+  private mapIndex = 0;
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private joystick?: { x: number; y: number };
 
@@ -151,7 +154,17 @@ export class GameScene extends Phaser.Scene {
     this.player.layoutFollowers();
     this.player.updateTimers(dt);
 
-    this.ground.update(this.cameras.main.scrollX, this.cameras.main.scrollY);
+    this.ground.update(this.cameras.main.scrollX, this.cameras.main.scrollY,
+      this.scale.width, this.scale.height);
+
+    // 地图推进：按整局进度切换主题
+    const prog = this.elapsed / RUN_SECONDS;
+    const want = themeIndexAtProgress(prog);
+    if (want !== this.mapIndex) {
+      this.mapIndex = want;
+      this.ground.applyTheme(want);
+      this.onMapChange(want);
+    }
 
     // 刷怪
     this.updateSpawning(dt);
@@ -170,6 +183,43 @@ export class GameScene extends Phaser.Scene {
     if (this.elapsed >= RUN_SECONDS) this.endRun(true);
   }
 
+  /** 切换地图时的横幅提示 */
+  private onMapChange(index: number) {
+    const theme = MAP_THEMES[index];
+    const w = this.scale.width, h = this.scale.height;
+    const cy = h * 0.42;
+
+    const name = this.add.text(w / 2, cy, theme.name, {
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif',
+      fontSize: '30px', fontStyle: 'bold', color: '#ffffff',
+      stroke: '#000000', strokeThickness: 4,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(300).setAlpha(0);
+
+    const jp = this.add.text(w / 2, cy + 28, theme.nameJp, {
+      fontFamily: '"Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif',
+      fontSize: '13px', color: '#9fc4dd',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(300).setAlpha(0);
+
+    const line = this.add.rectangle(w / 2, cy + 52, 0, 2, 0x449ddf, 0.9)
+      .setScrollFactor(0).setDepth(300);
+
+    this.tweens.add({ targets: name, alpha: 1, y: cy - 6, duration: 320, ease: 'Cubic.easeOut' });
+    this.tweens.add({ targets: jp, alpha: 1, duration: 420, delay: 120 });
+    this.tweens.add({ targets: line, width: 120, duration: 420, ease: 'Cubic.easeOut' });
+    this.tweens.add({
+      targets: [name, jp], alpha: 0, delay: 1400, duration: 600,
+    });
+    this.tweens.add({
+      targets: line, alpha: 0, width: 0, delay: 1400, duration: 600,
+      onComplete: () => { name.destroy(); jp.destroy(); line.destroy(); },
+    });
+
+    // 全屏氛围色闪一下，强化换图感
+    const flash = this.add.rectangle(0, 0, w, h, theme.ambient, 0.22)
+      .setOrigin(0, 0).setScrollFactor(0).setDepth(299);
+    this.tweens.add({ targets: flash, alpha: 0, duration: 700, onComplete: () => flash.destroy() });
+  }
+
   private updateSpawning(dt: number) {
     const t = this.elapsed;
     // 刷怪速率：按 5 分钟局压缩（原 15 分钟参数 ×3）
@@ -177,7 +227,7 @@ export class GameScene extends Phaser.Scene {
     const rate = Math.min(1.2 + t * 0.06, 12);
     this.spawnAccum += dt * rate;
     const hpMul = 1 + t / 40;
-    const speedMul = 1 + t / 200;
+    const speedMul = (1 + t / 200) * this.ground.theme.enemySpeedMul;
 
     const cap = 260;
     const batch = t < 40 ? 1 : t < 100 ? 2 : t < 180 ? 3 : 4;
