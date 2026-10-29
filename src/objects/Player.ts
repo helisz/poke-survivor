@@ -8,6 +8,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   moves: string[] = [];
   private followers: Phaser.GameObjects.Image[] = [];
   private followerRadius = 46;
+  private auraRing?: Phaser.GameObjects.Arc;
   private bob = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number, trait: TraitId) {
@@ -42,7 +43,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   addFollower(key: string) {
     const fx = this.x + 0;
-    const img = this.scene.add.image(fx, this.y, key).setScale(0.75).setDepth(9);
+    const img = this.scene.add.image(fx, this.y, key).setScale(0.375).setDepth(9);
     this.followers.push(img);
   }
 
@@ -56,6 +57,22 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       f.setPosition(Phaser.Math.Linear(f.x, tx, 0.25), Phaser.Math.Linear(f.y, ty, 0.25));
       f.setDepth(this.y > f.y ? 8 : 11);
     });
+    this.drawAura();
+  }
+
+  /** 环绕一圈的蓝色高亮圈（呼吸脉动） */
+  private drawAura() {
+    const r = this.followerRadius + 6;
+    if (!this.auraRing) {
+      this.auraRing = this.scene.add.circle(this.x, this.y, r)
+        .setStrokeStyle(3, 0x449ddf, 0.9)
+        .setFillStyle(0x449ddf, 0.06)
+        .setDepth(7);
+    }
+    this.auraRing.setPosition(this.x, this.y);
+    this.auraRing.setRadius(r);
+    // 脉动：0.75 ~ 1.0
+    this.auraRing.setStrokeStyle(3, 0x449ddf, 0.55 + 0.35 * (Math.sin(this.bob * 3) * 0.5 + 0.5));
   }
 
   followerPositions(): { x: number; y: number }[] {
@@ -79,11 +96,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setDepth(10 + (this.y / 100000));
   }
 
+  /** 受击：闪烁 + 变红，不用半透明（保持角色可见） */
   takeDamage(amount: number) {
     if (this.hurtTimer > 0) return;
     this.stats.hp = Math.max(0, this.stats.hp - amount * this.stats.damageTakenMul);
     this.hurtTimer = 0.5;
-    this.scene.tweens.add({ targets: this, alpha: 0.3, duration: 80, yoyo: true, repeat: 4 });
+    this.setTint(0xff6b6b);
+    this.scene.time.delayedCall(120, () => {
+      if (this.active && this.hurtTimer > 0) this.setTint(0xffffff);
+    });
+    this.scene.time.delayedCall(240, () => {
+      if (this.active) this.clearTint();
+    });
   }
 
   heal(amount: number) {
