@@ -186,7 +186,9 @@ export function openDevPanel(
 /** 常驻的开发者入口按钮（右上角 ⚙） */
 export function makeDevButton(scene: Phaser.Scene, onClick: () => void, depth = 1900) {
   const { width } = scene.scale;
-  const btn = scene.add.container(width - 34, 26).setDepth(depth);
+  // 顶部状态条（时间/血条/等级/击杀）占了约 110px，齿轮要放到它下面，避免遮挡
+  const TOP_Y = 128;
+  const btn = scene.add.container(width - 34, TOP_Y).setDepth(depth);
   const bg = scene.add.circle(0, 0, 17, 0x0e1a24, 0.92)
     .setStrokeStyle(1.5, 0x2b4256).setInteractive({ useHandCursor: true });
   const gear = scene.add.text(0, 0, '⚙', {
@@ -198,6 +200,6 @@ export function makeDevButton(scene: Phaser.Scene, onClick: () => void, depth = 
     onClick();
   });
   // 跟随窗口尺寸
-  scene.scale.on('resize', () => btn.setPosition(scene.scale.width - 34, 26));
+  scene.scale.on('resize', () => btn.setPosition(scene.scale.width - 34, TOP_Y));
   return btn;
 }
