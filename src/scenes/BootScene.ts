@@ -32,6 +32,13 @@ export class BootScene extends Phaser.Scene {
     const fill = this.add.rectangle(width / 2 - 120, height / 2 + 40, 0, 6, UI.primary).setOrigin(0, 0.5);
     this.load.on('progress', (p: number) => { fill.width = 240 * p; });
     this.load.on('complete', () => { bar.destroy(); fill.destroy(); });
+
+    // logo 用 NEAREST 采样：资源 800x246，界面按 400 宽显示（正好 1/2），
+    // 若用默认 LINEAR，透明区旁的白色像素会被插值糊成半透明白点。
+    // 必须在纹理加载完成、上传 GPU 之前设置才有效，所以放在这里而不是场景里。
+    this.load.once('filecomplete-image-logo', () => {
+      this.textures.get('logo').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    });
   }
 
   create() {

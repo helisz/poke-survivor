@@ -26,10 +26,18 @@ export class MenuScene extends Phaser.Scene {
     this.events.once('shutdown', () => { this.backdrop = undefined; });
 
     // ① Logo —— 中心落在屏幕垂直方向 1/3 处
+    //
+    // 白点修复的两个前提（缺一个都会在游戏里糊出白边）：
+    //  a) 纹理用 NEAREST 采样。pixelArt 本该给出 NEAREST，
+    //     但直接 setDisplaySize 非整数倍缩放时仍会线性插值，
+    //     把透明区旁边的白色像素糊成半透明白点。
+    //  b) 显示尺寸取纹理尺寸的整数分之一（资源 800 宽 → 显示 400），
+    //     整数比缩放时每个目标像素正好落在源像素中心，不会串色。
     const logoW = Math.min(width - 68, 400);
-    const logoH = logoW * (235 / 760);
+    const logoH = logoW * (246 / 800);
     const logo = this.add.image(width / 2, height / 3, 'logo')
       .setDisplaySize(logoW, logoH).setDepth(20);
+    logo.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
 
     // ② 左上角：金币（带硬币图标）+ 下方最长生存
     const padX = 18;
