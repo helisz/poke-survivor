@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { MAP_THEMES } from '../data/maps';
 import { ENEMY_POOL } from '../data/pokedex';
+import { MENU_SPRITE_IDS } from '../data/sprites';
 
 /**
  * 主菜单动态背景。
@@ -59,6 +60,10 @@ export class MenuBackdrop {
     this.buildHero();
     this.buildFlyers();
     this.spawnSparks(26);
+
+    // 中央压暗：宝可梦群像会穿过标题和副标题，加一层中心向外的暗色渐变，
+    // 给标题留出视觉空间。放在 flyers 之上、UI 之下。
+    this.buildVignette();
 
     scene.events.once('shutdown', () => this.destroy());
   }
@@ -237,8 +242,10 @@ export class MenuBackdrop {
     const rnd = Math.random;
     const count = 9;
 
-    // 打乱野生池后顺序取，保证这一屏 9 只互不重复
-    const pool = [...ENEMY_POOL];
+    // 打乱首屏已加载的清单后顺序取，保证这一屏 9 只互不重复。
+    // 注意不能再用 ENEMY_POOL：那 108 只现在按需加载，主菜单根本还没请求，
+    // textures.exists 全是 false，背景会一只都画不出来。
+    const pool = [...MENU_SPRITE_IDS];
     for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(rnd() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -267,7 +274,9 @@ export class MenuBackdrop {
 
       const obj = this.scene.add.image(x, y, key)
         .setDisplaySize(size, size)
-        .setAlpha(0.20 + rnd() * 0.14)  // 低透明度但可见
+        // 0.2 太淡（被地面和雾压住看不见），0.45~0.62 又偏抢。
+        // 0.34~0.48 是能认出宝可梦、又不跟标题和按钮抢注意力的区间。
+        .setAlpha(0.34 + rnd() * 0.14)
         .setDepth(2)
         .setAngle(rnd() * 360);
 
@@ -277,6 +286,39 @@ export class MenuBackdrop {
 
       this.flyers.push({ obj, vx, vy, spin: (rnd() - 0.5) * 9 });
     }
+  }
+
+  // ---------- 中央压暗 ----------
+
+  /**
+   * 中心亮、四周暗的径向渐变遮罩。
+   * 用 canvas 生成一次纹理，避免每帧画 graphics（手机上很贵）。
+   */
+  private buildVignette() {
+    const { width, height } = this.scene.scale;
+    const S = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = S;
+    canvas.height = S;
+    const ctx = canvas.getContext('2d')!;
+    const g = ctx.createRadialGradient(S / 2, S / 2, S * 0.10, S / 2, S / 2, S * 0.52);
+    // 中央淡一点（不压死背景），往外加深，把边缘的群像推远
+    g.addColorStop(0, 'rgba(4,10,16,0.16)');
+    g.addColorStop(0.55, 'rgba(4,10,16,0.34)');
+    g.addColorStop(1, 'rgba(4,10,16,0.62)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+
+    if (this.scene.textures.exists('menu_vignette')) {
+      this.scene.textures.remove('menu_vignette');
+    }
+    this.scene.textures.addCanvas('menu_vignette', canvas);
+
+    this.scene.add.image(0, 0, 'menu_vignette')
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDisplaySize(width, height)
+      .setDepth(3);
   }
 
   // ---------- 技能粒子 ----------

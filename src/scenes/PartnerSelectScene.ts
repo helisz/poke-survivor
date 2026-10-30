@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { POKEMON_PLAYABLE, TYPE_COLORS } from '../data/pokedex';
 import { MOVES } from '../data/moves';
+import { ensureSprites, isSpriteReady } from '../data/lazySprites';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
@@ -84,8 +85,15 @@ export class PartnerSelectScene extends Phaser.Scene {
       // 左侧：宝可梦头像
       const iconX = cx - cardW / 2 + cardH * 0.56;
       const pkKey = `pk_${p.id}`;
-      if (this.textures.exists(pkKey)) {
+      if (isSpriteReady(this, p.id)) {
         this.add.image(iconX, y, pkKey).setScale((cardH - 28) / 64);
+      } else {
+        // 还没加载完：先占位，到位后补画（不重画整张卡，避免事件重复绑定）
+        const ph = this.add.circle(iconX, y, (cardH - 28) / 2, UI.cardStroke, 0.35);
+        ensureSprites(this, [p.id], () => {
+          ph.destroy();
+          this.add.image(iconX, y, pkKey).setScale((cardH - 28) / 64);
+        });
       }
 
       // 右侧文本区：左对齐，5 行在卡片内垂直居中

@@ -5,6 +5,7 @@ import {
 import { MOVES } from '../data/moves';
 import { EVOLUTIONS } from '../data/evolutions';
 import { loadSave } from '../data/stats';
+import { ensureSprites, isSpriteReady } from '../data/lazySprites';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
@@ -52,6 +53,9 @@ export class DexScene extends Phaser.Scene {
   private grid?: Phaser.GameObjects.Container;
   private tabBtns: { key: Tab; panel: RoundedPanel; label: Phaser.GameObjects.Text }[] = [];
   private detail?: Phaser.GameObjects.Container;
+  /** 详情页当前展示的条目与解锁态，贴图异步到位后用它重开详情。 */
+  private detailEntry?: Entry;
+  private detailUnlocked = false;
 
   create() {
     installTextTextureCleanup(this);
@@ -158,8 +162,10 @@ export class DexScene extends Phaser.Scene {
     this.grid = c;
 
     const list = this.entries();
-    const cols = width < 420 ? 4 : 5;
-    const rows = Math.ceil(PER_PAGE / cols);
+    // 固定 3 列 × 4 行 = 12 格一页。格子大了好点，翻页也不算多
+    // （敌人 134 只 → 12 页）。配合按需加载，每页只请求这 12 张图。
+    const cols = 3;
+    const rows = 4;
     const perPage = cols * rows;
     const totalPages = Math.max(1, Math.ceil(list.length / perPage));
     this.page = Math.min(this.page, totalPages - 1);
@@ -183,6 +189,8 @@ export class DexScene extends Phaser.Scene {
 
     const begin = this.page * perPage;
     const slice = list.slice(begin, begin + perPage);
+    // 按需加载：只请求本页这 12 张，加载完成后再重建一次网格
+    ensureSprites(this, slice.map((e) => e.id), () => this.buildGrid());
     slice.forEach((e, i) => {
       const cx = startX + (i % cols) * (cell + gapX);
       const cy = startY + Math.floor(i / cols) * (cell + gapY);
@@ -251,7 +259,7 @@ export class DexScene extends Phaser.Scene {
     parent.add(box);
 
     // 贴图一律画：没解锁的用 tintFill 压成暗剪影，比空盒子更有「待解锁」的感觉
-    if (this.textures.exists(`pk_${e.id}`)) {
+    if (isSpriteReady(this, e.id)) {
       const icon = this.add.image(cx, cy - size * 0.09, `pk_${e.id}`)
         .setDisplaySize(size * 0.60, size * 0.60);
       if (!unlocked) icon.setTintFill(0x1d232b);
@@ -274,6 +282,8 @@ export class DexScene extends Phaser.Scene {
 
   private openDetail(e: Entry, unlocked: boolean) {
     this.closeDetail();
+    this.detailEntry = e;
+    this.detailUnlocked = unlocked;
     const { width, height } = this.scale;
     const c = this.add.container(width / 2, height / 2).setDepth(100);
     this.detail = c;
@@ -335,7 +345,9 @@ export class DexScene extends Phaser.Scene {
     accent.fillRoundedRect(-panelW / 2 + 12, top + 10, panelW - 24, 5, 2.5);
     c.add(accent);
 
-    if (this.textures.exists(`pk_${e.id}`)) {
+    // 详情页可能翻到还没加载过的图：先请求，到位后重开详情
+    ensureSprites(this, [e.id], () => this.reopenDetail(e));
+    if (isSpriteReady(this, e.id)) {
       const big = this.add.image(0, top + 84, `pk_${e.id}`).setDisplaySize(104, 104);
       c.add(big);
     }
@@ -409,10 +421,12 @@ export class DexScene extends Phaser.Scene {
           { id: first.toId, name: first.name ?? POKEDEX_NAME[first.toId] ?? '' },
         ];
       const stepGap = Math.min(96, panelW * 0.34);
+      // 进化目标往往没在图鉴当前页里，得单独请求，否则只有占位圆
+      ensureSprites(this, steps.map((s) => s.id), () => this.reopenDetail(e));
       steps.forEach((s, i) => {
         const sx = (i - (steps.length - 1) / 2) * stepGap;
         const iy = y + 44;
-        if (this.textures.exists(`pk_${s.id}`)) {
+        if (isSpriteReady(this, s.id)) {
           const img = this.add.image(sx, iy, `pk_${s.id}`).setDisplaySize(44, 44);
           c.add(img);
         } else {
@@ -438,6 +452,7 @@ export class DexScene extends Phaser.Scene {
   }
 
   private closeDetail() {
+    this.detailEntry = undefined;
     if (!this.detail) return;
     const c = this.detail;
     this.detail = undefined;
@@ -445,6 +460,16 @@ export class DexScene extends Phaser.Scene {
       targets: c, scale: 0.92, alpha: 0, duration: 110,
       onComplete: () => c.destroy(true),
     });
+  }
+
+  /**
+   * 贴图异步加载完成后重开详情页。
+   * 用户可能已经关掉了详情，那就别硬弹回来。
+   */
+  private reopenDetail(e: Entry) {
+    if (this.detailEntry?.id !== e.id) return;
+    // 贴图已就绪才会走到这里，重开时 ensureSprites 是空操作，不会递归
+    this.openDetail(e, this.detailUnlocked);
   }
 
   private buildBack() {

@@ -5,7 +5,7 @@ import { MAP_THEMES } from '../src/data/maps';
 import {
   ENEMY_POOL, ELITE_POOL, BOSS_POOL, POKEMON_PLAYABLE, POKEDEX_NAME,
 } from '../src/data/pokedex';
-import { spriteIds } from '../src/data/sprites';
+import { spriteIds, MENU_SPRITE_IDS, MENU_SPRITE_COUNT } from '../src/data/sprites';
 
 /**
  * 回归测试：怪物变成黑框。
@@ -56,14 +56,31 @@ describe('怪物贴图完整性', () => {
     }
   });
 
-  it('所有被引用的编号都在预加载列表里', () => {
+  it('所有被引用的编号都能被按需加载到（不是首屏全量）', () => {
+    // 改成按需加载后，不再要求全部进 Boot 预加载清单；
+    // 但要保证每个会被画出来的编号都有对应 PNG，且能被 spriteIds 覆盖。
     const referenced = new Set<number>([
       ...ENEMY_POOL, ...ELITE_POOL, ...BOSS_POOL,
       ...MAP_THEMES.flatMap((t) => [...(t.enemyPool ?? []), ...(t.elitePool ?? [])]),
     ]);
     for (const id of referenced) {
-      expect(bootIds.has(id), `编号 ${id} 未预加载`).toBe(true);
+      expect(available.has(id), `编号 ${id} 缺贴图文件`).toBe(true);
+      expect(bootIds.has(id), `编号 ${id} 不在可加载集合里`).toBe(true);
     }
+  });
+
+  it('首屏只加载主菜单用的 10 张，不再全量 166 张', () => {
+    // 曾经 BootScene 一次性加载全量，打开首页就白等几百毫秒还烧流量。
+    expect(MENU_SPRITE_IDS.length).toBe(MENU_SPRITE_COUNT);
+    expect(MENU_SPRITE_IDS.length).toBeLessThanOrEqual(10);
+    // 主菜单背景要用 9 只，清单必须够用且不重复
+    expect(new Set(MENU_SPRITE_IDS).size).toBe(MENU_SPRITE_IDS.length);
+    expect(MENU_SPRITE_IDS.length).toBeGreaterThanOrEqual(9);
+    for (const id of MENU_SPRITE_IDS) {
+      expect(available.has(id), `首屏贴图 ${id} 不存在`).toBe(true);
+    }
+    // 全量集合应当明显大于首屏集合
+    expect(bootIds.size).toBeGreaterThan(MENU_SPRITE_IDS.length * 10);
   });
 
   it('图鉴名表与可玩/怪物池一致：每个名字都有贴图', () => {

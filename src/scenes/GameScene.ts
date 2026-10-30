@@ -12,7 +12,8 @@ import { PICKUP_DEFS, type PickupKind } from '../data/pickups';
 import type { TraitId } from '../data/stats';
 import { EVOLUTIONS, canEvolve, evoLadderFor, type EvolutionDef } from '../data/evolutions';
 import { applyPerm, rerollsPerRun } from '../data/stats';
-import { POKEMON_PLAYABLE, POKEDEX_NAME } from '../data/pokedex';
+import { POKEMON_PLAYABLE, POKEDEX_NAME, BOSS_POOL } from '../data/pokedex';
+import { ensureSprites } from '../data/lazySprites';
 import { UI } from '../ui/Theme';
 
 export interface UpgradeOption {
@@ -129,6 +130,10 @@ export class GameScene extends Phaser.Scene {
     this.mapIndex = stage;
     this.stageScale = stageScale(stage);
     this.ground.applyTheme(stage);
+
+    // 按需加载本局会用到的贴图：本关小怪/精英 + 全部 BOSS + 可玩伙伴 + 进化目标。
+    // 只加载这一关需要的，不再首屏拉全 166 张。
+    this.preloadRunSprites(stage);
 
     // 世界无限：给一个很大的边界
     this.physics.world.setBounds(-1e6, -1e6, 2e6, 2e6);
@@ -1199,6 +1204,28 @@ export class GameScene extends Phaser.Scene {
       level: this.level,
       kills: this.combat.kills,
     });
+  }
+
+  /**
+   * 加载某一关要用到的全部贴图。
+   *
+   * 一关 18 小怪 + 3~4 精英 ≈ 22 张，加上 6 BOSS、24 伙伴、8 进化目标，
+   * 约 60 张 —— 比首屏 166 张省了三分之二。怪物贴图没到位会画成
+   * 空白方块，所以必须在开打前请求，而不是刷出怪物时再临时加载。
+   */
+  private preloadRunSprites(stage: number) {
+    const theme = MAP_THEMES[stage];
+    const ids = new Set<number>([
+      ...(theme?.enemyPool ?? []),
+      ...(theme?.elitePool ?? []),
+      ...BOSS_POOL,
+      ...POKEMON_PLAYABLE.map((p) => p.id as number),
+    ]);
+    // 进化目标：伙伴觉醒/进化后要换图
+    for (const list of Object.values(EVOLUTIONS)) {
+      for (const evo of list) ids.add(evo.toId);
+    }
+    ensureSprites(this, [...ids]);
   }
 
   private makeDotTexture() {

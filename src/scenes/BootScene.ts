@@ -1,14 +1,15 @@
 import Phaser from 'phaser';
 import { UI, TEXT } from '../ui/Theme';
-import { spriteIds } from '../data/sprites';
+import { MENU_SPRITE_IDS } from '../data/sprites';
 
 /**
- * 预加载的贴图编号。
+ * 首屏只加载主菜单背景要用的那几只。
  *
- * 从数据推导而不是手写死名单 —— 池子一改就得同步手改列表，漏一个就是
- * 「贴图缺失」黑框。推导逻辑放在 data/sprites.ts，测试导同一份。
+ * 曾经这里用 spriteIds() 全量 166 张 —— 首屏要多等几百毫秒到几秒，
+ * 还白烧流量，而主菜单只拿 9 只当背景。其余贴图由各场景按需加载
+ * （data/lazySprites.ts），进关卡/选伙伴/翻图鉴时才请求。
  */
-const POKEMON_IDS = spriteIds();
+const POKEMON_IDS = MENU_SPRITE_IDS;
 
 export class BootScene extends Phaser.Scene {
   constructor() { super('Boot'); }
