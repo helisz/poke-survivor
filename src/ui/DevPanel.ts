@@ -164,8 +164,8 @@ export function openDevPanel(
       const by = my + 22 + row * (bh + gap);
       const bg = scene.add.rectangle(bx, by, bw, bh, UI.cardOn)
         .setStrokeStyle(1.5, UI.cardStroke).setInteractive({ useHandCursor: true });
-      const txt = scene.add.text(bx, by, t.name, {
-        fontFamily: 'sans-serif', fontSize: '12px', color: '#9cc4dc',
+      const txt = scene.add.text(bx, by, String(i + 1), {
+        fontFamily: 'sans-serif', fontSize: '13px', color: '#9cc4dc', fontStyle: 'bold',
       }).setOrigin(0.5);
       bg.on('pointerdown', () => {
         mapJump.jump(i);

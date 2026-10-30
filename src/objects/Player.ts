@@ -10,6 +10,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private followers: Phaser.GameObjects.Image[] = [];
   private followerRadius = Math.round(46 * GLOBAL_SCALE);
   private bob = 0;
+  /** 走路动画相位：只在移动时推进，停下归零 */
+  private stepPhase = 0;
+  /** 是否正在移动（决定走路动画是否推进） */
+  private walking = false;
+  /** 基准缩放：构造时记下 PLAYER_SCALE，避免和挤压拉伸互相覆盖 */
+  private walkBaseScale = 0;
   /** 最近一次受击：数值 / 序号 / 时间戳，供 UI 显示扣血数字 */
   lastDamage = 0;
   damageSeq = 0;
@@ -29,6 +35,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setDepth(10);
     // 与普通怪同尺寸（普通怪 0.62 × 0.75 全局缩放 ≈ 0.465）
     this.setScale(PLAYER_SCALE);
+    this.walkBaseScale = PLAYER_SCALE;
   }
 
   private applyTrait(trait: TraitId) {
@@ -111,7 +118,46 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const frameMap = { down: 0, up: 1, left: 2, right: 3 };
     this.setFrame(frameMap[this.facing]);
     this.bob += dt;
+
+    // 走路动画：素材只有 4 个方向各 1 帧，没有脚步分解图，
+    // 所以用「上下起伏 + 横向倾斜 + 轻微挤压」模拟迈步。
+    if (len > 0) {
+      this.walking = true;
+      this.stepPhase += dt * 9.5;
+    } else {
+      this.walking = false;
+      this.stepPhase = 0;
+    }
+    this.applyWalkVisual();
     this.setDepth(10 + (this.y / 100000));
+  }
+
+  /**
+   * 把走路相位换算成渲染层的变化。只动 displayOrigin 与 scale/rotation，
+   * 不改 x/y，所以物理体和碰撞完全不受影响。
+   */
+  private applyWalkVisual() {
+    const base = this.walkBaseScale || this.scaleX || PLAYER_SCALE;
+    if (!this.walking) {
+      this.setRotation(0);
+      this.setScale(base);
+      this.setDisplayOrigin(this.width / 2, this.height / 2);
+      return;
+    }
+
+    const wave = Math.sin(this.stepPhase);
+    const lift = wave * 1.6;                       // 上下起伏 ±1.6px
+    this.setDisplayOrigin(this.width / 2, this.height / 2 + lift);
+
+    if (this.facing === 'left' || this.facing === 'right') {
+      // 横向移动：左右轻微摇晃 + 身体随步伐倾斜
+      this.setRotation(wave * 0.06 * (this.facing === 'right' ? 1 : -1));
+      this.setScale(base, base * (1 + Math.abs(wave) * 0.05));
+    } else {
+      // 纵向移动：不旋转，用挤压/拉伸表现迈步节奏
+      this.setRotation(0);
+      this.setScale(base * (1 - Math.abs(wave) * 0.035), base * (1 + Math.abs(wave) * 0.05));
+    }
   }
 
   /** 受击：闪烁 + 变红，不用半透明（保持角色可见） */
