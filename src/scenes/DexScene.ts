@@ -162,61 +162,77 @@ export class DexScene extends Phaser.Scene {
     this.grid = c;
 
     const list = this.entries();
-    // 固定 3 列 × 4 行 = 12 格一页。格子大了好点，翻页也不算多
-    // （敌人 134 只 → 12 页）。配合按需加载，每页只请求这 12 张图。
+    // 固定 3 列 × 4 行 = 12 格一页（敌人 134 只 → 12 页）。
+    // 配合按需加载，每页只请求这 12 张图。
     const cols = 3;
     const rows = 4;
     const perPage = cols * rows;
     const totalPages = Math.max(1, Math.ceil(list.length / perPage));
     this.page = Math.min(this.page, totalPages - 1);
 
-    const padX = 14;
-    const topY = 94;
-    const bottomReserved = 74;
+    // 紧凑布局：格子间距统一用 GAP，四周留同样的 pad。
+    // 旧算法把剩余空间全摊进 gap 里，手机上会散得很难看。
+    const GAP = 10;
+    const padX = 16;
+    const topY = 96;
+    // 底部要放「已解锁」+ 翻页器，留出两条
+    const bottomReserved = 76;
 
     const availW = width - padX * 2;
     const availH = height - topY - bottomReserved;
-    const cellW = Math.floor((availW - (cols - 1) * 8) / cols);
-    const cellH = Math.floor((availH - (rows - 1) * 8) / rows);
-    const cell = Math.max(56, Math.min(cellW, cellH, 96));
-    const gapX = cols > 1 ? Math.floor((availW - cell * cols) / (cols - 1)) : 0;
-    const gapY = rows > 1 ? Math.floor((availH - cell * rows) / (rows - 1)) : 0;
 
-    const totalW = cell * cols + gapX * (cols - 1);
-    const totalH = cell * rows + gapY * (rows - 1);
+    // 格子尺寸由「可用宽高里更紧的那一维」决定，保证 3×4 能完整放下，
+    // 上限 104 防止平板/桌面上格子大到失真。
+    const byW = (availW - GAP * (cols - 1)) / cols;
+    const byH = (availH - GAP * (rows - 1)) / rows;
+    // 上限压到 88：104 那一版横向撑满、纵向大片留白，看着头重脚轻。
+    // 88 让 3×4 成为一个居中的紧凑方块，上下也留出呼吸感。
+    const cell = Math.max(48, Math.min(byW, byH, 88));
+
+    const totalW = cell * cols + GAP * (cols - 1);
+    const totalH = cell * rows + GAP * (rows - 1);
+    // 水平居中；垂直在可用区里居中
     const startX = (width - totalW) / 2 + cell / 2;
-    const startY = topY + Math.max(0, (availH - totalH) / 2) + cell / 2;
+    const startY = topY + (availH - totalH) / 2 + cell / 2;
 
     const begin = this.page * perPage;
     const slice = list.slice(begin, begin + perPage);
     // 按需加载：只请求本页这 12 张，加载完成后再重建一次网格
     ensureSprites(this, slice.map((e) => e.id), () => this.buildGrid());
     slice.forEach((e, i) => {
-      const cx = startX + (i % cols) * (cell + gapX);
-      const cy = startY + Math.floor(i / cols) * (cell + gapY);
+      const cx = startX + (i % cols) * (cell + GAP);
+      const cy = startY + Math.floor(i / cols) * (cell + GAP);
       this.makeCell(c, cx, cy, cell, e);
     });
 
     const seenSet = this.tab === 'partner' ? this.seenPartners : this.seenEnemies;
     const seen = list.filter((e) => seenSet.has(e.id)).length;
-    // 统计放翻页器上方；同高会跟页码叠在一起
-    const statY = totalPages > 1 ? height - 52 : height - 30;
-    const stat = this.add.text(width / 2, statY, `已解锁 ${seen} / ${list.length}`, {
+    // 统计放左下，跟返回按钮同一条水平线（返回按钮中心 x=62，宽 96）
+    const stat = this.add.text(122, height - 26, `已解锁 ${seen} / ${list.length}`, {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
-      fontSize: '12px', color: TEXT.dim,
-    }).setOrigin(0.5);
+      fontSize: '11px', color: TEXT.dim,
+    }).setOrigin(0, 0.5);
     c.add(stat);
 
+    // 翻页器贴右下角，只有多页时才出现
     if (totalPages > 1) this.buildPager(c, totalPages);
   }
 
-  /** 底部左右翻页：‹ 页码 › */
+  /** 右下角翻页器：‹ 页码 › */
   private buildPager(parent: Phaser.GameObjects.Container, totalPages: number) {
     const { width, height } = this.scale;
     const y = height - 26;
+    const btnW = 34;
+    const btnGap = 44;   // 页码文字宽度 + 两侧留白
+    const rightPad = 16;
+
+    // 从右往左排：› 贴边，页码居中，‹ 在左边
+    const arrowRightX = width - rightPad - btnW / 2;
+    const arrowLeftX = arrowRightX - btnGap;
+    const pageX = (arrowLeftX + arrowRightX) / 2;
 
     const mk = (x: number, label: string, enabled: boolean, onClick: () => void) => {
-      const btn = new RoundedPanel(this, x, y, 34, 30,
+      const btn = new RoundedPanel(this, x, y, btnW, 30,
         enabled ? UI.secondary : 0x0d1116, enabled ? 0.95 : 1, { radius: 8 })
         .setStrokeStyle(1.5, enabled ? UI.secondaryStroke : UI.cardStroke)
         .setInteractive({ useHandCursor: enabled });
@@ -231,13 +247,11 @@ export class DexScene extends Phaser.Scene {
       parent.add([btn, t]);
     };
 
-    // 靠右排：返回按钮占左侧约 110px，翻页器别压上去
-    const cx = width / 2 + 52;
-    mk(cx - 46, '‹', this.page > 0, () => { this.page--; this.buildGrid(); });
-    mk(cx + 46, '›', this.page < totalPages - 1,
+    mk(arrowLeftX, '‹', this.page > 0, () => { this.page--; this.buildGrid(); });
+    mk(arrowRightX, '›', this.page < totalPages - 1,
       () => { this.page++; this.buildGrid(); });
 
-    const p = this.add.text(cx, y, `${this.page + 1}/${totalPages}`, {
+    const p = this.add.text(pageX, y, `${this.page + 1}/${totalPages}`, {
       fontFamily: 'monospace', fontSize: '12px', color: TEXT.dim,
     }).setOrigin(0.5);
     parent.add(p);
