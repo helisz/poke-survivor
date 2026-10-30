@@ -3,6 +3,7 @@ import { loadSave, writeSave, type SaveData } from '../data/stats';
 import { UI, TEXT } from './Theme';
 import { attachPressFeedback } from './Feedback';
 import { RoundedPanel } from './RoundedPanel';
+import { Sfx } from '../systems/Sfx';
 
 /**
  * 开发者模式面板（菜单 / 游戏内共用）
@@ -45,7 +46,9 @@ export function openDevPanel(
   const rowH = 68;
   // 地图跳转区高度（仅游戏内）
   const mapH = mapJump ? 76 : 0;
-  const ph = 96 + rows.length * rowH + mapH + 52 + (onQuit ? 38 : 0);
+  // 解锁全部关卡：只在主页（菜单）出现，游戏内已经有时间阶段跳转
+  const unlockH = mapJump ? 0 : 46;
+  const ph = 96 + rows.length * rowH + mapH + unlockH + 52 + (onQuit ? 38 : 0);
   const cx = width / 2, cy = height / 2;
 
   const bg = new RoundedPanel(scene, cx, cy, pw, ph, 0x140f08, 0.99, { radius: 16 })
@@ -140,6 +143,45 @@ export function openDevPanel(
       panel.add([checkbox, tick, label]);
     }
   });
+
+  // 解锁全部关卡（仅主页）：默认关，勾选后关卡全开
+  if (!mapJump) {
+    const uy = cy - ph / 2 + 82 + rows.length * rowH + 8;
+    const cbX = cx - pw / 2 + 24;
+    const checkbox = new RoundedPanel(scene, cbX, uy, 18, 18, UI.cardOn, 1, { radius: 4 })
+      .setStrokeStyle(1.5, save.devAllStages ? 0x63c256 : UI.cardStroke)
+      .setInteractive({ useHandCursor: true });
+    attachPressFeedback(checkbox);
+    const tick = scene.add.text(cbX, uy, '✓', {
+      fontFamily: 'sans-serif', fontSize: '13px', color: '#63c256', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const label = scene.add.text(cbX + 16, uy, '解锁全部关卡', {
+      fontFamily: 'sans-serif', fontSize: '13px', color: '#ffffff', fontStyle: 'bold',
+    }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+    const hint = scene.add.text(cbX + 16 + 96, uy, '不影响真实进度', {
+      fontFamily: 'sans-serif', fontSize: '10px', color: '#5f7a8c',
+    }).setOrigin(0, 0.5);
+
+    const refreshAll = () => {
+      const on = !!save.devAllStages;
+      const sv = loadSave();
+      sv.devAllStages = on;
+      writeSave(sv);
+      tick.setVisible(on);
+      checkbox.setStrokeStyle(1.5, on ? 0x63c256 : UI.cardStroke);
+      label.setColor(on ? '#63c256' : '#ffffff');
+      onChange?.(sv);
+    };
+    const toggle = () => {
+      save.devAllStages = !save.devAllStages;
+      Sfx.select();
+      refreshAll();
+    };
+    checkbox.on('pointerdown', toggle);
+    label.on('pointerdown', toggle);
+    tick.setVisible(!!save.devAllStages);
+    panel.add([checkbox, tick, label, hint]);
+  }
 
   // 地图快捷跳转（仅游戏内）
   if (mapJump) {

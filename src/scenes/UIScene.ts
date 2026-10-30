@@ -3,6 +3,7 @@ import { MOVES, RARITY_ZH } from '../data/moves';
 import { RUN_SECONDS, MAX_SLOTS } from '../data/stats';
 import { POKEMON_PLAYABLE } from '../data/pokedex';
 import { openDevPanel, makeDevButton } from '../ui/DevPanel';
+import { devRevealed } from '../ui/devGate';
 import { Sfx } from '../systems/Sfx';
 import { MAP_THEMES } from '../data/maps';
 import type { GameScene } from './GameScene';
@@ -10,6 +11,7 @@ import { installTextTextureCleanup, abandonRun } from '../systems/SceneFlow';
 import { PICKUP_DEFS } from '../data/pickups';
 import { UI, TEXT } from '../ui/Theme';
 import { RoundedPanel } from '../ui/RoundedPanel';
+import { attachPressFeedback } from '../ui/Feedback';
 import { formatScore } from '../data/score';
 
 /** 招式类别中文名 */
@@ -101,28 +103,9 @@ export class UIScene extends Phaser.Scene {
     this.layoutSlots();
     this.refreshBuffs();
 
-    // 游戏内也常驻开发者入口，随时可调
-    makeDevButton(this, () => {
-      this.gs.paused = true;
-      this.gs.scene.pause();
-      this.devPanel = openDevPanel(this, (save) => {
-        const st = this.gs.player.stats;
-        // 改了倍率立即重算（先还原再应用，避免连乘）
-        st.damageMul = this.gs.baseDamageMul * (save.devDmgMul ?? 1);
-        st.damageTakenMul = this.gs.baseTakenMul * (save.devTakenMul ?? 1);
-        st.expMul = this.gs.baseExpMul * (save.devExpMul ?? 1);
-      }, () => {
-        this.gs.paused = false;
-        this.gs.scene.resume();
-      }, {
-        // 地图快捷跳转：调试时直接看各张图
-        themes: MAP_THEMES.map((t) => ({ name: t.name, nameJp: t.nameJp })),
-        // 关卡制下地图不再随时间轮换，高亮要跟「刚点的阶段」走，
-        // 不能用 mapThemeIndex（它恒定不变，导致点了没任何视觉反馈）
-        current: () => this.gs.devTimeStage,
-        jump: (i: number) => this.gs.jumpToMap(i),
-      }, () => this.quitToMenu());
-    }, 1900);
+    // 右上角：左齿轮（仅开发者模式）、右暂停（常驻）
+    // 位置与主页的齿轮&问号一致
+    this.buildTopRightButtons();
 
     this.scale.on('resize', this.onResize, this);
     // 进化仪式：GameScene 广播，这里负责让对应技能格闪一下
@@ -418,6 +401,94 @@ export class UIScene extends Phaser.Scene {
     this.layoutSlots();
   }
 
+  /** 右上角两颗钮：左齿轮（开发者模式才显示）、右暂停（常驻） */
+  private buildTopRightButtons() {
+    const TOP_Y = (this.scale.width < 640 ? 52 : 56) - 2;
+    const pauseX = this.scale.width - 34;
+    const gearX = this.scale.width - 34 - 44;
+
+    // 暂停：半透明黑屏 + 中央恢复按钮
+    const pause = this.add.container(pauseX, TOP_Y).setDepth(1900);
+    const pBg = this.add.circle(0, 0, 17, UI.secondary, 0.92)
+      .setStrokeStyle(1.5, UI.primaryStroke, 0.75).setInteractive({ useHandCursor: true });
+    const pIcon = this.add.text(0, 0, '❚❚', {
+      fontFamily: 'sans-serif', fontSize: '13px', color: TEXT.gold, fontStyle: 'bold',
+    }).setOrigin(0.5);
+    pause.add([pBg, pIcon]);
+    pBg.on('pointerdown', (p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
+      ev?.stopPropagation?.();
+      Sfx.click();
+      this.showPauseOverlay();
+    });
+    this.pauseBtn = pause;
+
+    // 齿轮：只有开发者模式开着才有
+    if (devRevealed()) {
+      this.devBtn = makeDevButton(this, () => this.openDev(), 1900);
+      this.devBtn.setPosition(gearX, TOP_Y);
+    }
+
+    this.scale.on('resize', () => {
+      const w = this.scale.width;
+      this.pauseBtn?.setPosition(w - 34, TOP_Y);
+      this.devBtn?.setPosition(w - 34 - 44, TOP_Y);
+    });
+  }
+
+  /** 半透明黑屏 + 中央「恢复」按钮。点遮罩不恢复，必须点按钮 */
+  private showPauseOverlay() {
+    if (this.pauseOverlay) return;
+    this.gs.paused = true;
+    this.gs.scene.pause();
+
+    const { width, height } = this.scale;
+    const c = this.add.container(0, 0).setDepth(2100);
+    const dim = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.6)
+      .setInteractive();
+    c.add(dim);
+
+    c.add(this.add.text(width / 2, height / 2 - 46, '已暂停', {
+      fontFamily: 'sans-serif', fontSize: '22px', color: TEXT.gold, fontStyle: 'bold',
+    }).setOrigin(0.5));
+
+    const btn = new RoundedPanel(this, width / 2, height / 2 + 8, 168, 46, UI.primary, 1, { radius: 12 })
+      .setStrokeStyle(1.5, UI.primaryStroke).setInteractive({ useHandCursor: true });
+    attachPressFeedback(btn);
+    btn.on('pointerdown', () => { Sfx.select(); this.hidePauseOverlay(); });
+    c.add(btn);
+    c.add(this.add.text(width / 2, height / 2 + 8, '恢复', {
+      fontFamily: 'sans-serif', fontSize: '17px', color: '#041018', fontStyle: 'bold',
+    }).setOrigin(0.5));
+
+    this.pauseOverlay = c;
+  }
+
+  private hidePauseOverlay() {
+    this.pauseOverlay?.destroy(true);
+    this.pauseOverlay = undefined;
+    this.gs.paused = false;
+    this.gs.scene.resume();
+  }
+
+  /** 打开开发者面板（暂停游戏，关闭后恢复） */
+  private openDev() {
+    this.gs.paused = true;
+    this.gs.scene.pause();
+    this.devPanel = openDevPanel(this, (save) => {
+      const st = this.gs.player.stats;
+      st.damageMul = this.gs.baseDamageMul * (save.devDmgMul ?? 1);
+      st.damageTakenMul = this.gs.baseTakenMul * (save.devTakenMul ?? 1);
+      st.expMul = this.gs.baseExpMul * (save.devExpMul ?? 1);
+    }, () => {
+      this.gs.paused = false;
+      this.gs.scene.resume();
+    }, {
+      themes: MAP_THEMES.map((t) => ({ name: t.name, nameJp: t.nameJp })),
+      current: () => this.gs.devTimeStage,
+      jump: (i: number) => this.gs.jumpToMap(i),
+    }, () => this.quitToMenu());
+  }
+
   /** 点击招式槽 → 气泡显示招式说明 */
   private showMoveTip(index: number) {
     const slot = this.slotIcons[index];
@@ -554,6 +625,10 @@ export class UIScene extends Phaser.Scene {
 
   /** 面板对象引用：本局结束时需要能主动收掉 */
   private devPanel?: Phaser.GameObjects.Container;
+  /** 右上角暂停按钮 / 开发者齿轮 / 暂停遮罩 */
+  private pauseBtn?: Phaser.GameObjects.Container;
+  private devBtn?: Phaser.GameObjects.Container;
+  private pauseOverlay?: Phaser.GameObjects.Container;
 
   /** 本局结束（死亡/过关）时收掉开发者面板 */
   private closeDevPanel() {

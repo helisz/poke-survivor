@@ -7,6 +7,7 @@ import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
 import { attachPressFeedback } from '../ui/Feedback';
 import { RoundedPanel } from '../ui/RoundedPanel';
+import { devRevealed } from '../ui/devGate';
 
 /** 每张地图在列表里的图标符号 */
 const THEME_GLYPH: Record<string, string> = {
@@ -73,7 +74,8 @@ export class MapSelectScene extends Phaser.Scene {
     this.buildCards(width, height);
     this.buildBackButton();
     this.buildStartButton(width, height);
-    this.buildDevLock(width, height);
+    // 解锁开关已移到主页开发者面板；选关页只在开发者模式开启时才保留这个快捷锁
+    if (devRevealed()) this.buildDevLock(width, height);
     this.refresh();
   }
 

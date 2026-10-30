@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { loadSave } from '../data/stats';
 import { formatScore } from '../data/score';
 import { openDevPanel, makeDevButton } from '../ui/DevPanel';
+import { devTap, devTaps, devRevealed, setDevRevealed } from '../ui/devGate';
 import { openHelpPanel } from '../ui/HelpPanel';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
@@ -130,29 +131,62 @@ export class MenuScene extends Phaser.Scene {
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(20);
 
-    makeDevButton(this, () => openDevPanel(this));
+    // 右上角按钮：左齿轮、右问号（问号连点 5 次开启开发者模式）
     this.makeHelpButton(width);
   }
 
-  /** 右上角问号：打开操作说明（齿轮左侧，同样的金色圆钮） */
+  /**
+   * 右上角问号：打开操作说明。
+   * 开发者模式默认关闭，连点 5 次问号才显示齿轮（本次会话有效）。
+   */
   private makeHelpButton(width: number) {
     const TOP_Y = (width < 640 ? 52 : 56) - 2;
-    const x = width - 34 - 44;
-    const btn = this.add.container(x, TOP_Y).setDepth(1900);
+    const helpX = width - 34;
+    const gearX = width - 34 - 44;
+    const btn = this.add.container(helpX, TOP_Y).setDepth(1900);
     const bg = this.add.circle(0, 0, 17, UI.secondary, 0.92)
       .setStrokeStyle(1.5, UI.primaryStroke, 0.75).setInteractive({ useHandCursor: true });
     const q = this.add.text(0, 0, '?', {
       fontFamily: 'sans-serif', fontSize: '18px', color: TEXT.gold, fontStyle: 'bold',
     }).setOrigin(0.5);
     btn.add([bg, q]);
+
     bg.on('pointerdown', (p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
       ev?.stopPropagation?.();
+      if (this.revealDev(this)) return;   // 第 5 次点击只开面板，不弹操作说明
       Sfx.click();
       openHelpPanel(this);
     });
     bg.on('pointerover', () => bg.setFillStyle(UI.secondaryHover, 0.95));
     bg.on('pointerout', () => bg.setFillStyle(UI.secondary, 0.92));
-    this.scale.on('resize', () => btn.setPosition(this.scale.width - 34 - 44, TOP_Y));
+    this.scale.on('resize', () => btn.setPosition(this.scale.width - 34, TOP_Y));
+
+    // 已开启过（同一会话返回主页）就直接补上齿轮
+    if (devRevealed()) this.showDevGear(gearX, TOP_Y);
+  }
+
+  /** 连点计数：满 5 次把齿轮放出来 */
+  private revealDev(scene: Phaser.Scene): boolean {
+    if (devRevealed()) return false;
+    devTap();
+    if (devTaps() >= 5) {
+      setDevRevealed();
+      const width = scene.scale.width;
+      const TOP_Y = (width < 640 ? 52 : 56) - 2;
+      this.showDevGear(width - 34 - 44, TOP_Y);
+      Sfx.select();
+      return true;
+    }
+    return false;
+  }
+
+  private devGear?: Phaser.GameObjects.Container;
+
+  private showDevGear(x: number, y: number) {
+    if (this.devGear) { this.devGear.destroy(); }
+    this.devGear = makeDevButton(this, () => openDevPanel(this));
+    this.devGear.setPosition(x, y);
+    this.scale.on('resize', () => this.devGear?.setPosition(this.scale.width - 34 - 44, y));
   }
 
   update(_time: number, delta: number) {
