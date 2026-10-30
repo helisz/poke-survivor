@@ -54,6 +54,30 @@ describe('场景渲染顺序', () => {
     expect(flowKeys, 'SCENE_ORDER 与 main.ts scene 数组顺序不一致').toEqual(mainKeys);
   });
 
+  it('每个能通过 goTo 跳到的场景都必须注册工厂', () => {
+    // 血泪教训：Dex 忘了 registerScene，goTo 就退化成 mgr.start()。
+    // 而 performGoTo 已经先把其它场景全 stop 了，旧实例状态又让 start 卡住
+    // → 全场景停摆，纯黑屏。这类漏注册必须由测试拦住。
+    const flow = readFileSync(flowPath, 'utf8');
+    const main = readFileSync(resolve(root, 'src/main.ts'), 'utf8');
+
+    const orderMatch = flow.match(/const SCENE_ORDER\s*=\s*\[([\s\S]*?)\]\s*;/);
+    expect(orderMatch).toBeTruthy();
+    const goToTargets = (orderMatch as RegExpMatchArray)[1]
+      .split(',')
+      .map(s => s.trim().replace(/^['"]|['"]$/g, ''))
+      .filter(Boolean)
+      // Boot 是入口、UI/LevelUp/GameOver 只由 Game 内部拉起，不走 goTo
+      .filter(k => !['Boot', 'UI', 'LevelUp', 'GameOver'].includes(k));
+
+    const registered = new Set(
+      [...main.matchAll(/registerScene\(\s*['"]([\w]+)['"]/g)].map(m => m[1]),
+    );
+
+    const missing = goToTargets.filter(k => !registered.has(k));
+    expect(missing, `这些场景没注册工厂：${missing.join(', ')}`).toEqual([]);
+  });
+
   it('goTo 重建场景后会调用 restoreSceneOrder 修正渲染顺序', () => {
     const src = readFileSync(flowPath, 'utf8');
     const goToBlock = src.slice(src.indexOf('export function goTo'));

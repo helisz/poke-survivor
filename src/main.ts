@@ -58,6 +58,9 @@ registerScene('MapSelect', () => new MapSelectScene());
 registerScene('TraitSelect', () => new TraitSelectScene());
 registerScene('PartnerSelect', () => new PartnerSelectScene());
 registerScene('Shop', () => new ShopScene());
+// Dex 漏注册会让 goTo 走 else 分支：前面已经把其它场景全 stop 了，
+// mgr.start 又因旧实例状态卡住 → 全场景停摆、纯黑屏。
+registerScene('Dex', () => new DexScene());
 registerScene('Game', () => new GameScene());
 
 // 音效：浏览器要求首次用户手势后才能出声
