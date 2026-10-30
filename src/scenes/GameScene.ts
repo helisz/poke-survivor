@@ -11,7 +11,7 @@ import { PickupSystem } from '../systems/PickupSystem';
 import { PICKUP_DEFS, type PickupKind } from '../data/pickups';
 import type { TraitId } from '../data/stats';
 import { EVOLUTIONS, canEvolve, type EvolutionDef } from '../data/evolutions';
-import { applyPerm } from '../data/stats';
+import { applyPerm, rerollsPerRun } from '../data/stats';
 import { POKEMON_PLAYABLE } from '../data/pokedex';
 import { UI } from '../ui/Theme';
 
@@ -35,6 +35,16 @@ export interface UpgradeOption {
 /** 属性卡的权重系数：1 = 与一张招式卡同等机会，0.5 = 半概率 */
 const STAT_CARD_WEIGHT = 0.5;
 
+/**
+ * 小怪刷新圈：基准半径 + 随机抖动。
+ *
+ * 屏幕半径约 195（390 宽 / 2，相机 zoom=1），技能射程 70~160。
+ * 取 190~250 让怪正好出现在屏幕边缘、射程外侧一点点，
+ * 一出现就能被看见，也不用等它从很远走过来。
+ */
+const SPAWN_RADIUS_BASE = 190;
+const SPAWN_RADIUS_JITTER = 60;
+
 export class GameScene extends Phaser.Scene {
   player!: Player;
   combat!: CombatSystem;
@@ -44,6 +54,9 @@ export class GameScene extends Phaser.Scene {
   private mapIndex = 0;
   /** 本关的强度倍率（攻击 / 血量 / 速度，按关卡连乘） */
   private stageScale = { atk: 1, hp: 1, spd: 1 };
+
+  /** 本局剩余重掷次数（局外「赌神」等级决定，每局重置） */
+  rerollsLeft = 0;
   /** 属性强化的叠加层数（UI 底部小图标展示） */
   statStacks: Record<string, number> = {};
 
@@ -112,6 +125,9 @@ export class GameScene extends Phaser.Scene {
 
     // 世界无限：给一个很大的边界
     this.physics.world.setBounds(-1e6, -1e6, 2e6, 2e6);
+
+    // 本局重掷次数：局外「赌神」每级 +1
+    this.rerollsLeft = rerollsPerRun(loadSave().perm.gamble ?? 0);
 
     this.player = new Player(this, 0, 0, data.trait);
     // 应用商店购买的局外永久升级
@@ -193,6 +209,14 @@ export class GameScene extends Phaser.Scene {
 
     // 简单虚拟摇杆（触屏）
     this.setupTouch();
+
+    // 开局先撒一圈初始怪：否则第一只怪要等刷怪累积（0.6/s 起）才出现，
+    // 这段时间玩家只是空跑。给 8 只贴着屏幕边缘的，开局立刻有东西打。
+    const hpMul0 = 1 * this.stageScale.hp;
+    const spdMul0 = 1 * this.stageScale.spd;
+    for (let i = 0; i < 8; i++) {
+      this.spawnRing(hpMul0, spdMul0);
+    }
   }
 
   private setupTouch() {
@@ -528,14 +552,29 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private ringPosition(dist: number) {
+  /**
+   * 在玩家周围的环形上取一个点。
+   *
+   * 保留 dist 参数的语义（基准半径），但把抖动收窄，并且不再让调用方
+   * 传 560 那种「屏幕外很远」的值 —— 见 spawnRing 的说明。
+   */
+  private ringPosition(dist: number, jitter = 40) {
     const ang = Math.random() * Math.PI * 2;
-    const d = dist + Math.random() * 60;
+    const d = dist + Math.random() * jitter;
     return { x: this.player.x + Math.cos(ang) * d, y: this.player.y + Math.sin(ang) * d };
   }
 
+  /**
+   * 普通小怪刷新点。
+   *
+   * 原来固定 560px，而屏幕半径只有约 195px（390 宽、zoom 1），
+   * 怪从屏幕外很远的地方慢慢走过来，开局要等十几秒才第一次见到怪。
+   * 改成贴着屏幕边缘刷新：190~250px，
+   * 大部分技能的射程是 70~160px，所以怪一出现就在射程外侧一点点，
+   * 玩家能马上看见、马上能打倒，而不是干等。
+   */
   private spawnRing(hpMul: number, speedMul: number) {
-    const p = this.ringPosition(560);
+    const p = this.ringPosition(SPAWN_RADIUS_BASE, SPAWN_RADIUS_JITTER);
     this.enemies.spawn('normal', p.x, p.y, hpMul, speedMul, 8);
   }
 

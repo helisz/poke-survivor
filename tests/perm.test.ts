@@ -7,17 +7,26 @@ import {
 
 const empty = (): PermLevels => ({ ...PERM_EMPTY });
 
+// 赌神是特殊项：3 级上限、独立价目表，不参与统一百分比曲线
+const PCT_UPGRADES = PERM_UPGRADES.filter((u) => u.key !== 'gamble');
+
 describe('永久强化：等级上限', () => {
-  it('每一项都是 10 级上限', () => {
-    for (const u of PERM_UPGRADES) {
+  it('六项百分比强化都是 10 级上限', () => {
+    for (const u of PCT_UPGRADES) {
       expect(u.max, `${u.name} 上限`).toBe(10);
       expect(u.max).toBe(PERM_MAX_LEVEL);
     }
   });
 
-  it('六项强化都在', () => {
+  it('赌神单独 3 级上限', () => {
+    const g = PERM_UPGRADES.find((u) => u.key === 'gamble')!;
+    expect(g.max).toBe(3);
+    expect(g.name).toBe('赌神');
+  });
+
+  it('七项强化都在', () => {
     expect(PERM_UPGRADES.map((u) => u.key).sort())
-      .toEqual(['cd', 'damage', 'exp', 'hp', 'pickup', 'speed']);
+      .toEqual(['cd', 'damage', 'exp', 'gamble', 'hp', 'pickup', 'speed']);
   });
 });
 
@@ -166,8 +175,8 @@ describe('永久强化：价格曲线', () => {
     expect(tail / total).toBeGreaterThan(0.8);
   });
 
-  it('六项强化共用同一条价格曲线', () => {
-    for (const u of PERM_UPGRADES) {
+  it('六项百分比强化共用同一条价格曲线', () => {
+    for (const u of PCT_UPGRADES) {
       for (let lv = 0; lv < 10; lv++) {
         expect(permCost(u.key, lv), `${u.name} Lv${lv}→${lv + 1}`)
           .toBe(permCostAtLevel(lv + 1));
@@ -175,10 +184,17 @@ describe('永久强化：价格曲线', () => {
     }
   });
 
+  it('赌神走自己的价目表：5万 / 15万 / 50万', () => {
+    expect(permCost('gamble', 0)).toBe(50000);
+    expect(permCost('gamble', 1)).toBe(150000);
+    expect(permCost('gamble', 2)).toBe(500000);
+  });
+
   it('满级调用返回最后一级价，由调用方拦截', () => {
-    for (const u of PERM_UPGRADES) {
+    for (const u of PCT_UPGRADES) {
       expect(permCost(u.key, 10)).toBe(PERM_COST_MAX);
     }
+    expect(permCost('gamble', 3)).toBe(500000);
   });
 
   it('买满一项的总花费大于单级最高价', () => {

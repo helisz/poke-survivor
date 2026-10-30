@@ -74,9 +74,12 @@ export interface PermLevels {
   pickup: number;    // 拾取范围 +10%/级
   exp: number;       // 经验 +8%/级
   cd: number;        // 冷却 -4%/级
+  gamble: number;    // 赌神：每级 +1 次升级重掷（最多 3 级）
 }
 
-export const PERM_EMPTY: PermLevels = { hp: 0, damage: 0, speed: 0, pickup: 0, exp: 0, cd: 0 };
+export const PERM_EMPTY: PermLevels = {
+  hp: 0, damage: 0, speed: 0, pickup: 0, exp: 0, cd: 0, gamble: 0,
+};
 
 /** 所有强化项统一 10 级上限 */
 export const PERM_MAX_LEVEL = 10;
@@ -127,7 +130,21 @@ export const PERM_UPGRADES = [
   { key: 'pickup', name: '磁引', max: PERM_MAX_LEVEL, gainAt: ramp(0.01, 0.03) },
   { key: 'exp',    name: '悟性', max: PERM_MAX_LEVEL, gainAt: ramp(0.03, 0.10) },
   { key: 'cd',     name: '节律', max: PERM_MAX_LEVEL, gainAt: flat(0.01) },
+  // 赌神：不给百分比，给「每局升级时多 N 次重掷」。价格另算，见 GAMBLE_COSTS。
+  { key: 'gamble', name: '赌神', max: 3, gainAt: flat(0) },
 ] as const;
+
+/**
+ * 赌神单独定价：不套用统一的 50→30000 曲线。
+ * 1 级 5 万 / 2 级 15 万 / 3 级 50 万，每级 +1 次重掷。
+ * 索引 0 对应「买第 1 级」的价钱。
+ */
+export const GAMBLE_COSTS = [50000, 150000, 500000] as const;
+
+/** 赌神等级 → 每局额外的重掷次数 */
+export function rerollsPerRun(gambleLevel: number): number {
+  return Math.max(0, Math.min(3, Math.floor(gambleLevel)));
+}
 
 export type PermKey = keyof PermLevels;
 
@@ -147,6 +164,11 @@ export function permStep(key: PermKey, level: number): number {
 
 /** 从 level 升到 level+1 的购买价 */
 export function permCost(key: PermKey, level: number): number {
+  // 赌神走自己的价目表，不套统一曲线
+  if (key === 'gamble') {
+    const i = Math.max(0, Math.min(GAMBLE_COSTS.length - 1, Math.floor(level)));
+    return GAMBLE_COSTS[i];
+  }
   return permCostAtLevel(level + 1);
 }
 

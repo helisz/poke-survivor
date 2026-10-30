@@ -65,7 +65,7 @@ describe('移动速度：比普通怪快约 10%', () => {
 
 describe('商店价格：50 起步、30000 封顶的急拉曲线', () => {
   it('每级价格都严格递增，且第 1 级 50、第 10 级 30000', () => {
-    for (const u of PERM_UPGRADES) {
+    for (const u of PERM_UPGRADES.filter((x) => x.key !== 'gamble')) {
       expect(permCost(u.key, 0)).toBe(50);
       for (let lv = 0; lv < u.max - 1; lv++) {
         expect(permCost(u.key, lv + 1), `${u.name} Lv${lv}→${lv + 1}`)

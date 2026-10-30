@@ -7,6 +7,8 @@ export class LevelUpScene extends Phaser.Scene {
   private gs!: GameScene;
   private options: UpgradeOption[] = [];
   private vertical = false;
+  /** 卡片容器：重掷时整体清空重画 */
+  private cardGroup!: Phaser.GameObjects.Container;
 
   constructor() { super('LevelUp'); }
 
@@ -26,14 +28,62 @@ export class LevelUpScene extends Phaser.Scene {
       fontFamily: 'sans-serif', fontSize: '12px', color: '#8fa8b8',
     }).setOrigin(0.5);
 
+    this.cardGroup = this.add.container(0, 0);
     this.options = this.gs.buildUpgradeOptions();
     this.renderCards();
+    this.buildRerollButton(width, height);
 
     this.input.keyboard!.on('keydown', (e: KeyboardEvent) => {
       if (e.key === '1') this.choose(0);
       if (e.key === '2') this.choose(1);
       if (e.key === '3') this.choose(2);
+      if (e.key.toLowerCase() === 'r') this.reroll();
     });
+  }
+
+  /**
+   * 底部「重掷」按钮：花掉一次重掷换一批新卡。
+   *
+   * 次数由铺面外的「赌神」升级决定（每局 0~3 次），用完按钮变灰。
+   * 重掷不消耗等级，只是重摇三张卡。
+   */
+  private buildRerollButton(width: number, height: number) {
+    const y = height - 58;
+    const w = 150, h = 40;
+    const bg = this.add.rectangle(width / 2, y, w, h, UI.secondary)
+      .setStrokeStyle(2, UI.primaryStroke);
+    const label = this.add.text(width / 2, y, '', {
+      fontFamily: 'sans-serif', fontSize: '14px', fontStyle: 'bold', color: TEXT.gold,
+    }).setOrigin(0.5);
+
+    const refresh = () => {
+      const n = this.gs.rerollsLeft;
+      const on = n > 0;
+      bg.setFillStyle(on ? UI.secondary : UI.disabled);
+      bg.setStrokeStyle(2, on ? UI.primaryStroke : UI.disabledStroke);
+      label.setText(on ? `重掷 · 剩 ${n} 次` : '重掷 · 已用完');
+      label.setColor(on ? TEXT.gold : TEXT.off);
+    };
+    this.refreshReroll = refresh;
+    refresh();
+
+    bg.setInteractive({ useHandCursor: true });
+    bg.on('pointerdown', () => this.reroll());
+    bg.on('pointerover', () => { if (this.gs.rerollsLeft > 0) bg.setStrokeStyle(2, UI.primary); });
+    bg.on('pointerout', () => { if (this.gs.rerollsLeft > 0) bg.setStrokeStyle(2, UI.primaryStroke); });
+  }
+
+  private refreshReroll: () => void = () => {};
+
+  /** 花一次重掷，换一批新卡 */
+  private reroll() {
+    if (this.gs.rerollsLeft <= 0) return;
+    this.gs.rerollsLeft--;
+    // 清掉旧卡再画新的（destroy 会递归销毁子对象）
+    this.cardGroup.removeAll(true);
+    this.options = this.gs.buildUpgradeOptions();
+    this.renderCards();
+    this.refreshReroll();
   }
 
   private renderCards() {
@@ -146,6 +196,8 @@ export class LevelUpScene extends Phaser.Scene {
       .on('pointerover', () => bg.setStrokeStyle(2, opt.color))
       .on('pointerout', () => bg.setStrokeStyle(2, UI.cardStroke))
       .on('pointerdown', () => this.choose(index));
+
+    this.cardGroup.add(c);
   }
 
   /** 在卡片右侧放宝可梦头像 + 名字 */

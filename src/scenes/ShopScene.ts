@@ -193,13 +193,20 @@ export class ShopScene extends Phaser.Scene {
       const def = PERM_UPGRADES.find((u) => u.key === r.key)!;
       const lv = this.save.perm[r.key];
       const maxed = lv >= def.max;
-      const totalPct = (permTotal(r.key, lv) * 100).toFixed(1).replace(/\.0$/, '');
       r.lvText.setText(`Lv.${lv}/${def.max}`);
-      r.totalText.setText(lv > 0 ? `累计 +${totalPct}%` : '尚未强化');
-      // 下一级能给多少：满级后显示本级值
-      const nextLv = maxed ? def.max : lv + 1;
-      const stepPct = (permStep(r.key, nextLv) * 100).toFixed(1).replace(/\.0$/, '');
-      r.stepText.setText(`${maxed ? '本级' : '下一级'} +${stepPct}%`);
+
+      if (r.key === 'gamble') {
+        // 赌神不是百分比：显示「每局多 N 次重掷」
+        r.totalText.setText(lv > 0 ? `每局重掷 +${lv} 次` : '尚未强化');
+        r.stepText.setText(maxed ? '已达上限' : '下一级 +1 次重掷');
+      } else {
+        const totalPct = (permTotal(r.key, lv) * 100).toFixed(1).replace(/\.0$/, '');
+        r.totalText.setText(lv > 0 ? `累计 +${totalPct}%` : '尚未强化');
+        // 下一级能给多少：满级后显示本级值
+        const nextLv = maxed ? def.max : lv + 1;
+        const stepPct = (permStep(r.key, nextLv) * 100).toFixed(1).replace(/\.0$/, '');
+        r.stepText.setText(`${maxed ? '本级' : '下一级'} +${stepPct}%`);
+      }
       if (maxed) {
         r.btnText.setText('已满').setVisible(true);
         r.cost.setText('');
