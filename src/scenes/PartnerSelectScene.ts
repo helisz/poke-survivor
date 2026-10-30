@@ -61,7 +61,7 @@ export class PartnerSelectScene extends Phaser.Scene {
     const bottomLimit = height - 100;
     const gap = 14;
     const availH = bottomLimit - topLimit;
-    const cardH = Math.min(150, (availH - gap * (this.choices.length - 1)) / this.choices.length);
+    const cardH = Math.min(124, (availH - gap * (this.choices.length - 1)) / this.choices.length);
     const totalH = cardH * this.choices.length + gap * (this.choices.length - 1);
     // 在可用区里居中
     const startY = topLimit + (availH - totalH) / 2 + cardH / 2;
@@ -76,15 +76,15 @@ export class PartnerSelectScene extends Phaser.Scene {
         .setStrokeStyle(2, 0x1e3344).setInteractive({ useHandCursor: true });
 
       // 左侧：宝可梦头像
-      const iconX = cx - cardW / 2 + cardH * 0.52;
+      const iconX = cx - cardW / 2 + cardH * 0.56;
       const pkKey = `pk_${p.id}`;
       if (this.textures.exists(pkKey)) {
-        this.add.image(iconX, y, pkKey).setScale((cardH - 50) / 64);
+        this.add.image(iconX, y, pkKey).setScale((cardH - 28) / 64);
       }
 
       // 右侧文本区：左对齐，5 行在卡片内垂直居中
-      const textX = cx - cardW / 2 + cardH * 0.95;
-      const lineGap = Math.min(19, (cardH - 34) / 4);
+      const textX = cx - cardW / 2 + cardH * 0.98;
+      const lineGap = Math.min(17, (cardH - 18) / 4);
       const baseY = y - (lineGap * 4) / 2;
 
       this.add.text(textX, baseY, p.name, {

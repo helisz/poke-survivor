@@ -140,11 +140,14 @@ function performGoTo(
     }
   }
 
-  // 2. 用工厂 new 一个干净实例重新挂载
+  // 2. 用工厂 new 一个干净实例重新挂载。
+  //    签名是 add(key, sceneConfig, autoStart, data) —— 第 4 个参数才是传给
+  //    create(data) 的数据。漏传会让开局参数（trait / starterMove）丢失，
+  //    表现为"选了伙伴但开局技能是随机的"。
   const factory = FACTORIES[target];
   if (factory) {
     try {
-      mgr.add(target, factory(), true);
+      mgr.add(target, factory(), true, data);
     } catch {
       /* 已存在则退化为普通 start */
       mgr.start(target, data);

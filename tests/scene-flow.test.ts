@@ -82,6 +82,15 @@ describe('输入回调里的场景切换', () => {
     expect(performBlock).toContain('restoreSceneOrder');
   });
 
+  it('mgr.add 必须传第 4 个参数 data，否则开局参数丢失', () => {
+    // 血泪教训：Phaser 的签名是 add(key, sceneConfig, autoStart, data)。
+    // 只传 3 个参数时 data 默认成 {}，create(data) 拿不到 trait / starterMove，
+    // 表现为「选了伙伴但开局技能是随机的」「选的特性没生效」。
+    const src = readFileSync(flowPath, 'utf8');
+    const performBlock = src.slice(src.indexOf('function performGoTo'), src.indexOf('export function abandonRun'));
+    expect(performBlock, 'mgr.add 漏了 data 参数').toMatch(/mgr\.add\(\s*target,\s*factory\(\),\s*true,\s*data\s*\)/);
+  });
+
   it('abandonRun 会先清掉游戏场景的暂停状态', () => {
     const src = readFileSync(flowPath, 'utf8');
     const block = src.slice(src.indexOf('export function abandonRun'));
