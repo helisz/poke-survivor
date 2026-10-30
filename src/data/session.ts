@@ -1,5 +1,6 @@
 import { loadSave, writeSave, setSaveHook, type SaveData } from './stats';
 import { pushSave, type CloudSession } from './cloud';
+import { STAGE_COUNT } from './maps';
 
 /**
  * 当前登录会话（内存级）。刷新页面即失效，需要重新登录 ——
@@ -11,19 +12,49 @@ let timer: number | undefined;
 export function currentSession() { return session; }
 export function isLoggedIn() { return !!session; }
 
-/** 云端 profile → 本地 SaveData。云端为准，本地开发倍率保留不动 */
+/**
+ * 云端 profile → 本地 SaveData。
+ *
+ * 不能无条件让云端覆盖：云端可能是空号（新注册后没玩过，全是 0），
+ * 无条件覆盖会把本地已有的金币、记录、进度清空 —— 玩家会以为存档丢了。
+ * 所以数值字段统一取「本地 / 云端」的最大值：
+ *   - 云端有真实进度时，换设备能拿到云端的
+ *   - 本地是这局刚打的、云端还没同步时，不会被云端旧值打回去
+ * 开发者倍率、解锁列表等数组字段仍然以本地为准。
+ */
 export function applyCloudToLocal(s: CloudSession): SaveData {
   const local = loadSave();
   const p = s.profile;
+
+  const cloudBest = Array.isArray(p.stage_best) ? p.stage_best.map(Number) : [];
+  const localBest = Array.isArray(local.stageBest) && local.stageBest.length === STAGE_COUNT
+    ? local.stageBest
+    : new Array(STAGE_COUNT).fill(0);
+  const mergedBest = Array.from({ length: STAGE_COUNT }, (_, i) =>
+    Math.max(localBest[i] ?? 0, cloudBest[i] ?? 0));
+
+  // 图鉴取并集，不能取最大：云端和本地各自可能解锁了不同的条目
+  const unionIds = (a?: number[], b?: number[]) =>
+    [...new Set([...(a ?? []), ...(b ?? [])])].sort((x, y) => x - y);
+
   const merged: SaveData = {
     ...local,
-    coins: Number(p.coins) || 0,
-    stageBest: Array.isArray(p.stage_best) ? p.stage_best.map(Number) : [0, 0, 0, 0, 0, 0],
-    stageProgress: Number(p.stage_progress) || 0,
-    perm: { ...local.perm, ...(p.perm ?? {}) },
-    seenPartners: Array.isArray(p.seen_partners) ? p.seen_partners.map(Number) : [],
-    seenEnemies: Array.isArray(p.seen_enemies) ? p.seen_enemies.map(Number) : [],
-    bestTime: Number(p.best_time) || 0,
+    coins: Math.max(Number(local.coins) || 0, Number(p.coins) || 0),
+    stageBest: mergedBest,
+    stageProgress: Math.max(Number(local.stageProgress) || 0, Number(p.stage_progress) || 0),
+    // 强化等级：云端更高才采用，避免云端的 0 把本地已买的冲掉
+    perm: (() => {
+      const out = { ...local.perm } as Record<string, number>;
+      for (const [k, v] of Object.entries(p.perm ?? {})) {
+        const cloud = Number(v) || 0;
+        const mine = Number(out[k]) || 0;
+        if (cloud > mine) out[k] = cloud;
+      }
+      return out as unknown as typeof local.perm;
+    })(),
+    seenPartners: unionIds(local.seenPartners, p.seen_partners),
+    seenEnemies: unionIds(local.seenEnemies, p.seen_enemies),
+    bestTime: Math.max(Number(local.bestTime) || 0, Number(p.best_time) || 0),
   };
   writeSave(merged);
   return merged;
