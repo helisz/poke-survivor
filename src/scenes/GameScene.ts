@@ -209,6 +209,20 @@ export class GameScene extends Phaser.Scene {
     this.starterMove = startMove;
     this.combat.addMove(startMove);
 
+    // 图鉴：本局选用的伙伴记入「伙伴」页（用招式反查宝可梦 id）
+    {
+      const partnerId = MOVES[startMove]?.pokeId;
+      if (partnerId) {
+        const sv = loadSave();
+        const seen = new Set(sv.seenPartners ?? []);
+        if (!seen.has(partnerId)) {
+          seen.add(partnerId);
+          sv.seenPartners = [...seen];
+          writeSave(sv);
+        }
+      }
+    }
+
     // 输入
     const kb = this.input.keyboard!;
     this.keys = kb.addKeys('W,A,S,D,UP,LEFT,DOWN,RIGHT') as any;
@@ -1154,6 +1168,16 @@ export class GameScene extends Phaser.Scene {
     }
     if (survived) Sfx.win(); else Sfx.lose();
 
+    // 图鉴：本局见过的敌人一次性并入存档（不是每刷一只写一次）
+    {
+      const sv = loadSave();
+      const seen = new Set(sv.seenEnemies ?? []);
+      let changed = false;
+      for (const id of this.enemies.getSeenIds()) {
+        if (!seen.has(id)) { seen.add(id); changed = true; }
+      }
+      if (changed) { sv.seenEnemies = [...seen]; writeSave(sv); }
+    }
     // 通关：解锁下一关（只在真实进度上前进，不受开发者全解锁影响）
     if (survived) {
       const sv = loadSave();

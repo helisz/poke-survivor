@@ -102,10 +102,30 @@ export class EnemySystem {
     sh.setDepth(5);
   }
 
+  /** 本局已记录过的 id，避免每刷一只怪就写一次 localStorage */
+  private seenThisRun = new Set<number>();
+
+  /**
+   * 图鉴：记录这只怪见过。
+   * 只在内存里按 key 去重，真正落盘交给 GameScene 结束时统一写一次。
+   */
+  private markSeen(key: string) {
+    const id = Number(key.replace('pk_', ''));
+    if (!id || this.seenThisRun.has(id)) return;
+    this.seenThisRun.add(id);
+  }
+
+  /** 本局见过的敌人 id（供 GameScene 结算时并入存档） */
+  getSeenIds(): number[] {
+    return [...this.seenThisRun];
+  }
+
   spawn(kind: EnemyKind, x: number, y: number, hpMul = 1, speedMul = 1, dmg = 8) {
     const key = this.pickKey(kind);
     let e = this.group.get(x, y, key) as Phaser.Physics.Arcade.Sprite | null;
     if (!e) return null;
+    // 图鉴：这只怪第一次出现在场上就算「见过」
+    this.markSeen(key);
     e.setActive(true).setVisible(true);
     e.setTexture(key);
     e.setAngle(0);

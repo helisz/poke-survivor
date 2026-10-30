@@ -49,19 +49,24 @@ export class MenuScene extends Phaser.Scene {
       fontFamily: 'sans-serif', fontSize: '11px', color: '#cfe4f5',
     }).setOrigin(0, 0.5).setDepth(20).setShadow(0, 1, '#041018', 3);
 
-    // ③ 底部操作区：两行布局 —— 上「强化」（小），下「开始」（大）
+    // ③ 底部操作区
+    //  上排：「强化」+「图鉴」并排，两个按钮合计宽度/高度与「开始」完全一致
+    //  下排：「开始」主按钮
+    const startW = 220;
     const startH = 54;
-    const shopH = 40;
-    const gap = 16;
+    const subGap = 10;
+    const subW = (startW - subGap) / 2;   // 105
     const startY = height - 58 - startH / 2;
-    const shopY = startY - startH / 2 - gap - shopH / 2;
+    const subY = startY - startH / 2 - 16 - startH / 2;
+    const leftX = width / 2 - subGap / 2 - subW / 2;
+    const rightX = width / 2 + subGap / 2 + subW / 2;
 
-    // 强化：小一号的次级按钮
-    const shopBtn = new RoundedPanel(this, width / 2, shopY, 132, shopH, UI.secondary, 0.88)
+    // 强化：左半
+    const shopBtn = new RoundedPanel(this, leftX, subY, subW, startH, UI.secondary, 0.88)
       .setStrokeStyle(1.5, UI.secondaryStroke).setInteractive({ useHandCursor: true }).setDepth(20);
     attachPressFeedback(shopBtn);
-    this.add.text(width / 2, shopY, '强 化', {
-      fontFamily: 'sans-serif', fontSize: '14px', color: TEXT.gold, fontStyle: 'bold',
+    this.add.text(leftX, subY, '强 化', {
+      fontFamily: 'sans-serif', fontSize: '15px', color: TEXT.gold, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(21);
     shopBtn.on('pointerup', () => {
       Sfx.init(); Sfx.click();
@@ -70,8 +75,22 @@ export class MenuScene extends Phaser.Scene {
     shopBtn.on('pointerover', () => shopBtn.setFillStyle(UI.secondaryHover, 0.95));
     shopBtn.on('pointerout', () => shopBtn.setFillStyle(UI.secondary, 0.88));
 
+    // 图鉴：右半，与「强化」同尺寸同风格
+    const dexBtn = new RoundedPanel(this, rightX, subY, subW, startH, UI.secondary, 0.88)
+      .setStrokeStyle(1.5, UI.secondaryStroke).setInteractive({ useHandCursor: true }).setDepth(20);
+    attachPressFeedback(dexBtn);
+    this.add.text(rightX, subY, '图 鉴', {
+      fontFamily: 'sans-serif', fontSize: '15px', color: TEXT.gold, fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(21);
+    dexBtn.on('pointerup', () => {
+      Sfx.init(); Sfx.click();
+      this.time.delayedCall(90, () => goTo(this, 'Dex'));
+    });
+    dexBtn.on('pointerover', () => dexBtn.setFillStyle(UI.secondaryHover, 0.95));
+    dexBtn.on('pointerout', () => dexBtn.setFillStyle(UI.secondary, 0.88));
+
     // 开始：主按钮，宽度撑开
-    const btn = new RoundedPanel(this, width / 2, startY, 220, startH, UI.primary)
+    const btn = new RoundedPanel(this, width / 2, startY, startW, startH, UI.primary)
       .setStrokeStyle(2, UI.primaryStroke).setInteractive({ useHandCursor: true }).setDepth(20);
     attachPressFeedback(btn);
     this.add.text(width / 2, startY, '开 始', {

@@ -66,6 +66,10 @@ export interface SaveData {
   stageProgress: number;
   /** 开发者：关卡全解锁（不影响真实 stageProgress） */
   devAllStages: boolean;
+  /** 图鉴：用过（作为伙伴出战过）的宝可梦 id */
+  seenPartners: number[];
+  /** 图鉴：在场上见过（作为敌人/BOSS 出现过）的宝可梦 id */
+  seenEnemies: number[];
 }
 
 /** 局外永久升级：等级越高越强，用金币购买 */
@@ -205,6 +209,8 @@ export function loadSave(): SaveData {
         stageProgress: 0, devAllStages: false,
         ...raw2,
         perm: { ...PERM_EMPTY, ...(raw2.perm ?? {}) },
+        seenPartners: raw2.seenPartners ?? [],
+        seenEnemies: raw2.seenEnemies ?? [],
       };
       // 迁移：devExpMul 的默认值曾经是 3（测试期快速升级），正式版改成 1。
       // 老存档里存的 3 不是玩家自己调的，直接归位；玩家手动改过的其它值保留。
@@ -212,7 +218,11 @@ export function loadSave(): SaveData {
       return d;
     }
   } catch { /* ignore */ }
-  return { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, devExpMul: 1, stageProgress: 0, devAllStages: false, perm: { ...PERM_EMPTY } };
+  return {
+    coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, devExpMul: 1,
+    stageProgress: 0, devAllStages: false, seenPartners: [], seenEnemies: [],
+    perm: { ...PERM_EMPTY },
+  };
 }
 
 export function writeSave(data: SaveData) {
