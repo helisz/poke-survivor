@@ -32,6 +32,9 @@ export interface UpgradeOption {
   pokeName?: string;
 }
 
+/** 属性卡的权重系数：1 = 与一张招式卡同等机会，0.5 = 半概率 */
+const STAT_CARD_WEIGHT = 0.5;
+
 export class GameScene extends Phaser.Scene {
   player!: Player;
   combat!: CombatSystem;
@@ -730,6 +733,8 @@ export class GameScene extends Phaser.Scene {
 
   buildUpgradeOptions(): UpgradeOption[] {
     const pool: UpgradeOption[] = [];
+    /** pool 里每个下标的抽取权重，缺省为 1 */
+    const statWeights = new Map<number, number>();
     const owned = this.combat.slotIds;
 
     // ── 进化：满足条件的优先塞进池子（策划案 §4.4） ──
@@ -811,29 +816,49 @@ export class GameScene extends Phaser.Scene {
     }
 
     // 属性加成
-    const statUpgrades: UpgradeOption[] = [
-      { kind: 'stat', id: 'atk', title: '力量强化', desc: '伤害 +12%', color: 0xf0703c, apply: () => { this.player.stats.damageMul *= 1.12; this.addStatStack('atk'); } },
-      { kind: 'stat', id: 'spd', title: '疾行', desc: '移速 +8%', color: 0x449ddf, apply: () => { this.player.stats.speed *= 1.08; this.addStatStack('spd'); } },
-      { kind: 'stat', id: 'hp', title: '体力强化', desc: '最大 HP +20 并回满', color: 0x63c256, apply: () => { this.player.stats.maxHp += 20; this.player.stats.hp = this.player.stats.maxHp; this.addStatStack('hp'); } },
-      { kind: 'stat', id: 'pick', title: '磁力', desc: '拾取范围 +25%', color: 0xf7d02c, apply: () => { this.player.stats.pickup *= 1.25; this.addStatStack('pick'); } },
-      { kind: 'stat', id: 'cd', title: '迅捷', desc: '招式冷却 -8%', color: 0x8a5fbf, apply: () => { this.player.stats.cooldownMul *= 0.92; this.addStatStack('cd'); } },
-    ];
-    pool.push(...statUpgrades);
+    // 前 3 级不给属性卡：开局只让玩家抽招式/进化，先把构筑立起来，
+    // 避免前三次升级就被「伤害 +12%」这类万金油占掉。
+    // 3 级之后按权重抽取，整体出现频率随后期逐步抬升。
+    if (this.level > 3) {
+      const statUpgrades: UpgradeOption[] = [
+        { kind: 'stat', id: 'atk', title: '力量强化', desc: '伤害 +12%', color: 0xf0703c, apply: () => { this.player.stats.damageMul *= 1.12; this.addStatStack('atk'); } },
+        { kind: 'stat', id: 'spd', title: '疾行', desc: '移速 +8%', color: 0x449ddf, apply: () => { this.player.stats.speed *= 1.08; this.addStatStack('spd'); } },
+        { kind: 'stat', id: 'hp', title: '体力强化', desc: '最大 HP +20 并回满', color: 0x63c256, apply: () => { this.player.stats.maxHp += 20; this.player.stats.hp = this.player.stats.maxHp; this.addStatStack('hp'); } },
+        { kind: 'stat', id: 'pick', title: '磁力', desc: '拾取范围 +25%', color: 0xf7d02c, apply: () => { this.player.stats.pickup *= 1.25; this.addStatStack('pick'); } },
+        { kind: 'stat', id: 'cd', title: '迅捷', desc: '招式冷却 -8%', color: 0x8a5fbf, apply: () => { this.player.stats.cooldownMul *= 0.92; this.addStatStack('cd'); } },
+      ];
+      // 权重：每张属性卡从 1 张降为 STAT_WEIGHT 份，权重随等级线性回升，
+      // 满 12 级回到 1.0（与原来一张顶一份持平），所以只是整体下调、不是永久削弱。
+      const statWeight = Phaser.Math.Clamp((this.level - 3) / 9, 0.15, 1) * STAT_CARD_WEIGHT;
+      for (const s of statUpgrades) {
+        // 用同一份卡片的引用，靠 poolWeights 记权重，选中后再去重
+        pool.push(s);
+        statWeights.set(pool.length - 1, statWeight);
+      }
+    }
 
     // 抽 3 个不重复；进化卡优先占位
-    Phaser.Utils.Array.Shuffle(pool);
+    // 用「权重 × 随机数」排序代替纯 shuffle：属性卡权重低，自然排到后面，
+    // 但不至于完全抽不到（权重 0.5 仍有约一半的机会挤进前三）。
+    const weighted = pool.map((o, i) => ({
+      o,
+      k: (statWeights.get(i) ?? 1) * Math.random(),
+    }));
+    weighted.sort((a, b) => b.k - a.k);
+    const ordered = weighted.map((w) => w.o);
+
     const chosen: UpgradeOption[] = [];
     const usedTitles = new Set<string>();
 
     // 先进化卡（保证满足条件时一定能看到）
-    for (const o of pool) {
+    for (const o of ordered) {
       if (o.kind !== 'evolve') continue;
       if (chosen.length >= 3) break;
       usedTitles.add(o.title);
       chosen.push(o);
     }
 
-    for (const o of pool) {
+    for (const o of ordered) {
       if (chosen.length >= 3) break;
       if (usedTitles.has(o.title)) continue;
       usedTitles.add(o.title);
