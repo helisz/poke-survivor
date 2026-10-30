@@ -2,10 +2,11 @@ import Phaser from 'phaser';
 import { PERM_UPGRADES, permCost, loadSave, writeSave, PERM_EMPTY, type PermKey } from '../data/stats';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
+import { makeCoinIcon, makePermIcon } from '../ui/Icons';
 
 /**
- * 商店：用金币购买局外永久升级（每级仅 1-2%）。
- * 每行显示：名称 / 单级增益 / 等级 / 累计增益 / 价格。
+ * 强化页：用金币购买局外永久升级（每级仅 1-2%）。
+ * 每行：大图标 | 名称 + 单级增益 + 等级/累计 | 购买按钮 + 金额（带硬币图标）。
  * 底部「重置强化」——全部归零并把历史花费退回余额。
  */
 export class ShopScene extends Phaser.Scene {
@@ -14,13 +15,16 @@ export class ShopScene extends Phaser.Scene {
   private save = loadSave();
   private rows: {
     key: PermKey;
+    icon: Phaser.GameObjects.Image;
     lvText: Phaser.GameObjects.Text;
     totalText: Phaser.GameObjects.Text;
     btn: Phaser.GameObjects.Rectangle;
     btnText: Phaser.GameObjects.Text;
     cost: Phaser.GameObjects.Text;
+    costIcon: Phaser.GameObjects.Image;
   }[] = [];
   private coinText!: Phaser.GameObjects.Text;
+  private recenterCoin: () => void = () => {};
 
   create() {
     // 场景 shutdown 时清理本场景 Text 的 canvas 纹理，防止重建时命中已销毁帧
@@ -31,58 +35,87 @@ export class ShopScene extends Phaser.Scene {
     this.rows = [];
 
     this.add.rectangle(width / 2, height / 2, width, height, 0x041018);
+    makeCoinIcon(this, 22);
 
-    this.add.text(width / 2, 40, '永 久 强 化', {
+    // 标题 + 余额（右上角，与主菜单一致的硬币样式）
+    this.add.text(width / 2, 34, '强 化', {
       fontFamily: 'sans-serif', fontSize: '22px', color: '#449ddf', fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.coinText = this.add.text(width / 2, 70, '', {
-      fontFamily: 'sans-serif', fontSize: '14px', color: '#ffd75e', fontStyle: 'bold',
-    }).setOrigin(0.5);
+    const coinX = width / 2;
+    this.coinText = this.add.text(coinX + 11, 62, '', {
+      fontFamily: 'sans-serif', fontSize: '17px', color: '#ffd75e', fontStyle: 'bold',
+    }).setOrigin(0, 0.5);
+    const coinIcon = this.add.image(coinX - 4, 62, 'ui_coin').setDisplaySize(20, 20);
+    // 让「图标 + 数字」整体居中；数字变化后需重新对齐
+    this.recenterCoin = () => {
+      const total = 20 + 4 + this.coinText.width;
+      coinIcon.x = width / 2 - total / 2 + 10;
+      this.coinText.x = coinIcon.x + 14;
+    };
+    this.recenterCoin();
 
-    // 六行列表 —— 手机竖屏下每行高度自适应
-    const top = Math.max(94, height * 0.125);
-    const bottom = height - 120;
-    const rowH = Math.min(74, (bottom - top) / PERM_UPGRADES.length);
+    // 六行：大图标居左，文字列对齐，右侧购买块固定宽度
+    const top = Math.max(96, height * 0.135);
+    const bottom = height - 118;
+    const rowH = Math.min(84, (bottom - top) / PERM_UPGRADES.length);
+    const w = Math.min(width - 28, 460);
+    const left = width / 2 - w / 2;
+
+    const ICON = 44;
+    const iconX = left + 12 + ICON / 2;      // 图标左内边距 12
+    const textX = iconX + ICON / 2 + 10;     // 文字紧贴图标，间距 10
+    const btnW = 92;
+    const btnX = left + w - btnW / 2 - 12;
 
     PERM_UPGRADES.forEach((u, i) => {
       const cy = top + i * rowH + rowH / 2;
-      const w = Math.min(width - 32, 440);
-      const left = width / 2 - w / 2;
+      const cardH = rowH - 8;
 
-      this.add.rectangle(width / 2, cy, w, rowH - 8, 0x0b1721)
+      this.add.rectangle(width / 2, cy, w, cardH, 0x0b1721)
         .setStrokeStyle(1.5, 0x1e3444);
 
-      // 名称 + 单级增益
-      this.add.text(left + 14, cy - 18, u.name, {
-        fontFamily: 'sans-serif', fontSize: '14px', color: '#cfe4f5', fontStyle: 'bold',
-      });
-      this.add.text(left + 14, cy + 1, u.desc, {
-        fontFamily: 'sans-serif', fontSize: '10px', color: '#6f8ea6',
-      });
-      // 等级 + 累计增益
-      const lvText = this.add.text(left + 14, cy + 18, '', {
-        fontFamily: 'sans-serif', fontSize: '11px', color: '#8fb3cc', fontStyle: 'bold',
-      });
-      const totalText = this.add.text(left + 92, cy + 18, '', {
-        fontFamily: 'sans-serif', fontSize: '11px', color: '#63c256',
-      });
+      // 大图标
+      const iconKey = makePermIcon(this, u.key);
+      const icon = this.add.image(iconX, cy, iconKey ?? 'ui_coin').setDisplaySize(ICON, ICON);
 
-      // 购买按钮
-      const bw = 76;
-      const bx = width / 2 + w / 2 - bw / 2 - 10;
-      const btn = this.add.rectangle(bx, cy, bw, rowH - 24, 0x449ddf)
+      // 文字列：三行都以 textX 左对齐
+      const line1Y = cy - cardH * 0.26;
+      const line2Y = cy;
+      const line3Y = cy + cardH * 0.26;
+
+      this.add.text(textX, line1Y, u.name, {
+        fontFamily: 'sans-serif', fontSize: '15px', color: '#cfe4f5', fontStyle: 'bold',
+      }).setOrigin(0, 0.5);
+
+      this.add.text(textX, line2Y, u.desc, {
+        fontFamily: 'sans-serif', fontSize: '11px', color: '#6f8ea6',
+      }).setOrigin(0, 0.5);
+
+      const lvText = this.add.text(textX, line3Y, '', {
+        fontFamily: 'sans-serif', fontSize: '11px', color: '#8fb3cc', fontStyle: 'bold',
+      }).setOrigin(0, 0.5);
+      // 固定列宽：Lv.x/xx 最宽约 52px，确保「累计/尚未强化」在每行都同一竖直线上
+      const totalText = this.add.text(textX + 56, line3Y, '', {
+        fontFamily: 'sans-serif', fontSize: '11px', color: '#63c256',
+      }).setOrigin(0, 0.5);
+
+      // 购买块：按钮 + 下方金额（硬币图标 + 放大数字）
+      const btn = this.add.rectangle(btnX, cy - 8, btnW, 34, 0x449ddf)
         .setStrokeStyle(1.5, 0x63b4ef).setInteractive({ useHandCursor: true });
-      const btnText = this.add.text(bx, cy - 8, '购买', {
-        fontFamily: 'sans-serif', fontSize: '12px', color: '#041018', fontStyle: 'bold',
+      const btnText = this.add.text(btnX, cy - 8, '购买', {
+        fontFamily: 'sans-serif', fontSize: '13px', color: '#041018', fontStyle: 'bold',
       }).setOrigin(0.5);
-      const cost = this.add.text(bx, cy + 9, '', {
-        fontFamily: 'sans-serif', fontSize: '10px', color: '#1a3546',
-      }).setOrigin(0.5);
+
+      // 金额块（图标 + 数字）整体在按钮下方水平居中，图标随数字宽度左移
+      const cost = this.add.text(btnX, cy + 17, '', {
+        fontFamily: 'sans-serif', fontSize: '16px', color: '#ffd75e', fontStyle: 'bold',
+      }).setOrigin(0, 0.5);
+      const costIcon = this.add.image(btnX, cy + 17, 'ui_coin').setDisplaySize(15, 15);
 
       btn.on('pointerdown', () => this.buy(u.key));
 
-      this.rows.push({ key: u.key, lvText, totalText, btn, btnText, cost });
+      this.rows.push({ key: u.key, icon, lvText, totalText, btn, btnText, cost, costIcon });
     });
 
     // 底部：重置 + 返回
@@ -150,7 +183,8 @@ export class ShopScene extends Phaser.Scene {
   }
 
   private refresh() {
-    this.coinText.setText(`金币 ${this.save.coins}`);
+    this.coinText.setText(`${this.save.coins}`);
+    this.recenterCoin();
     for (const r of this.rows) {
       const def = PERM_UPGRADES.find((u) => u.key === r.key)!;
       const lv = this.save.perm[r.key];
@@ -161,13 +195,27 @@ export class ShopScene extends Phaser.Scene {
       if (maxed) {
         r.btnText.setText('已满');
         r.cost.setText('');
+        r.costIcon.setVisible(false);
         r.btn.setFillStyle(0x1b2f3d).disableInteractive();
       } else {
         const price = permCost(r.key, lv);
         const afford = this.save.coins >= price;
         r.btnText.setText('购买');
         r.cost.setText(`${price}`);
+        r.costIcon.setVisible(true);
+        // 「图标 + 数字」以按钮中心为基准整体居中。
+        // 先量出文本实际宽度再定位，避免不同位数金额左右跳动。
+        const iconW = 15;
+        const gap = 4;
+        const blockW = iconW + gap + r.cost.width;
+        const startX = r.btn.x - blockW / 2;
+        r.costIcon.setX(startX + iconW / 2);
+        r.cost.setX(startX + iconW + gap);
         r.btn.setFillStyle(afford ? 0x449ddf : 0x2a4052);
+        // 买不起时文字也灰掉，避免看着像能点
+        r.btnText.setColor(afford ? '#041018' : '#5c7a8c');
+        r.cost.setColor(afford ? '#ffd75e' : '#7a6b3c');
+        r.costIcon.setAlpha(afford ? 1 : 0.45);
         r.btn.setInteractive({ useHandCursor: true });
       }
     }
