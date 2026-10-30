@@ -74,9 +74,16 @@ export class MenuScene extends Phaser.Scene {
       fontFamily: 'sans-serif', fontSize: '10px', color: '#a8c4d8',
     }).setOrigin(0.5).setDepth(20).setShadow(0, 1, '#041018', 3);
 
-    this.add.text(width / 2, height - 12, `build ${__BUILD_ID__}`, {
-      fontFamily: 'monospace', fontSize: '9px', color: '#5a7484',
-    }).setOrigin(0.5).setDepth(20).setShadow(0, 1, '#041018', 3);
+    // 构建标识：迭代数 + 日期 + 时间戳 + tag
+    const S = __BUILD_STAMP__;
+    const stamp = this.add.text(
+      width / 2, height - 12,
+      `r${S.iter} · ${S.date} ${S.time} · ${S.iso} · ${S.tag} · #${S.epoch}`,
+      { fontFamily: 'monospace', fontSize: '8px', color: '#4e6778' },
+    ).setOrigin(0.5).setDepth(20).setShadow(0, 1, '#041018', 3);
+    // 小屏兜底：超宽时按比例缩，绝不允许超出屏幕
+    const maxW = width - 24;
+    if (stamp.width > maxW) stamp.setScale(maxW / stamp.width);
 
     makeDevButton(this, () => openDevPanel(this));
   }
