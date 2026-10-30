@@ -58,7 +58,7 @@ export class ShopScene extends Phaser.Scene {
     // 六行：大图标居左，文字列对齐，右侧购买块固定宽度
     const top = Math.max(96, height * 0.135);
     const bottom = height - 118;
-    const rowH = Math.min(84, (bottom - top) / PERM_UPGRADES.length);
+    const rowH = Math.min(88, (bottom - top) / PERM_UPGRADES.length);
     const w = Math.min(width - 28, 460);
     const left = width / 2 - w / 2;
 
@@ -100,18 +100,19 @@ export class ShopScene extends Phaser.Scene {
         fontFamily: 'sans-serif', fontSize: '11px', color: '#63c256',
       }).setOrigin(0, 0.5);
 
-      // 购买块：按钮 + 下方金额（硬币图标 + 放大数字）
-      const btn = this.add.rectangle(btnX, cy - 8, btnW, 34, 0x449ddf)
+      // 购买按钮：单行内容「价格 + 硬币图标」，整体作为一个可点区域
+      const btn = this.add.rectangle(btnX, cy, btnW, 40, 0x449ddf)
         .setStrokeStyle(1.5, 0x63b4ef).setInteractive({ useHandCursor: true });
-      const btnText = this.add.text(btnX, cy - 8, '购买', {
+      // btnText 用作「已满」等状态文字，位于硬币块上方同步显示
+      const btnText = this.add.text(btnX, cy, '', {
         fontFamily: 'sans-serif', fontSize: '13px', color: '#041018', fontStyle: 'bold',
       }).setOrigin(0.5);
 
-      // 金额块（图标 + 数字）整体在按钮下方水平居中，图标随数字宽度左移
-      const cost = this.add.text(btnX, cy + 17, '', {
-        fontFamily: 'sans-serif', fontSize: '16px', color: '#ffd75e', fontStyle: 'bold',
+      // 金额块（数字 + 硬币图标）水平居中排在按钮内部
+      const cost = this.add.text(btnX, cy, '', {
+        fontFamily: 'sans-serif', fontSize: '17px', color: '#041018', fontStyle: 'bold',
       }).setOrigin(0, 0.5);
-      const costIcon = this.add.image(btnX, cy + 17, 'ui_coin').setDisplaySize(15, 15);
+      const costIcon = this.add.image(btnX, cy, 'ui_coin').setDisplaySize(17, 17);
 
       btn.on('pointerdown', () => this.buy(u.key));
 
@@ -193,28 +194,27 @@ export class ShopScene extends Phaser.Scene {
       r.lvText.setText(`Lv.${lv}/${def.max}`);
       r.totalText.setText(lv > 0 ? `累计 +${totalPct}%` : '尚未强化');
       if (maxed) {
-        r.btnText.setText('已满');
+        r.btnText.setText('已满').setVisible(true);
         r.cost.setText('');
         r.costIcon.setVisible(false);
         r.btn.setFillStyle(0x1b2f3d).disableInteractive();
       } else {
         const price = permCost(r.key, lv);
         const afford = this.save.coins >= price;
-        r.btnText.setText('购买');
+        r.btnText.setVisible(false);
         r.cost.setText(`${price}`);
         r.costIcon.setVisible(true);
-        // 「图标 + 数字」以按钮中心为基准整体居中。
-        // 先量出文本实际宽度再定位，避免不同位数金额左右跳动。
-        const iconW = 15;
-        const gap = 4;
+        // 硬币图标 + 数字作为一组，在按钮内水平居中；
+        // 先量文本实际宽度再定位，不同位数金额都不会左右跳动。
+        const iconW = 17;
+        const gap = 3;
         const blockW = iconW + gap + r.cost.width;
         const startX = r.btn.x - blockW / 2;
         r.costIcon.setX(startX + iconW / 2);
         r.cost.setX(startX + iconW + gap);
         r.btn.setFillStyle(afford ? 0x449ddf : 0x2a4052);
-        // 买不起时文字也灰掉，避免看着像能点
-        r.btnText.setColor(afford ? '#041018' : '#5c7a8c');
-        r.cost.setColor(afford ? '#ffd75e' : '#7a6b3c');
+        // 买不起时数字与图标一起变暗，避免看着像能点
+        r.cost.setColor(afford ? '#041018' : '#7a8fa0');
         r.costIcon.setAlpha(afford ? 1 : 0.45);
         r.btn.setInteractive({ useHandCursor: true });
       }

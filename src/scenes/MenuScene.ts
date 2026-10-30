@@ -23,10 +23,10 @@ export class MenuScene extends Phaser.Scene {
     this.backdrop = new MenuBackdrop(this);
     this.events.once('shutdown', () => { this.backdrop = undefined; });
 
-    // ① Logo —— 往上挪，靠顶部
+    // ① Logo —— 中心落在屏幕垂直方向 1/3 处
     const logoW = Math.min(width - 68, 400);
     const logoH = logoW * (235 / 760);
-    const logo = this.add.image(width / 2, 22 + logoH / 2, 'logo')
+    const logo = this.add.image(width / 2, height / 3, 'logo')
       .setDisplaySize(logoW, logoH).setDepth(20);
 
     // ② 左上角：金币（带硬币图标）+ 下方最长生存
@@ -42,25 +42,28 @@ export class MenuScene extends Phaser.Scene {
       fontFamily: 'sans-serif', fontSize: '11px', color: '#cfe4f5',
     }).setOrigin(0, 0.5).setDepth(20).setShadow(0, 1, '#041018', 3);
 
-    // ③ 底部操作区：强化（无图标）+ 开始，回到屏幕底部
-    const bottomY = height - 96;
-    const shopW = 132;
-    const shopH = 46;
-    const shopX = width / 2 - 78;
-    const shopBtn = this.add.rectangle(shopX, bottomY, shopW, shopH, 0x14293a, 0.88)
+    // ③ 底部操作区：两行布局 —— 上「强化」（小），下「开始」（大）
+    const startH = 54;
+    const shopH = 40;
+    const gap = 16;
+    const startY = height - 58 - startH / 2;
+    const shopY = startY - startH / 2 - gap - shopH / 2;
+
+    // 强化：小一号的次级按钮
+    const shopBtn = this.add.rectangle(width / 2, shopY, 132, shopH, 0x14293a, 0.88)
       .setStrokeStyle(1.5, 0x2f6f96).setInteractive({ useHandCursor: true }).setDepth(20);
-    this.add.text(shopX, bottomY, '强 化', {
-      fontFamily: 'sans-serif', fontSize: '15px', color: '#63b4ef', fontStyle: 'bold',
+    this.add.text(width / 2, shopY, '强 化', {
+      fontFamily: 'sans-serif', fontSize: '14px', color: '#63b4ef', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(21);
     shopBtn.on('pointerdown', () => { Sfx.init(); Sfx.click(); goTo(this, 'Shop'); });
     shopBtn.on('pointerover', () => shopBtn.setFillStyle(0x1b3446, 0.95));
     shopBtn.on('pointerout', () => shopBtn.setFillStyle(0x14293a, 0.88));
 
-    const goX = width / 2 + 78;
-    const btn = this.add.rectangle(goX, bottomY, shopW, shopH, 0x449ddf)
+    // 开始：主按钮，宽度撑开
+    const btn = this.add.rectangle(width / 2, startY, 220, startH, 0x449ddf)
       .setStrokeStyle(2, 0x63b4ef).setInteractive({ useHandCursor: true }).setDepth(20);
-    this.add.text(goX, bottomY, '开 始', {
-      fontFamily: 'sans-serif', fontSize: '17px', color: '#041018', fontStyle: 'bold',
+    this.add.text(width / 2, startY, '开 始', {
+      fontFamily: 'sans-serif', fontSize: '19px', color: '#041018', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(21);
     btn.on('pointerdown', () => { Sfx.init(); Sfx.click(); goTo(this, 'TraitSelect'); });
     btn.on('pointerover', () => btn.setFillStyle(0x63b4ef));

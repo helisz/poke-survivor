@@ -206,12 +206,12 @@ export class MenuBackdrop {
 
   private buildHero() {
     const { width, height } = this.scene.scale;
-    // 贴图原生 48px，缩放到约 110-130px 显示；比例仍与游戏一致（只是整体放大）
-    const target = Math.min(width * 0.30, 130);
+    // 贴图原生 48px；约为上一版的 1/3 大小（37-43px 显示）
+    const target = Math.min(width * 0.10, 43);
     // 脚下阴影：让主角从草地上「站」起来
     const shadow = this.scene.add.ellipse(
-      width / 2, height * 0.52 + target * 0.40, target * 0.72, target * 0.26,
-      0x000000, 0.30,
+      width / 2, height * 0.52 + target * 0.36, target * 0.78, target * 0.28,
+      0x000000, 0.32,
     ).setDepth(4);
     this.shadow = shadow;
 
@@ -221,7 +221,7 @@ export class MenuBackdrop {
     // 轻微呼吸：上下浮动 2px
     this.scene.tweens.add({
       targets: this.hero,
-      y: this.hero.y - 3,
+      y: this.hero.y - 1.5,
       duration: 900,
       yoyo: true,
       repeat: -1,
