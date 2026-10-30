@@ -266,6 +266,12 @@ export function loadSave(): SaveData {
   };
 }
 
+/** 云同步钩子：由 session.ts 注入，避免 stats ↔ session 循环依赖 */
+let cloudHook: ((d: SaveData) => void) | null = null;
+export function setSaveHook(fn: ((d: SaveData) => void) | null) { cloudHook = fn; }
+
 export function writeSave(data: SaveData) {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+  // 登录状态下顺手推云端；未登录是 no-op
+  try { cloudHook?.(data); } catch { /* 同步失败不影响本地 */ }
 }

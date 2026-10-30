@@ -33,6 +33,8 @@ const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: '#0a0f14',
+  // 登录表单用原生 input 覆盖（手机上才能唤起数字键盘）
+  dom: { createContainer: true },
   // 像素风：全局用 NEAREST 采样（文字也跟随像素风，这是初始设定）
   pixelArt: true,
   roundPixels: true,

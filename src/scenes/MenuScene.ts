@@ -4,6 +4,9 @@ import { formatScore } from '../data/score';
 import { openDevPanel, makeDevButton } from '../ui/DevPanel';
 import { devTap, devTaps, devRevealed, setDevRevealed } from '../ui/devGate';
 import { openHelpPanel } from '../ui/HelpPanel';
+import { confirmOverwrite, openProfileCard } from '../ui/AccountRow';
+import { openAuthPanel } from '../ui/AuthPanel';
+import { currentSession, startSession } from '../data/session';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { makeCoinIcon } from '../ui/Icons';
@@ -79,6 +82,9 @@ export class MenuScene extends Phaser.Scene {
     const leftX = width / 2 - subGap / 2 - subW / 2;
     const rightX = width / 2 + subGap / 2 + subW / 2;
 
+    // 账号行：全宽，放在强化/图鉴那排上方
+    this.drawAccountRow(width / 2, subY - startH - 10, startW, 40);
+
     // 强化：左半
     const shopBtn = new RoundedPanel(this, leftX, subY, subW, startH, UI.secondary, 0.88)
       .setStrokeStyle(1.5, UI.secondaryStroke).setInteractive({ useHandCursor: true }).setDepth(20);
@@ -139,6 +145,39 @@ export class MenuScene extends Phaser.Scene {
    * 右上角问号：打开操作说明。
    * 开发者模式默认关闭，连点 5 次问号才显示齿轮（本次会话有效）。
    */
+  /** 账号行：未登录显示「登录 / 注册」，已登录显示用户名 */
+  private accountRow?: Phaser.GameObjects.Container;
+  private drawAccountRow(cx: number, y: number, w: number, h: number) {
+    this.accountRow?.destroy(true);
+    this.accountRow = this.add.container(0, 0);
+    const session = currentSession();
+    const isLogin = !session;
+
+    const panel = new RoundedPanel(this, cx, y, w, h, UI.secondary, 0.88, { radius: 10 })
+      .setStrokeStyle(1.5, UI.secondaryStroke).setInteractive({ useHandCursor: true }).setDepth(20);
+    attachPressFeedback(panel);
+    const label = this.add.text(cx, y, isLogin ? '登 录 / 注 册' : session!.username, {
+      fontFamily: 'sans-serif', fontSize: '13px', color: TEXT.gold, fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(21);
+    this.accountRow.add([panel, label]);
+
+    panel.on('pointerover', () => panel.setFillStyle(UI.secondaryHover, 0.95));
+    panel.on('pointerout', () => panel.setFillStyle(UI.secondary, 0.88));
+    panel.on('pointerup', () => {
+      Sfx.init(); Sfx.click();
+      if (isLogin) {
+        confirmOverwrite(this, () => {
+          openAuthPanel(this, (s) => {
+            if (s) startSession(s);
+            this.scene.restart();
+          });
+        });
+      } else {
+        openProfileCard(this, () => this.scene.restart());
+      }
+    });
+  }
+
   private makeHelpButton(width: number) {
     const TOP_Y = (width < 640 ? 52 : 56) - 2;
     const helpX = width - 34;
