@@ -44,6 +44,20 @@ export const UI = {
   disabled: 0x3a3327,
   /** 禁用描边 */
   disabledStroke: 0x4a4230,
+
+  /* ---- 绿色系：账号（登录/注册/我的账号/排行榜）专用 ---- */
+  /** 绿色主按钮填充 */
+  green: 0x2f9e58,
+  /** 绿色主按钮悬停 */
+  greenHover: 0x38b967,
+  /** 绿色描边 / 高亮 */
+  greenStroke: 0x63c256,
+  /** 绿色次级按钮（深绿底） */
+  greenDark: 0x143d24,
+  /** 绿色次级悬停 */
+  greenDarkHover: 0x1c5230,
+  /** 绿色次级描边 */
+  greenDarkStroke: 0x2f6b42,
 } as const;
 
 /** 通用金色文字（标题副标、提示等） */

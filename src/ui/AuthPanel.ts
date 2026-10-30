@@ -31,8 +31,8 @@ function makeInput(
     'padding:0 14px', 'outline:none', 'text-align:center',
     opts.password ? 'letter-spacing:6px' : '',
   ].join(';');
-  input.addEventListener('focus', () => { input.style.borderColor = '#c9a227'; });
-  input.addEventListener('blur', () => { input.style.borderColor = '#2c4a5e'; });
+  input.addEventListener('focus', () => { input.style.borderColor = '#63c256'; });
+  input.addEventListener('blur', () => { input.style.borderColor = '#2f6b42'; });
   wrapper.appendChild(input);
 
   const box = scene.add.dom(x, y, wrapper).setDepth(2210);
@@ -50,7 +50,7 @@ function makeInput(
 
   return {
     box, el: input,
-    setError: (on: boolean) => { input.style.borderColor = on ? '#e05a4e' : '#2c4a5e'; },
+    setError: (on: boolean) => { input.style.borderColor = on ? '#e05a4e' : '#2f6b42'; },
   };
 }
 
@@ -88,14 +88,14 @@ export function openAuthPanel(
   const ph = 372;
   const cx = width / 2, cy = height / 2;
 
-  const panel = new RoundedPanel(scene, cx, cy, pw, ph, 0x140f08, 0.99, { radius: 16 })
-    .setStrokeStyle(1.5, UI.primaryStroke);
+  const panel = new RoundedPanel(scene, cx, cy, pw, ph, 0x0b1f14, 0.99, { radius: 16 })
+    .setStrokeStyle(1.5, UI.greenStroke);
   root.add(panel);
 
   const top = cy - ph / 2;
 
   const title = scene.add.text(cx, top + 30, '登录', {
-    fontFamily: 'sans-serif', fontSize: '20px', color: TEXT.gold, fontStyle: 'bold',
+    fontFamily: 'sans-serif', fontSize: '20px', color: '#63c256', fontStyle: 'bold',
   }).setOrigin(0.5);
   root.add(title);
 
@@ -108,27 +108,27 @@ export function openAuthPanel(
   let mode: 'login' | 'register' = 'login';
   const tabY = top + 92;
   const tabW = 100, tabH = 30;
-  const loginTab = new RoundedPanel(scene, cx - tabW / 2 - 4, tabY, tabW, tabH, UI.primary, 1, { radius: 8 })
+  const loginTab = new RoundedPanel(scene, cx - tabW / 2 - 4, tabY, tabW, tabH, UI.green, 1, { radius: 8 })
     .setInteractive({ useHandCursor: true });
-  const regTab = new RoundedPanel(scene, cx + tabW / 2 + 4, tabY, tabW, tabH, UI.secondary, 0.9, { radius: 8 })
+  const regTab = new RoundedPanel(scene, cx + tabW / 2 + 4, tabY, tabW, tabH, UI.greenDark, 0.95, { radius: 8 })
     .setInteractive({ useHandCursor: true });
   root.add([loginTab, regTab]);
 
   const loginTabTxt = scene.add.text(cx - tabW / 2 - 4, tabY, '登录', {
-    fontFamily: 'sans-serif', fontSize: '13px', color: '#041018', fontStyle: 'bold',
+    fontFamily: 'sans-serif', fontSize: '13px', color: '#04180d', fontStyle: 'bold',
   }).setOrigin(0.5);
   const regTabTxt = scene.add.text(cx + tabW / 2 + 4, tabY, '注册', {
-    fontFamily: 'sans-serif', fontSize: '13px', color: TEXT.gold, fontStyle: 'bold',
+    fontFamily: 'sans-serif', fontSize: '13px', color: '#8fe0a8', fontStyle: 'bold',
   }).setOrigin(0.5);
   root.add([loginTabTxt, regTabTxt]);
 
   const setMode = (m: 'login' | 'register') => {
     mode = m;
     const isLogin = m === 'login';
-    loginTab.setFillStyle(isLogin ? UI.primary : UI.secondary, isLogin ? 1 : 0.9);
-    regTab.setFillStyle(isLogin ? UI.secondary : UI.primary, isLogin ? 0.9 : 1);
-    loginTabTxt.setColor(isLogin ? '#041018' : TEXT.gold);
-    regTabTxt.setColor(isLogin ? TEXT.gold : '#041018');
+    loginTab.setFillStyle(isLogin ? UI.green : UI.greenDark, isLogin ? 1 : 0.95);
+    regTab.setFillStyle(isLogin ? UI.greenDark : UI.green, isLogin ? 0.95 : 1);
+    loginTabTxt.setColor(isLogin ? '#04180d' : '#8fe0a8');
+    regTabTxt.setColor(isLogin ? '#8fe0a8' : '#04180d');
     title.setText(isLogin ? '登录' : '注册');
     sub.setText(isLogin ? '数据存在云端，换设备也能接着玩' : '注册即登录，自动进入主页');
     confirmTxt.setText(isLogin ? '登 录' : '注 册');
@@ -166,17 +166,17 @@ export function openAuthPanel(
 
   // 确认按钮
   const btnY = top + 300;
-  const confirm = new RoundedPanel(scene, cx, btnY, pw - 48, 46, UI.primary, 1, { radius: 12 })
-    .setStrokeStyle(1.5, UI.primaryStroke).setInteractive({ useHandCursor: true });
+  const confirm = new RoundedPanel(scene, cx, btnY, pw - 48, 46, UI.green, 1, { radius: 12 })
+    .setStrokeStyle(1.5, UI.greenStroke).setInteractive({ useHandCursor: true });
   attachPressFeedback(confirm);
   root.add(confirm);
   const confirmTxt = scene.add.text(cx, btnY, '登 录', {
-    fontFamily: 'sans-serif', fontSize: '16px', color: '#041018', fontStyle: 'bold',
+    fontFamily: 'sans-serif', fontSize: '16px', color: '#04180d', fontStyle: 'bold',
   }).setOrigin(0.5);
   root.add(confirmTxt);
 
   const closeBtn = scene.add.text(cx, top + ph - 26, '取消', {
-    fontFamily: 'sans-serif', fontSize: '13px', color: '#7fa8c4',
+    fontFamily: 'sans-serif', fontSize: '13px', color: '#7fa890',
   }).setOrigin(0.5).setInteractive({ useHandCursor: true });
   root.add(closeBtn);
 

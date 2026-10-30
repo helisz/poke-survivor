@@ -6,6 +6,7 @@ import { devTap, devTaps, devRevealed, setDevRevealed } from '../ui/devGate';
 import { openHelpPanel } from '../ui/HelpPanel';
 import { confirmOverwrite, openProfileCard } from '../ui/AccountRow';
 import { openAuthPanel } from '../ui/AuthPanel';
+import { openBenchmarkPanel } from '../ui/BenchmarkPanel';
 import { currentSession, startSession } from '../data/session';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
@@ -146,23 +147,48 @@ export class MenuScene extends Phaser.Scene {
    * 开发者模式默认关闭，连点 5 次问号才显示齿轮（本次会话有效）。
    */
   /** 账号行：未登录显示「登录 / 注册」，已登录显示用户名 */
+  /** 排行榜按钮：绿色圆钮，显示「榜」字，点开榜单 */
+  private buildRankButton(x: number, y: number) {
+    const c = this.add.container(x, y).setDepth(1900);
+    const bg = this.add.circle(0, 0, 17, UI.green, 0.95)
+      .setStrokeStyle(1.5, UI.greenStroke, 0.9).setInteractive({ useHandCursor: true });
+    const icon = this.add.text(0, 0, '榜', {
+      fontFamily: 'sans-serif', fontSize: '15px', color: '#04180d', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    c.add([bg, icon]);
+
+    bg.on('pointerdown', (p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
+      ev?.stopPropagation?.();
+      Sfx.click();
+      openBenchmarkPanel(this);
+    });
+    bg.on('pointerover', () => bg.setFillStyle(UI.greenHover, 1));
+    bg.on('pointerout', () => bg.setFillStyle(UI.green, 0.95));
+
+    this.rankBtn = c;
+    this.scale.on('resize', () => c.setPosition(this.scale.width - 34 - 44, y));
+  }
+
+  private rankBtn?: Phaser.GameObjects.Container;
   private accountRow?: Phaser.GameObjects.Container;
   private drawAccountRow(cx: number, y: number, w: number, h: number) {
     this.accountRow?.destroy(true);
-    this.accountRow = this.add.container(0, 0);
+    // 容器必须自己设 depth：子对象在容器内的 depth 不参与场景排序，
+    // 不设会被背景漂浮的宝可梦盖住。与「开始」按钮同级 20/21。
+    this.accountRow = this.add.container(0, 0).setDepth(20);
     const session = currentSession();
     const isLogin = !session;
 
-    const panel = new RoundedPanel(this, cx, y, w, h, UI.secondary, 0.88, { radius: 10 })
-      .setStrokeStyle(1.5, UI.secondaryStroke).setInteractive({ useHandCursor: true }).setDepth(20);
+    const panel = new RoundedPanel(this, cx, y, w, h, UI.greenDark, 0.95, { radius: 10 })
+      .setStrokeStyle(1.5, UI.greenDarkStroke).setInteractive({ useHandCursor: true }).setDepth(21);
     attachPressFeedback(panel);
     const label = this.add.text(cx, y, isLogin ? '登 录 / 注 册' : session!.username, {
-      fontFamily: 'sans-serif', fontSize: '13px', color: TEXT.gold, fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(21);
+      fontFamily: 'sans-serif', fontSize: '13px', color: '#8fe0a8', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(22);
     this.accountRow.add([panel, label]);
 
-    panel.on('pointerover', () => panel.setFillStyle(UI.secondaryHover, 0.95));
-    panel.on('pointerout', () => panel.setFillStyle(UI.secondary, 0.88));
+    panel.on('pointerover', () => panel.setFillStyle(UI.greenDarkHover, 1));
+    panel.on('pointerout', () => panel.setFillStyle(UI.greenDark, 0.95));
     panel.on('pointerup', () => {
       Sfx.init(); Sfx.click();
       if (isLogin) {
@@ -180,8 +206,13 @@ export class MenuScene extends Phaser.Scene {
 
   private makeHelpButton(width: number) {
     const TOP_Y = (width < 640 ? 52 : 56) - 2;
+    // 从右到左：问号 → 排行榜（绿）→ 齿轮（仅开发者模式）
     const helpX = width - 34;
-    const gearX = width - 34 - 44;
+    const rankX = width - 34 - 44;
+    const gearX = width - 34 - 88;
+
+    this.buildRankButton(rankX, TOP_Y);
+
     const btn = this.add.container(helpX, TOP_Y).setDepth(1900);
     const bg = this.add.circle(0, 0, 17, UI.secondary, 0.92)
       .setStrokeStyle(1.5, UI.primaryStroke, 0.75).setInteractive({ useHandCursor: true });
@@ -212,7 +243,7 @@ export class MenuScene extends Phaser.Scene {
       setDevRevealed();
       const width = scene.scale.width;
       const TOP_Y = (width < 640 ? 52 : 56) - 2;
-      this.showDevGear(width - 34 - 44, TOP_Y);
+      this.showDevGear(width - 34 - 88, TOP_Y);
       Sfx.select();
       return true;
     }
@@ -225,7 +256,7 @@ export class MenuScene extends Phaser.Scene {
     if (this.devGear) { this.devGear.destroy(); }
     this.devGear = makeDevButton(this, () => openDevPanel(this));
     this.devGear.setPosition(x, y);
-    this.scale.on('resize', () => this.devGear?.setPosition(this.scale.width - 34 - 44, y));
+    this.scale.on('resize', () => this.devGear?.setPosition(this.scale.width - 34 - 88, y));
   }
 
   update(_time: number, delta: number) {

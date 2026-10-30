@@ -96,6 +96,31 @@ export async function login(username: string, password: string): Promise<CloudRe
   }
 }
 
+/** 排行榜条目 */
+export interface RankRow {
+  username: string;
+  stage_progress?: number;
+  best_score: number;
+}
+
+/** 通关最高关 top10 */
+export async function fetchTopStages(): Promise<RankRow[]> {
+  if (!sb) return [];
+  try {
+    const r = await callRpc('ps_top_stages', {}) as RankRow[];
+    return Array.isArray(r) ? r : [];
+  } catch { return []; }
+}
+
+/** 单关最高分 top10 */
+export async function fetchTopScores(): Promise<RankRow[]> {
+  if (!sb) return [];
+  try {
+    const r = await callRpc('ps_top_scores', {}) as RankRow[];
+    return Array.isArray(r) ? r : [];
+  } catch { return []; }
+}
+
 /** 存档上云。失败静默（离线也能玩，下次有机会再传） */
 export async function pushSave(session: CloudSession, data: {
   coins: number; stageBest: number[]; stageProgress: number;

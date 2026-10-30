@@ -19,12 +19,12 @@ export function confirmOverwrite(scene: Phaser.Scene, onYes: () => void) {
 
   const w = Math.min(width - 52, 300), h = 210;
   const cx = width / 2, cy = height / 2;
-  const panel = new RoundedPanel(scene, cx, cy, w, h, 0x140f08, 0.99, { radius: 16 })
-    .setStrokeStyle(1.5, UI.primaryStroke);
+  const panel = new RoundedPanel(scene, cx, cy, w, h, 0x0b1f14, 0.99, { radius: 16 })
+    .setStrokeStyle(1.5, UI.greenStroke);
   root.add(panel);
 
   root.add(scene.add.text(cx, cy - h / 2 + 28, '注意', {
-    fontFamily: 'sans-serif', fontSize: '18px', color: TEXT.gold, fontStyle: 'bold',
+    fontFamily: 'sans-serif', fontSize: '18px', color: '#63c256', fontStyle: 'bold',
   }).setOrigin(0.5));
 
   root.add(scene.add.text(cx, cy - 14,
@@ -33,16 +33,16 @@ export function confirmOverwrite(scene: Phaser.Scene, onYes: () => void) {
     align: 'center', lineSpacing: 4,
   }).setOrigin(0.5));
 
-  const okBtn = new RoundedPanel(scene, cx - 62, cy + h / 2 - 34, 112, 42, UI.primary, 1, { radius: 10 })
-    .setStrokeStyle(1.5, UI.primaryStroke).setInteractive({ useHandCursor: true });
+  const okBtn = new RoundedPanel(scene, cx - 62, cy + h / 2 - 34, 112, 42, UI.green, 1, { radius: 10 })
+    .setStrokeStyle(1.5, UI.greenStroke).setInteractive({ useHandCursor: true });
   attachPressFeedback(okBtn);
   root.add(okBtn);
   root.add(scene.add.text(cx - 62, cy + h / 2 - 34, '继续登录', {
     fontFamily: 'sans-serif', fontSize: '14px', color: '#041018', fontStyle: 'bold',
   }).setOrigin(0.5));
 
-  const noBtn = new RoundedPanel(scene, cx + 62, cy + h / 2 - 34, 112, 42, UI.secondary, 0.88, { radius: 10 })
-    .setStrokeStyle(1.5, UI.secondaryStroke).setInteractive({ useHandCursor: true });
+  const noBtn = new RoundedPanel(scene, cx + 62, cy + h / 2 - 34, 112, 42, UI.greenDark, 0.95, { radius: 10 })
+    .setStrokeStyle(1.5, UI.greenDarkStroke).setInteractive({ useHandCursor: true });
   attachPressFeedback(noBtn);
   root.add(noBtn);
   root.add(scene.add.text(cx + 62, cy + h / 2 - 34, '取消', {
@@ -67,14 +67,14 @@ export function openProfileCard(scene: Phaser.Scene, onLogout: () => void) {
 
   root.add(scene.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.75).setInteractive());
 
-  const w = Math.min(width - 52, 300), h = 268;
+  const w = Math.min(width - 52, 300), h = 300;
   const cx = width / 2, cy = height / 2;
-  const panel = new RoundedPanel(scene, cx, cy, w, h, 0x140f08, 0.99, { radius: 16 })
-    .setStrokeStyle(1.5, UI.primaryStroke);
+  const panel = new RoundedPanel(scene, cx, cy, w, h, 0x0b1f14, 0.99, { radius: 16 })
+    .setStrokeStyle(1.5, UI.greenStroke);
   root.add(panel);
 
   root.add(scene.add.text(cx, cy - h / 2 + 30, '我的账号', {
-    fontFamily: 'sans-serif', fontSize: '17px', color: TEXT.gold, fontStyle: 'bold',
+    fontFamily: 'sans-serif', fontSize: '17px', color: '#63c256', fontStyle: 'bold',
   }).setOrigin(0.5));
 
   root.add(scene.add.text(cx, cy - h / 2 + 58, s.username, {
@@ -102,16 +102,16 @@ export function openProfileCard(scene: Phaser.Scene, onLogout: () => void) {
     }).setOrigin(1, 0.5));
   });
 
-  const outBtn = new RoundedPanel(scene, cx, cy + h / 2 - 62, w - 52, 42, UI.secondary, 0.9, { radius: 10 })
-    .setStrokeStyle(1.5, UI.secondaryStroke).setInteractive({ useHandCursor: true });
+  const outBtn = new RoundedPanel(scene, cx, cy + h / 2 - 80, w - 52, 42, UI.greenDark, 0.95, { radius: 10 })
+    .setStrokeStyle(1.5, UI.greenDarkStroke).setInteractive({ useHandCursor: true });
   attachPressFeedback(outBtn);
   root.add(outBtn);
-  root.add(scene.add.text(cx, cy + h / 2 - 62, '登出', {
-    fontFamily: 'sans-serif', fontSize: '14px', color: '#e05a4e', fontStyle: 'bold',
+  root.add(scene.add.text(cx, cy + h / 2 - 80, '登出', {
+    fontFamily: 'sans-serif', fontSize: '14px', color: '#8fe0a8', fontStyle: 'bold',
   }).setOrigin(0.5));
 
-  const close = scene.add.text(cx, cy + h / 2 - 24, '关闭', {
-    fontFamily: 'sans-serif', fontSize: '13px', color: '#7fa8c4',
+  const close = scene.add.text(cx, cy + h / 2 - 30, '关闭', {
+    fontFamily: 'sans-serif', fontSize: '13px', color: '#7fa890',
   }).setOrigin(0.5).setInteractive({ useHandCursor: true });
   root.add(close);
 
