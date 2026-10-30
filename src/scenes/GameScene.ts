@@ -36,14 +36,17 @@ export interface UpgradeOption {
 const STAT_CARD_WEIGHT = 0.5;
 
 /**
- * 小怪刷新圈：基准半径 + 随机抖动。
+ * 小怪刷新：**必须在当前视口之外**，且离屏幕边缘有固定余量。
  *
- * 屏幕半径约 195（390 宽 / 2，相机 zoom=1），技能射程 70~160。
- * 取 190~250 让怪正好出现在屏幕边缘、射程外侧一点点，
- * 一出现就能被看见，也不用等它从很远走过来。
+ * 不能写死半径 —— 视口随设备宽度、窗口缩放、相机 zoom 变化，
+ * 固定 190 在大屏上会直接刷在玩家脸上，在小屏上又太远。
+ * 这里每帧按相机实际可见矩形算：取半宽/半高的对角线长度
+ * （即视口四个角到中心的距离）再留 30px 余量，
+ * 保证任何角度刷出来的怪都在屏幕外，不会凭空出现在视野里。
  */
-const SPAWN_RADIUS_BASE = 190;
-const SPAWN_RADIUS_JITTER = 60;
+const SPAWN_MARGIN = 30;
+/** 视口外再往外多铺多远（摇杆/呼吸空间），越界也不会绕回来 */
+const SPAWN_BAND = 70;
 
 export class GameScene extends Phaser.Scene {
   player!: Player;
@@ -150,7 +153,9 @@ export class GameScene extends Phaser.Scene {
     this.baseExpMul = this.player.stats.expMul;
     this.player.stats.damageMul *= save.devDmgMul ?? 1;
     this.player.stats.damageTakenMul *= save.devTakenMul ?? 0;
-    this.player.stats.expMul *= save.devExpMul ?? 3;
+    // 默认 1：曾经的 ?? 3 是测试期为了快速升级硬塞的，会让所有玩家的
+    // 经验获取变成 3 倍（把基础 1.5 顶成 4.5），正式版必须归位。
+    this.player.stats.expMul *= save.devExpMul ?? 1;
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
     this.enemies = new EnemySystem(this);
@@ -288,7 +293,8 @@ export class GameScene extends Phaser.Scene {
   /** 时间到：刷出终局 BOSS，杀掉才算过关 */
   private spawnFinalBoss() {
     this.finalBossSpawned = true;
-    const p = this.ringPosition(300);
+    // 终局 BOSS 同样从屏幕外进场，给玩家一个"它来了"的准备时间
+    const p = this.ringPosition(this.offscreenRadius(), SPAWN_BAND);
     const boss = this.enemies.spawn('boss', p.x, p.y, 1, 1, 30);
     this.bossRef = boss;
     if (boss) {
@@ -535,7 +541,8 @@ export class GameScene extends Phaser.Scene {
       this.eliteTimer = 0;
       const n = 1 + Math.floor(t / 120);
       for (let i = 0; i < n; i++) {
-        const p = this.ringPosition(360);
+        // 精英也从视口外进场，不用固定 360（大屏上会直接刷在视野里）
+        const p = this.ringPosition(this.offscreenRadius(), SPAWN_BAND);
         this.enemies.spawn('elite', p.x, p.y, hpMul + 0.5, speedMul, 16);
       }
     }
@@ -544,7 +551,7 @@ export class GameScene extends Phaser.Scene {
     for (const sec of [200, 280]) {
       if (!this.bossSpawned[sec] && this.elapsed >= sec) {
         this.bossSpawned[sec] = true;
-        const p = this.ringPosition(420);
+        const p = this.ringPosition(this.offscreenRadius(), SPAWN_BAND);
         this.bossRef = this.enemies.spawn('boss', p.x, p.y, 1, 1, 26);
         this.cameras.main.flash(400, 120, 0, 0);
         this.events.emit('boss-announce');
@@ -553,10 +560,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * 在玩家周围的环形上取一个点。
+   * 当前视口「一定看不到」的最小半径。
    *
-   * 保留 dist 参数的语义（基准半径），但把抖动收窄，并且不再让调用方
-   * 传 560 那种「屏幕外很远」的值 —— 见 spawnRing 的说明。
+   * 取可见矩形的半对角线（四个角到屏幕中心的最远距离），
+   * 再加上固定余量。这样无论从哪个角度往外量，都保证在屏幕外。
+   */
+  private offscreenRadius(): number {
+    const cam = this.cameras.main;
+    const halfW = cam.width / cam.zoom / 2;
+    const halfH = cam.height / cam.zoom / 2;
+    return Math.hypot(halfW, halfH) + SPAWN_MARGIN;
+  }
+
+  /**
+   * 在玩家周围的环形上取一个点，半径由调用方给。
+   *
+   * 老接口保留（BOSS/精英还按固定半径刷），但注意：
+   * 小怪走 offscreenRadius()，不传死值。
    */
   private ringPosition(dist: number, jitter = 40) {
     const ang = Math.random() * Math.PI * 2;
@@ -565,16 +585,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * 普通小怪刷新点。
+   * 普通小怪刷新点：**每次都从当前视口之外冒出来**。
    *
-   * 原来固定 560px，而屏幕半径只有约 195px（390 宽、zoom 1），
-   * 怪从屏幕外很远的地方慢慢走过来，开局要等十几秒才第一次见到怪。
-   * 改成贴着屏幕边缘刷新：190~250px，
-   * 大部分技能的射程是 70~160px，所以怪一出现就在射程外侧一点点，
-   * 玩家能马上看见、马上能打倒，而不是干等。
+   * 半径 = 视口半对角线 + 30 余量，再随机往外推 0~70，
+   * 所以怪一定在屏幕外，且不会远到要走十几秒才现身。
    */
   private spawnRing(hpMul: number, speedMul: number) {
-    const p = this.ringPosition(SPAWN_RADIUS_BASE, SPAWN_RADIUS_JITTER);
+    const p = this.ringPosition(this.offscreenRadius(), SPAWN_BAND);
     this.enemies.spawn('normal', p.x, p.y, hpMul, speedMul, 8);
   }
 
@@ -785,7 +802,11 @@ export class GameScene extends Phaser.Scene {
         color: MOVES[moveId].color,
         portraitId: evo.toId,
         pokeId: evo.toId, pokeName: evo.name,
-        apply: () => this.combat.evolve(moveId, evo),
+        apply: () => {
+          const ok = this.combat.evolve(moveId, evo);
+          // 进化成功才放仪式感演出，避免槽位已满等失败情况白播一场
+          if (ok) this.playEvolveCeremony(moveId, evo);
+        },
       });
     });
 
@@ -904,6 +925,51 @@ export class GameScene extends Phaser.Scene {
       chosen.push(o);
     }
     return chosen;
+  }
+
+  /**
+   * 第四层：进化瞬间的仪式感。
+   *
+   * 四拍连招，总长约 1.1 秒，全程不影响玩家操作：
+   *  1. 全屏短暂去饱和（camera.postFX 没开时降级为闪白），突出「变身」的瞬间
+   *  2. 一道彩色冲击波从玩家身上炸开，颜色用招式主色
+   *  3. 技能槽那一格放大回弹一下（Back 缓动）
+   *  4. 底部技能槽短暂高亮
+   * 所有补间都设成不阻塞输入，玩家边打边看。
+   */
+  private playEvolveCeremony(moveId: string, evo: EvolutionDef) {
+    const cam = this.cameras.main;
+    const def = MOVES[moveId];
+    const evoFx = def?.evo;
+    const main = evoFx?.color ?? def?.color ?? 0xffffff;
+    const accent = evoFx?.accent ?? 0xffffff;
+    const px = this.player.x, py = this.player.y;
+
+    // 1. 视觉冲击：轻微闪白 + 短促震动（比普通命中重，但不刺眼）
+    cam.flash(220, 240, 240, 255);
+    cam.shake(260, 0.006);
+
+    // 2. 冲击波：两道同心圆由内向外炸开，一主一辅
+    const ring1 = this.add.circle(px, py, 14, main, 0);
+    ring1.setStrokeStyle(6, main, 0.9).setDepth(20);
+    const ring2 = this.add.circle(px, py, 14, accent, 0);
+    ring2.setStrokeStyle(3, accent, 0.8).setDepth(21);
+    this.tweens.add({
+      targets: ring1, radius: 116, alpha: 0, duration: 520, ease: 'Cubic.easeOut',
+      onComplete: () => ring1.destroy(),
+    });
+    this.tweens.add({
+      targets: ring2, radius: 82, alpha: 0, duration: 640, ease: 'Cubic.easeOut', delay: 70,
+      onComplete: () => ring2.destroy(),
+    });
+
+    // 3. 粒子：从玩家身上向外炸一圈彩色光点
+    this.combat.fx.burst(px, py, main, 30, 320, 4, 620);
+    this.combat.fx.burst(px, py, accent, 16, 220, 3, 520);
+
+    // 4. 技能槽：放大回弹 + 高亮，让玩家立刻知道「是这一格变强了」
+    this.events.emit('evolve-ceremony', { moveId, color: main, accent });
+    void evo;
   }
 
   // ── 终局 BOSS：血条 / 宣告 / 技能 ──────────────────────────

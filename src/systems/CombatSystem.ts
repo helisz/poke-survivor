@@ -68,7 +68,18 @@ export class CombatSystem {
         }
       }
 
-      this.hitEnemy(enemy, proj.getData('damage') as number);
+      this.hitEnemy(
+        enemy,
+        proj.getData('damage') as number,
+        proj.getData('evolved')
+          ? {
+              color: proj.getData('color') as number,
+              accent: (proj.getData('accent') as number) ?? 0xffffff,
+              particles: (proj.getData('evoHit') as number) || 18,
+              shake: true,
+            }
+          : null,
+      );
 
       // 记录命中，供追踪/连锁查重
       const hitList = (proj.getData('hitList') as Phaser.Physics.Arcade.Sprite[]) ?? [];
@@ -199,6 +210,14 @@ export class CombatSystem {
         const v = p.body!.velocity;
         const ang = Math.atan2(v.y, v.x);
         this.fx.shellTrail(p, p.x, p.y, ang, p.getData('color') as number, dtMs);
+        // 进化弹体：额外撒辅色残影，拖尾明显更粗更长
+        const trail = (p.getData('evoTrail') as number) ?? 0;
+        if (trail > 0) {
+          const accent = (p.getData('accent') as number) ?? 0xffffff;
+          this.fx.shellTrail(p, p.x, p.y, ang, accent, dtMs * (1 + trail * 0.35));
+          // 弹体自身向外冒一点光点，做出"能量溢出"的感觉
+          this.fx.burst(p.x, p.y, accent, 1 + Math.floor(trail / 2), 40, 2.2, 200);
+        }
       }
     }
 
@@ -270,6 +289,31 @@ export class CombatSystem {
     return best as Phaser.Physics.Arcade.Sprite | null;
   }
 
+  /** 把进化视觉参数转成 hitEnemy 需要的载荷；没进化则返回 null */
+  private evoHitPayload(moveId: string): {
+    color: number; accent: number; particles: number; shake: boolean;
+  } | null {
+    const evo = this.evoFxOf(moveId);
+    if (!evo) return null;
+    const def = MOVES[moveId];
+    return {
+      color: evo.color ?? def?.color ?? 0xffffff,
+      accent: evo.accent ?? 0xffffff,
+      particles: evo.hitParticles ?? 18,
+      shake: !!evo.shake,
+    };
+  }
+
+  /**
+   * 取该招式当前的进化视觉参数：只有真的进化过（evoDmgMul 已被抬高）才返回，
+   * 否则返回 undefined —— 没进化的招式外观一丝不变。
+   */
+  private evoFxOf(moveId: string): MoveDef['evo'] | undefined {
+    const slot = this.slots.find((s) => s.moveId === moveId);
+    if (!slot || (slot.evoDmgMul ?? 1) <= 1) return undefined;
+    return MOVES[moveId]?.evo;
+  }
+
   private fire(def: MoveDef, level: number, ox: number, oy: number) {
     const slot = this.slots.find((s) => s.moveId === def.id);
     const evoMul = slot?.evoDmgMul ?? 1;
@@ -298,8 +342,13 @@ export class CombatSystem {
     const baseAng = target ? Math.atan2(target.y - oy, target.x - ox) : 0;
     // spread 标签：扇形角度更大，否则默认小夹角
     const spreadStep = traits.includes('spread') ? 0.3 : 0.16;
-    // 该招式的特效形态
-    const fxKind = SKILL_FX[def.id] ?? 'shell';
+    // 该招式的特效形态。进化后整套视觉换成 evo 里定义的那套
+    // （颜色更艳、形态可能整条换掉、弹体更大、带拖尾）——
+    // 只改表现，伤害仍由上面的 damage 决定，所以调视觉不会把数值带跑。
+    const evo = this.evoFxOf(def.id);
+    const fxCfg = evo ?? def;
+    const fxColor = evo?.color ?? def.color;
+    const fxKind = evo?.kind ?? SKILL_FX[def.id] ?? 'shell';
     const isShell = fxKind === 'shell';
 
     for (let i = 0; i < count; i++) {
@@ -308,12 +357,17 @@ export class CombatSystem {
       const p = this.projectiles.get(ox, oy, 'dot') as Phaser.Physics.Arcade.Image | null;
       if (!p) continue;
       p.setActive(true).setVisible(true);
-      p.setTintFill(def.color);
+      p.setTintFill(fxColor);
+      // 进化形态的主色 + 辅色一起带上，命中处按这个配色出特效
       p.setData('damage', damage);
       p.setData('pierce', def.pierce ?? 0);
       p.setData('life', 1600);
       p.setData('moveId', def.id);
-      p.setData('color', def.color);
+      p.setData('color', fxColor);
+      p.setData('accent', evo?.accent ?? fxColor);
+      p.setData('evolved', !!evo);
+      p.setData('evoTrail', evo?.trail ?? 0);
+      p.setData('evoHit', evo?.hitParticles ?? 0);
       // 电系：不发弹体，直接从施法者身上放射电弧并结算伤害
       if (def.style === 'lightning') {
         this.killProjectile(p);
@@ -337,7 +391,11 @@ export class CombatSystem {
       p.setVelocity(Math.cos(ang) * speed, Math.sin(ang) * speed);
       p.setDepth(8);
 
-      if (homing) {
+      if (evo?.scale) {
+        // 进化形态：弹体统一按 evo.scale 放大，比任何原始形态都显眼
+        p.setScale(evo.scale);
+        if (homing) p.getData('speed') ?? p.setData('speed', speed);
+      } else if (homing) {
         // 追踪弹：稍微放大，视觉上区分
         p.setScale(1.25);
         p.setData('speed', speed);
@@ -349,18 +407,35 @@ export class CombatSystem {
       }
     }
 
-    // 出招特效：按形态区分
+    // 出招特效：按形态区分。进化形态用更粗的线宽和更大的起手圈
+    const pulseR = evo ? 34 : 22;
+    const laserW = evo ? 9 : 4;
     if (fxKind === 'bolt') {
       // 闪电系：直接朝最近的敌人劈一道折线
-      if (target) this.fx.bolt(ox, oy, target.x, target.y, def.color);
-      this.fx.castPulse(ox, oy, def.color, 22);
+      if (target) {
+        this.fx.bolt(ox, oy, target.x, target.y, fxColor);
+        // 进化电弧：在主干两侧再补几道细分支，视觉上"电更猛"
+        if (evo?.arc) {
+          for (let k = 0; k < 2; k++) {
+            const jx = target.x + Phaser.Math.Between(-34, 34);
+            const jy = target.y + Phaser.Math.Between(-34, 34);
+            this.fx.boltArc(ox, oy, Math.atan2(jy - oy, jx - ox),
+              Math.hypot(jx - ox, jy - oy), evo.accent ?? fxColor, 0.3, 2);
+          }
+        }
+      }
+      this.fx.castPulse(ox, oy, fxColor, pulseR);
     } else if (fxKind === 'laser') {
       // 激光系：瞬发一条亮线打到第一个敌人
-      if (target) this.fx.laser(ox, oy, target.x, target.y, def.color, 4);
-      this.fx.castPulse(ox, oy, def.color, 22);
+      // 先画宽的辅色辉光打底，再叠窄的主色亮线，才有"炮"的厚度
+      if (evo && target) {
+        this.fx.laser(ox, oy, target.x, target.y, evo.accent ?? fxColor, laserW * 2.2);
+      }
+      if (target) this.fx.laser(ox, oy, target.x, target.y, fxColor, laserW);
+      this.fx.castPulse(ox, oy, fxColor, pulseR);
     } else {
       // 炮弹系：起手能量圈，弹体自己带尾焰
-      this.fx.castPulse(ox, oy, def.color, 18);
+      this.fx.castPulse(ox, oy, fxColor, evo ? 26 : 18);
     }
   }
 
@@ -476,9 +551,8 @@ export class CombatSystem {
       let diff = Math.abs(Phaser.Math.Angle.Wrap(ea - ang));
       if (diff > spread / 2 + 0.12) return;
       hit.add(e);
-      this.hitEnemy(e, damage);
+      this.hitEnemy(e, damage, this.evoHitPayload(def.id));
     });
-    void def;
   }
 
   /** 近战弹道实体：短射程、带粒子拖尾、命中一次即消失 */
@@ -555,8 +629,9 @@ export class CombatSystem {
       });
     }
 
+    const evoHit = this.evoHitPayload(def.id);
     this.enemies.forEachActive((e) => {
-      if (Phaser.Math.Distance.Between(cx, cy, e.x, e.y) <= radius) this.hitEnemy(e, damage);
+      if (Phaser.Math.Distance.Between(cx, cy, e.x, e.y) <= radius) this.hitEnemy(e, damage, evoHit);
     });
   }
 
@@ -564,26 +639,60 @@ export class CombatSystem {
     // 范围收敛：判定半径按原值一半，每级成长同步缩小
     const radius = (def.range ?? 110) * 0.72 + (this.getMoveLevel(def.id) - 1) * 7;
     const cx = this.player.x, cy = this.player.y;
+    const evo = this.evoFxOf(def.id);
+    const ringColor = evo?.color ?? def.color;
+    const ringAccent = evo?.accent ?? def.color;
+
     // 视觉环：外圈亮边 + 内圈填充，范围更直观
-    const ring = this.scene.add.circle(cx, cy, radius, def.color, 0.16).setDepth(2);
-    const edge = this.scene.add.circle(cx, cy, radius, def.color, 0)
-      .setStrokeStyle(2.5, def.color, 0.55).setDepth(3);
+    const ring = this.scene.add.circle(cx, cy, radius, ringColor, evo ? 0.22 : 0.16).setDepth(2);
+    const edge = this.scene.add.circle(cx, cy, radius, ringColor, 0)
+      .setStrokeStyle(evo ? 3.5 : 2.5, ringColor, evo ? 0.75 : 0.55).setDepth(3);
+    const fade = [ring, edge];
+
+    // 第三层：进化光环夹一圈缓慢旋转的符文点 —— 一眼看出这圈"更高级"。
+    // 用普通圆形代替精灵图，不额外加载素材。
+    if (evo) {
+      for (let i = 0; i < 8; i++) {
+        const a = (Math.PI * 2 * i) / 8;
+        const dot = this.scene.add.circle(
+          cx + Math.cos(a) * radius, cy + Math.sin(a) * radius,
+          i % 2 === 0 ? 3.6 : 2.4, ringAccent, 0.9,
+        ).setDepth(4);
+        this.scene.tweens.add({
+          targets: dot,
+          // 相对自身绕圈：位移到下一个 1/8 圆位
+          x: cx + Math.cos(a + Math.PI / 4) * radius,
+          y: cy + Math.sin(a + Math.PI / 4) * radius,
+          alpha: 0, duration: 420, ease: 'Sine.easeInOut',
+          onComplete: () => dot.destroy(),
+        });
+        fade.push(dot);
+      }
+      // 进化光环的外圈再补一道更宽的辅色光晕
+      const halo = this.scene.add.circle(cx, cy, radius + 5, ringAccent, 0)
+        .setStrokeStyle(6, ringAccent, 0.16).setDepth(2);
+      fade.push(halo);
+    }
+
     this.scene.tweens.add({
-      targets: [ring, edge], alpha: 0, duration: 340,
+      targets: fade, alpha: 0, duration: 340,
       onComplete: () => { ring.destroy(); edge.destroy(); },
     });
     // 环上粒子：绕圈飞散，让光环有「持续灼烧」的感觉
-    for (let i = 0; i < 12; i++) {
-      const a = (Math.PI * 2 * i) / 12;
-      this.fx.burst(cx + Math.cos(a) * radius * 0.9, cy + Math.sin(a) * radius * 0.9, def.color, 2, 70, 2.4, 260);
+    const nP = evo ? 18 : 12;
+    for (let i = 0; i < nP; i++) {
+      const a = (Math.PI * 2 * i) / nP;
+      this.fx.burst(cx + Math.cos(a) * radius * 0.9, cy + Math.sin(a) * radius * 0.9,
+        ringColor, evo ? 3 : 2, evo ? 100 : 70, evo ? 3 : 2.4, 260);
     }
     // 持续灼烧：首跳全额，之后 2 跳各 40%（每 0.35 秒一跳）
     const tick = (n: number) => {
       if (n <= 0) return;
       const px = this.player.x, py = this.player.y;
+      const evoHit = this.evoHitPayload(def.id);
       this.enemies.forEachActive((e) => {
         if (Phaser.Math.Distance.Between(px, py, e.x, e.y) <= radius) {
-          this.hitEnemy(e, damage * (n === 3 ? 1 : 0.4));
+          this.hitEnemy(e, damage * (n === 3 ? 1 : 0.4), evoHit);
         }
       });
       if (n > 1) this.scene.time.delayedCall(350, () => tick(n - 1));
@@ -596,8 +705,20 @@ export class CombatSystem {
     return f === 'down' ? Math.PI / 2 : f === 'up' ? -Math.PI / 2 : f === 'left' ? Math.PI : 0;
   }
 
-  private hitEnemy(e: Phaser.Physics.Arcade.Sprite, damage: number) {
+  /**
+   * 结算一次伤害。
+   *
+   * evo 非空表示这一下是「进化招式」打的 —— 除了伤害本身，
+   * 还要出专属命中特效：更密的粒子、一圈冲击环、轻微震屏。
+   * 普通招式传 null，表现和以前完全一致。
+   */
+  private hitEnemy(
+    e: Phaser.Physics.Arcade.Sprite,
+    damage: number,
+    evo?: { color: number; accent: number; particles: number; shake: boolean } | null,
+  ) {
     this.damageDealt += damage;
+    if (evo) this.evoHitFx(e.x, e.y, evo);
     const died = this.enemies.damage(e, damage, this.now);
     if (died) {
       const kind = e.getData('kind') as string;
@@ -609,6 +730,30 @@ export class CombatSystem {
       this.fx.burst(e.x, e.y, 0xfff2c4, 8 * big, 180 * big, 2.6 * big, 300);
     }
   }
+
+  /**
+   * 进化招式的命中特效。
+   *
+   * 震屏必须节流：进化招式一秒可能打七八下，每下都震会晕。
+   * 这里限制到每 220ms 最多震一次，其余只出粒子和冲击环。
+   */
+  private evoHitFx(x: number, y: number, evo: { color: number; accent: number; particles: number; shake: boolean }) {
+    // 主色粒子向外炸，辅色点缀形成双色爆点
+    this.fx.burst(x, y, evo.color, evo.particles, 260, 3.4, 360);
+    this.fx.burst(x, y, evo.accent, Math.max(6, Math.round(evo.particles * 0.4)), 180, 2.6, 300);
+    // 冲击环：这是"这一下很重"最直观的信号
+    this.fx.shockRing(x, y, evo.color, 26, 300);
+    if (evo.shake) {
+      const now = this.now;
+      if (now - this.lastEvoShake > 220) {
+        this.lastEvoShake = now;
+        this.scene.cameras.main.shake(70, 0.0035);
+      }
+    }
+  }
+
+  /** 上次因进化招式震屏的时刻，用于节流 */
+  private lastEvoShake = -9999;
 
   private killProjectile(p: Phaser.Physics.Arcade.Image) {
     (p.body as Phaser.Physics.Arcade.Body).setEnable(false);

@@ -26,7 +26,9 @@ export interface PlayerStats {
 
 export const BASE_STATS: PlayerStats = {
   hp: 180, maxHp: 180, speed: 118, damageMul: 1.05, cooldownMul: 1,
-  pickup: 85, expMul: 1, damageTakenMul: 3, radius: 11,
+  // 经验获取提升 50%：1 → 1.5。局外「悟性」和学者特性都在这个基数上乘算，
+  // 所以它们的效果也同步被放大。
+  pickup: 85, expMul: 1.5, damageTakenMul: 3, radius: 11,
 };
 
 export const MAX_SLOTS = 6;
@@ -193,15 +195,18 @@ export function loadSave(): SaveData {
     if (raw) {
       const raw2 = JSON.parse(raw);
       const d: SaveData = {
-        coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, devExpMul: 3,
+        coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, devExpMul: 1,
         stageProgress: 0, devAllStages: false,
         ...raw2,
         perm: { ...PERM_EMPTY, ...(raw2.perm ?? {}) },
       };
+      // 迁移：devExpMul 的默认值曾经是 3（测试期快速升级），正式版改成 1。
+      // 老存档里存的 3 不是玩家自己调的，直接归位；玩家手动改过的其它值保留。
+      if (d.devExpMul === 3) d.devExpMul = 1;
       return d;
     }
   } catch { /* ignore */ }
-  return { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, devExpMul: 3, stageProgress: 0, devAllStages: false, perm: { ...PERM_EMPTY } };
+  return { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, devExpMul: 1, stageProgress: 0, devAllStages: false, perm: { ...PERM_EMPTY } };
 }
 
 export function writeSave(data: SaveData) {

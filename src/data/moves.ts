@@ -1,3 +1,5 @@
+import type { FxKind } from '../systems/FxSystem';
+
 export type MoveCategory = 'melee' | 'projectile' | 'aura' | 'aoe' | 'summon';
 
 /**
@@ -42,7 +44,38 @@ export interface MoveDef {
   rarity?: Rarity;
   /** 是否有进化链（用于抽卡时优先展示可养成的） */
   hasEvolution?: boolean;
+  /** 进化后才能用的视觉参数，见 evolvedFx 说明；有值 = 该招有进化形态 */
+  evo?: EvoFx;
 }
+
+/**
+ * 进化形态的视觉参数（第一层：弹道本体改造）
+ *
+ * 只影响表现，不改伤害 —— 伤害/冷却走 EvolutionDef 的 dmgMul / cdMul。
+ * 这样调视觉可以放心大胆，不会像以前那样"改着改着数值也跟着漂"。
+ */
+export interface EvoFx {
+  /** 弹道视觉形态，见 FxKind；未填则沿用原招式 */
+  kind?: FxKind;
+  /** 主色（比原色更艳，用来一眼分辨进化形态） */
+  color?: number;
+  /** 辅色，做渐变和高光的第二层颜色 */
+  accent?: number;
+  /** 弹体放大倍率 */
+  scale?: number;
+  /** 拖尾长度（同时在场的历史弹影数量），0 = 无拖尾 */
+  trail?: number;
+  /** 命中时是否触发震屏 */
+  shake?: boolean;
+  /** 命中特效的粒子数 */
+  hitParticles?: number;
+  /** 是否在弹道上叠加电弧（闪电类） */
+  arc?: boolean;
+  /** 进化后的招式名（HUD 与弹窗显示用） */
+  name?: string;
+}
+
+
 
 /** 抽卡权重 */
 export const RARITY_WEIGHT: Record<Rarity, number> = {
@@ -64,6 +97,11 @@ export const MOVES: Record<string, MoveDef> = {
     traits: ['homing'],
     rarity: 'rare',
     hasEvolution: true,
+    evo: {
+      kind: 'bolt', color: 0xfff24a, accent: 0xffffff,
+      scale: 1.45, trail: 3, arc: true, shake: true, hitParticles: 26,
+      name: '高压电击',
+    },
   },
   flamethrower: {
     id: 'flamethrower', name: '喷射火焰', pokeId: 6, type: '火', category: 'projectile', style: 'fireball',
@@ -72,6 +110,11 @@ export const MOVES: Record<string, MoveDef> = {
     traits: ['pierce', 'spread'],
     rarity: 'rare',
     hasEvolution: true,
+    evo: {
+      kind: 'laser', color: 0xff7a1a, accent: 0xffe066,
+      scale: 1.8, trail: 5, shake: true, hitParticles: 24,
+      name: '圣火',
+    },
   },
   watergun: {
     id: 'watergun', name: '水枪', pokeId: 9, type: '水', category: 'projectile',
@@ -80,6 +123,11 @@ export const MOVES: Record<string, MoveDef> = {
     traits: ['spread'],
     rarity: 'rare',
     hasEvolution: true,
+    evo: {
+      kind: 'laser', color: 0x3ea0ff, accent: 0xbdf0ff,
+      scale: 1.7, trail: 4, hitParticles: 22,
+      name: '激流炮',
+    },
   },
   razorleaf: {
     id: 'razorleaf', name: '飞叶快刀', pokeId: 3, type: '草', category: 'projectile',
@@ -88,6 +136,11 @@ export const MOVES: Record<string, MoveDef> = {
     traits: ['pierce'],
     rarity: 'rare',
     hasEvolution: true,
+    evo: {
+      kind: 'slash', color: 0x7dff6a, accent: 0xffffff,
+      scale: 1.5, trail: 3, hitParticles: 20,
+      name: '叶风暴',
+    },
   },
   bodyslam: {
     id: 'bodyslam', name: '泰山压顶', pokeId: 143, type: '一般', category: 'aoe',
@@ -103,6 +156,11 @@ export const MOVES: Record<string, MoveDef> = {
     traits: ['pierce'],
     rarity: 'rare',
     hasEvolution: true,
+    evo: {
+      kind: 'shell', color: 0x9b3fd6, accent: 0xff6ee0,
+      scale: 1.9, trail: 4, shake: true, hitParticles: 28,
+      name: '黑色凝视',
+    },
   },
   dragonclaw: {
     id: 'dragonclaw', name: '龙之爪', pokeId: 149, type: '龙', category: 'melee', style: 'fist',
@@ -111,6 +169,11 @@ export const MOVES: Record<string, MoveDef> = {
     traits: ['sweep'],
     rarity: 'epic',
     hasEvolution: true,
+    evo: {
+      kind: 'slash', color: 0x8f6bff, accent: 0xffd0ff,
+      scale: 1.6, trail: 3, shake: true, hitParticles: 24,
+      name: '龙星群',
+    },
   },
   aurasphere: {
     id: 'aurasphere', name: '波导弹', pokeId: 448, type: '格斗', category: 'projectile',
@@ -119,6 +182,11 @@ export const MOVES: Record<string, MoveDef> = {
     traits: ['homing', 'pierce'],
     rarity: 'epic',
     hasEvolution: true,
+    evo: {
+      kind: 'shell', color: 0x35d0f0, accent: 0xffffff,
+      scale: 1.8, trail: 4, shake: true, hitParticles: 26,
+      name: '波导爆发',
+    },
   },
   psychic: {
     id: 'psychic', name: '精神强念', pokeId: 282, type: '超能', category: 'aura',
@@ -127,6 +195,11 @@ export const MOVES: Record<string, MoveDef> = {
     traits: ['nova'],
     rarity: 'rare',
     hasEvolution: true,
+    evo: {
+      kind: 'ring', color: 0xff6ab8, accent: 0xffd6f0,
+      scale: 1.35, hitParticles: 18,
+      name: '精神利刃',
+    },
   },
   aquatail: {
     id: 'aquatail', name: '水流尾', pokeId: 130, type: '水', category: 'melee',
@@ -135,6 +208,11 @@ export const MOVES: Record<string, MoveDef> = {
     traits: ['sweep', 'pierce'],
     rarity: 'epic',
     hasEvolution: true,
+    evo: {
+      kind: 'slash', color: 0x2f8fff, accent: 0xd0f4ff,
+      scale: 1.75, trail: 4, shake: true, hitParticles: 26,
+      name: '破坏光线',
+    },
   },
   rockslide: {
     id: 'rockslide', name: '岩崩', pokeId: 248, type: '岩石', category: 'aoe',
@@ -143,6 +221,11 @@ export const MOVES: Record<string, MoveDef> = {
     traits: ['slam'],
     rarity: 'epic',
     hasEvolution: true,
+    evo: {
+      kind: 'burst', color: 0xd8bc40, accent: 0xfff0b0,
+      scale: 1.5, shake: true, hitParticles: 30,
+      name: '岩崩乱舞',
+    },
   },
   thunderpunch: {
     id: 'thunderpunch', name: '雷光拳', pokeId: 466, type: '电', category: 'melee', style: 'lightning',

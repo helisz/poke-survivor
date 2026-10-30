@@ -47,8 +47,8 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
     {
       toId: 26, name: '雷丘',
       requireOneOf: [{ kind: 'level', value: 18 }, { kind: 'time', value: 150 }],
-      dmgMul: 1.5, cdMul: 0.85,
-      note: '十万伏特 → 高压电击：伤害 +50%，附带感电',
+      dmgMul: 1.65, cdMul: 0.82,
+      note: '十万伏特 → 高压电击：伤害 +65%，冷却 -18%，附带感电',
     },
   ],
   // 火系：喷火龙二段（火恐龙、喷火龙已成，这里做终极形态）
@@ -56,8 +56,8 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
     {
       toId: 146, name: '火焰鸟',
       requireOneOf: [{ kind: 'level', value: 24 }, { kind: 'time', value: 210 }],
-      dmgMul: 1.4, cdMul: 0.9,
-      note: '喷射火焰 → 圣火：范围扩大，穿透 +1',
+      dmgMul: 1.6, cdMul: 0.86,
+      note: '喷射火焰 → 圣火：伤害 +60%，冷却 -14%，穿透 +1',
     },
   ],
   // 水系：水箭龟 → 水箭龟（究极）没有更高形态，用巨型化：巨型水箭龟无素材 → 做超坏星
@@ -65,8 +65,8 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
     {
       toId: 160, name: '大力鳄',
       requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'time', value: 170 }],
-      dmgMul: 1.45, cdMul: 0.88,
-      note: '水枪 → 激流炮：弹数 +1',
+      dmgMul: 1.6, cdMul: 0.86,
+      note: '水枪 → 激流炮：伤害 +60%，冷却 -14%，弹数 +1',
     },
   ],
   // 草系：妙蛙花 → 蜥蜴王（素材有限，用成年形态）
@@ -74,8 +74,8 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
     {
       toId: 154, name: '大竺葵',
       requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'time', value: 170 }],
-      dmgMul: 1.4, cdMul: 0.9,
-      note: '飞叶快刀 → 叶风暴：穿透 +2',
+      dmgMul: 1.6, cdMul: 0.86,
+      note: '飞叶快刀 → 叶风暴：伤害 +60%，冷却 -14%，穿透 +2',
     },
   ],
   // 幽灵：耿鬼 → 耿鬼（究极）无更高素材，做黑化强化：梦妖魔
@@ -83,8 +83,8 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
     {
       toId: 429, name: '梦妖魔',
       requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'time', value: 190 }],
-      dmgMul: 1.5, cdMul: 0.9,
-      note: '暗影球 → 黑色凝视：命中回复少量生命',
+      dmgMul: 1.65, cdMul: 0.85,
+      note: '暗影球 → 黑色凝视：伤害 +65%，冷却 -15%，命中回复少量生命',
     },
   ],
   // 龙：快龙 → 快龙（究极）无素材，做烈咬陆鲨方向
@@ -92,8 +92,8 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
     {
       toId: 373, name: '暴飞龙',
       requireOneOf: [{ kind: 'level', value: 24 }, { kind: 'time', value: 210 }],
-      dmgMul: 1.5, cdMul: 0.85,
-      note: '龙之爪 → 龙星群：伤害 +50%',
+      dmgMul: 1.65, cdMul: 0.82,
+      note: '龙之爪 → 龙星群：伤害 +65%，冷却 -18%',
     },
   ],
   // 格斗：路卡利欧 → 路卡利欧（究极）无素材，做师傅鼬
@@ -101,8 +101,8 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
     {
       toId: 448, name: 'Mega 路卡利欧',
       requireOneOf: [{ kind: 'level', value: 26 }, { kind: 'time', value: 230 }],
-      dmgMul: 1.6, cdMul: 0.8,
-      note: '波导弹 → 波导爆发：穿透 +2，伤害 +60%',
+      dmgMul: 1.75, cdMul: 0.78,
+      note: '波导弹 → 波导爆发：伤害 +75%，冷却 -22%，穿透 +2',
     },
   ],
   // 超能：沙奈朵 → 沙奈朵（究极）无素材，做艾路雷朵
@@ -110,8 +110,8 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
     {
       toId: 475, name: '艾路雷朵',
       requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'time', value: 190 }],
-      dmgMul: 1.45, cdMul: 0.85,
-      note: '精神强念 → 精神利刃：光环范围扩大',
+      dmgMul: 1.6, cdMul: 0.82,
+      note: '精神强念 → 精神利刃：伤害 +60%，冷却 -18%，光环范围扩大',
     },
   ],
   // 岩石：班基拉斯 → 班基拉斯（究极）无素材，做化石翼龙
@@ -119,8 +119,8 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
     {
       toId: 142, name: '化石翼龙',
       requireOneOf: [{ kind: 'level', value: 24 }, { kind: 'time', value: 210 }],
-      dmgMul: 1.55, cdMul: 0.9,
-      note: '岩崩 → 岩崩乱舞：落石数 +2',
+      dmgMul: 1.7, cdMul: 0.86,
+      note: '岩崩 → 岩崩乱舞：伤害 +70%，冷却 -14%，落石数 +2',
     },
   ],
   // 水/龙：暴鲤龙 → Mega 暴鲤龙
@@ -128,8 +128,8 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
     {
       toId: 130, name: 'Mega 暴鲤龙',
       requireOneOf: [{ kind: 'level', value: 26 }, { kind: 'time', value: 230 }],
-      dmgMul: 1.6, cdMul: 0.85,
-      note: '水流尾 → 破坏光线：伤害 +60%',
+      dmgMul: 1.75, cdMul: 0.82,
+      note: '水流尾 → 破坏光线：伤害 +75%，冷却 -18%',
     },
   ],
 };

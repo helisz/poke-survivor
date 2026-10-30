@@ -90,7 +90,7 @@ export class UIScene extends Phaser.Scene {
         // 改了倍率立即重算（先还原再应用，避免连乘）
         st.damageMul = this.gs.baseDamageMul * (save.devDmgMul ?? 1);
         st.damageTakenMul = this.gs.baseTakenMul * (save.devTakenMul ?? 0);
-        st.expMul = this.gs.baseExpMul * (save.devExpMul ?? 3);
+        st.expMul = this.gs.baseExpMul * (save.devExpMul ?? 1);
       }, () => {
         this.gs.paused = false;
         this.gs.scene.resume();
@@ -103,7 +103,12 @@ export class UIScene extends Phaser.Scene {
     }, 1900);
 
     this.scale.on('resize', this.onResize, this);
-    this.events.once('shutdown', () => this.scale.off('resize', this.onResize, this));
+    // 进化仪式：GameScene 广播，这里负责让对应技能格闪一下
+    this.gs.events.on('evolve-ceremony', this.onEvolveCeremony, this);
+    this.events.once('shutdown', () => {
+      this.scale.off('resize', this.onResize, this);
+      this.gs.events.off('evolve-ceremony', this.onEvolveCeremony, this);
+    });
 
     this.relayout();
   }
@@ -125,6 +130,34 @@ export class UIScene extends Phaser.Scene {
   private onResize() { this.relayout(); }
 
   /** 所有 UI 坐标的唯一真源 */
+  /**
+   * 进化仪式第四拍：被进化的那一格技能放大回弹 + 描边高亮一下。
+   *
+   * 玩家最需要的信息是「哪一格变强了」，所以这里只动那一格，
+   * 不给整条技能栏加效果，避免视觉噪音。
+   */
+  private onEvolveCeremony(payload: { moveId: string; color: number; accent: number }) {
+    const ids = this.gs.combat.slotIds;
+    const idx = ids.indexOf(payload.moveId);
+    if (idx < 0 || idx >= this.slotIcons.length) return;
+    const slot = this.slotIcons[idx];
+
+    // 放大回弹：Back 缓动做出「弹出来」的手感
+    this.tweens.add({
+      targets: [slot.box, slot.icon],
+      scaleX: 1.35, scaleY: 1.35,
+      duration: 150, yoyo: true, ease: 'Back.easeOut',
+    });
+
+    // 高亮描边：一圈金色光环向外扩散后消失
+    const glow = this.add.rectangle(slot.box.x, slot.box.y, slot.box.width, slot.box.height)
+      .setStrokeStyle(3, payload.color, 1).setDepth(30);
+    this.tweens.add({
+      targets: glow, scaleX: 1.4, scaleY: 1.4, alpha: 0, duration: 520, ease: 'Cubic.easeOut',
+      onComplete: () => glow.destroy(),
+    });
+  }
+
   private relayout() {
     if (!this.expBg) return;
     const { width, height } = this.scale;
