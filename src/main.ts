@@ -74,11 +74,40 @@ window.addEventListener('keydown', initAudio, { once: true });
 // 调试句柄：控制台 __PS__.scene.getScene('Game') 可查状态
 (window as any).__PS__ = game;
 
-// 移动端：浏览器工具栏收放 / 旋转 / 软键盘 → 重新按真实视口调整画布
+// 移动端：浏览器工具栏收放 / 旋转 → 重新按真实视口调整画布
+//
+// 软键盘是例外：输入框聚焦时 visualViewport 高度会骤降（844 → 400 多），
+// 如果跟着 resize，所有按 height 居中的 UI 会一起塌缩。
+// 判定方式：有 input/textarea 聚焦，且高度掉了超过 25% → 认为是键盘，冻结画布。
 let resizeTimer: number | undefined;
+let frozenSize: { w: number; h: number } | null = null;
+
+function keyboardOpen() {
+  const el = document.activeElement;
+  const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+  if (!typing) return false;
+  const vv = (window as any).visualViewport;
+  if (!vv) return false;
+  // 视口高度比窗口矮一截，说明键盘吃掉了一块
+  return vv.height < window.innerHeight * 0.75;
+}
+
 function syncViewport() {
   window.clearTimeout(resizeTimer);
   resizeTimer = window.setTimeout(() => {
+    // 键盘开着：画布保持键盘弹出前的尺寸，UI 不动
+    if (keyboardOpen()) {
+      if (!frozenSize) {
+        frozenSize = { w: game.scale.gameSize.width, h: game.scale.gameSize.height };
+      }
+      return;
+    }
+
+    // 键盘收起：如果之前冻结过，恢复一次
+    if (frozenSize) {
+      frozenSize = null;
+    }
+
     const { w, h } = viewportSize();
     const cur = game.scale.gameSize;
     if (Math.abs(cur.width - w) > 1 || Math.abs(cur.height - h) > 1) {
@@ -89,6 +118,8 @@ function syncViewport() {
 window.addEventListener('resize', syncViewport);
 window.addEventListener('orientationchange', syncViewport);
 (window as any).visualViewport?.addEventListener('resize', syncViewport);
+// 输入框失焦后可能不再触发 resize，兜一次
+document.addEventListener('focusout', () => window.setTimeout(syncViewport, 60));
 
 // 隐藏 loading
 game.events.once(Phaser.Core.Events.READY, () => {

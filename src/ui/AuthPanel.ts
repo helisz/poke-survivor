@@ -36,6 +36,18 @@ function makeInput(
   wrapper.appendChild(input);
 
   const box = scene.add.dom(x, y, wrapper).setDepth(2210);
+
+  // 手机键盘弹出后，面板底部可能被键盘盖住。
+  // 聚焦时把页面往上滚一点，保证输入框在可视区内。
+  const revealOnFocus = () => {
+    window.setTimeout(() => {
+      try {
+        input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      } catch { /* 老浏览器忽略 */ }
+    }, 280);   // 等键盘动画结束再滚，否则滚完又弹回去
+  };
+  input.addEventListener('focus', revealOnFocus);
+
   return {
     box, el: input,
     setError: (on: boolean) => { input.style.borderColor = on ? '#e05a4e' : '#2c4a5e'; },
@@ -50,7 +62,10 @@ export function openAuthPanel(
   scene: Phaser.Scene,
   onDone: (session: CloudSession | null) => void,
 ) {
-  const { width, height } = scene.scale;
+  // 键盘弹出会把 visualViewport 压扁，画布尺寸已由 main.ts 冻结，
+  // 所以这里一直用画布尺寸算布局，不能读 window.innerHeight。
+  const width = scene.scale.width;
+  const height = scene.scale.height;
 
   // 清掉上一层（确认框 depth 2300 / 资料卡）留下的残留，避免两层叠在一起
   scene.children.list
