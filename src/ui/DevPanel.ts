@@ -245,10 +245,10 @@ export function makeDevButton(scene: Phaser.Scene, onClick: () => void, depth = 
   // 齿轮半径 17 比血条高 12 更大，视觉重心偏下 → 上移 2px 补偿对齐
   const TOP_Y = (scene.scale.width < 640 ? 52 : 56) - 2;
   const btn = scene.add.container(width - 34, TOP_Y).setDepth(depth);
-  const bg = scene.add.circle(0, 0, 17, 0x0e1a24, 0.92)
-    .setStrokeStyle(1.5, UI.cardStroke).setInteractive({ useHandCursor: true });
+  const bg = scene.add.circle(0, 0, 17, UI.secondary, 0.92)
+    .setStrokeStyle(1.5, UI.primaryStroke, 0.75).setInteractive({ useHandCursor: true });
   const gear = scene.add.text(0, 0, '⚙', {
-    fontFamily: '"Apple Symbols", "Segoe UI Symbol", sans-serif', fontSize: '20px', color: '#9cc4dc',
+    fontFamily: '"Apple Symbols", "Segoe UI Symbol", sans-serif', fontSize: '20px', color: TEXT.gold,
   }).setOrigin(0.5);
   btn.add([bg, gear]);
   bg.on('pointerdown', (p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {

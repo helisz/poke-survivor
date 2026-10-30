@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { loadSave } from '../data/stats';
 import { openDevPanel, makeDevButton } from '../ui/DevPanel';
+import { openHelpPanel } from '../ui/HelpPanel';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { makeCoinIcon } from '../ui/Icons';
@@ -70,21 +71,37 @@ export class MenuScene extends Phaser.Scene {
     btn.on('pointerover', () => btn.setFillStyle(UI.primaryLight));
     btn.on('pointerout', () => btn.setFillStyle(UI.primary));
 
-    // 底部提示 + 构建标记
-    this.add.text(width / 2, height - 52, '拖动屏幕平移 · 升级时按 1/2/3 选择', {
-      fontFamily: 'sans-serif', fontSize: '10px', color: '#a8c4d8',
-    }).setOrigin(0.5).setDepth(20).setShadow(0, 1, '#041018', 3);
-
-    // 构建标识：纯白、短。只显示「标签 + 迭代数」，例如 v0.4·64
-    // 完整时间戳仍注入在 __BUILD_STAMP__ 里，需要排查时在控制台可查。
+    // 构建标识：标签·迭代数 · 日期 时间
+    // 草地纹理会把细字冲淡 → 黑描边保证纯白可读
     const S = __BUILD_STAMP__;
-    // 草地纹理会把细字冲淡 → 加一圈黑描边 + 更实的阴影，保证纯白可读
-    this.add.text(width / 2, height - 12, `${S.tag}·${S.iter}`, {
-      fontFamily: 'monospace', fontSize: '11px', color: '#ffffff',
+    this.add.text(width / 2, height - 12, `${S.tag}·${S.iter} · ${S.date} ${S.time}`, {
+      fontFamily: 'monospace', fontSize: '10px', color: '#ffffff',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(20);
 
     makeDevButton(this, () => openDevPanel(this));
+    this.makeHelpButton(width);
+  }
+
+  /** 右上角问号：打开操作说明（齿轮左侧，同样的金色圆钮） */
+  private makeHelpButton(width: number) {
+    const TOP_Y = (width < 640 ? 52 : 56) - 2;
+    const x = width - 34 - 44;
+    const btn = this.add.container(x, TOP_Y).setDepth(1900);
+    const bg = this.add.circle(0, 0, 17, UI.secondary, 0.92)
+      .setStrokeStyle(1.5, UI.primaryStroke, 0.75).setInteractive({ useHandCursor: true });
+    const q = this.add.text(0, 0, '?', {
+      fontFamily: 'sans-serif', fontSize: '18px', color: TEXT.gold, fontStyle: 'bold',
+    }).setOrigin(0.5);
+    btn.add([bg, q]);
+    bg.on('pointerdown', (p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
+      ev?.stopPropagation?.();
+      Sfx.click();
+      openHelpPanel(this);
+    });
+    bg.on('pointerover', () => bg.setFillStyle(UI.secondaryHover, 0.95));
+    bg.on('pointerout', () => bg.setFillStyle(UI.secondary, 0.92));
+    this.scale.on('resize', () => btn.setPosition(this.scale.width - 34 - 44, TOP_Y));
   }
 
   update(_time: number, delta: number) {
