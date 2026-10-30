@@ -35,7 +35,7 @@ export interface UpgradeOption {
 }
 
 /** 属性卡的权重系数：1 = 与一张招式卡同等机会，0.5 = 半概率 */
-const STAT_CARD_WEIGHT = 0.5;
+const STAT_CARD_WEIGHT = 1;
 
 /**
  * 小怪刷新：**必须在当前视口之外**，且离屏幕边缘有固定余量。
@@ -1105,10 +1105,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     // 属性加成
-    // 前 3 级不给属性卡：开局只让玩家抽招式/进化，先把构筑立起来，
-    // 避免前三次升级就被「伤害 +12%」这类万金油占掉。
-    // 3 级之后按权重抽取，整体出现频率随后期逐步抬升。
-    if (this.level > 3) {
+    // 第 1 次升级（等级 2）不给属性卡：开局先让玩家抽招式/进化，把构筑立起来，
+    // 避免第一次升级就被「伤害 +12%」这类万金油占掉。
+    // 等级 3 起按权重抽取，整体出现频率随后期逐步抬升。
+    if (this.level > 2) {
       const statUpgrades: UpgradeOption[] = [
         { kind: 'stat', id: 'atk', title: '力量强化', desc: '伤害 +12%', color: 0xf0703c, apply: () => { this.player.stats.damageMul *= 1.12; this.addStatStack('atk'); } },
         { kind: 'stat', id: 'spd', title: '疾行', desc: '移速 +8%', color: 0x449ddf, apply: () => { this.player.stats.speed *= 1.08; this.addStatStack('spd'); } },
@@ -1116,9 +1116,10 @@ export class GameScene extends Phaser.Scene {
         { kind: 'stat', id: 'pick', title: '磁力', desc: '拾取范围 +25%', color: 0xf7d02c, apply: () => { this.player.stats.pickup *= 1.25; this.addStatStack('pick'); } },
         { kind: 'stat', id: 'cd', title: '迅捷', desc: '招式冷却 -8%', color: 0x8a5fbf, apply: () => { this.player.stats.cooldownMul *= 0.92; this.addStatStack('cd'); } },
       ];
-      // 权重：每张属性卡从 1 张降为 STAT_WEIGHT 份，权重随等级线性回升，
-      // 满 12 级回到 1.0（与原来一张顶一份持平），所以只是整体下调、不是永久削弱。
-      const statWeight = Phaser.Math.Clamp((this.level - 3) / 9, 0.15, 1) * STAT_CARD_WEIGHT;
+      // 权重：基底 STAT_CARD_WEIGHT(1.0)。等级 3 起从 0.5 起步，等级 11 满 1.0，
+      // 与招式卡（权重恒 1）同权竞争。下限设 0.5 是为了「第一次升级解禁」后
+      // 属性卡真的能看到，而不是名义解禁、实际抽不到。
+      const statWeight = Phaser.Math.Clamp((this.level - 2) / 9, 0.5, 1) * STAT_CARD_WEIGHT;
       for (const s of statUpgrades) {
         // 用同一份卡片的引用，靠 poolWeights 记权重，选中后再去重
         pool.push(s);
