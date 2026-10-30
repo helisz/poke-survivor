@@ -75,7 +75,7 @@ export class MenuScene extends Phaser.Scene {
     this.add.text(width / 2, startY, '开 始', {
       fontFamily: 'sans-serif', fontSize: '19px', color: '#041018', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(21);
-    btn.on('pointerdown', () => { Sfx.init(); Sfx.click(); goTo(this, 'TraitSelect'); });
+    btn.on('pointerdown', () => { Sfx.init(); Sfx.click(); goTo(this, 'MapSelect'); });
     btn.on('pointerover', () => btn.setFillStyle(UI.primaryLight));
     btn.on('pointerout', () => btn.setFillStyle(UI.primary));
 

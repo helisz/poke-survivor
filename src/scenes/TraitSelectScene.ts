@@ -42,6 +42,13 @@ export class TraitSelectScene extends Phaser.Scene {
 
   constructor() { super('TraitSelect'); }
 
+  /** 从选关页传进来的关卡序号 */
+  private stage = 0;
+
+  init(data: { stage?: number }) {
+    this.stage = data?.stage ?? 0;
+  }
+
   create() {
     // 场景 shutdown 时清理本场景 Text 的 canvas 纹理，防止重建时命中已销毁帧
     installTextTextureCleanup(this);
@@ -62,7 +69,7 @@ export class TraitSelectScene extends Phaser.Scene {
       fontSize: '26px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(width / 2, height * 0.09 + 28, '第 1 / 2 步 · 三选一', {
+    this.add.text(width / 2, height * 0.09 + 28, '第 2 / 3 步 · 三选一', {
       fontFamily: 'sans-serif', fontSize: '12px', color: TEXT.gold,
     }).setOrigin(0.5);
 
@@ -171,7 +178,7 @@ export class TraitSelectScene extends Phaser.Scene {
     const back = this.add.text(24, 30, '← 返回', {
       fontFamily: 'sans-serif', fontSize: '13px', color: TEXT.dim,
     }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
-    back.on('pointerdown', () => { Sfx.click(); goTo(this, 'Menu'); });
+    back.on('pointerdown', () => { Sfx.click(); goTo(this, 'MapSelect'); });
   }
 
   private buildNextButton(width: number, height: number) {
@@ -187,7 +194,7 @@ export class TraitSelectScene extends Phaser.Scene {
     this.nextBtn.on('pointerdown', () => {
       if (!this.selected) return;
       Sfx.click();
-      goTo(this, 'PartnerSelect', { trait: this.selected });
+      goTo(this, 'PartnerSelect', { trait: this.selected, stage: this.stage });
     });
   }
 }

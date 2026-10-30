@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { MOVES, MOVE_LIST, RARITY_WEIGHT } from '../data/moves';
-import { expForLevel, RUN_SECONDS, loadSave, type PlayerStats } from '../data/stats';
-import { MAP_THEMES, themeIndexAtProgress } from '../data/maps';
+import { expForLevel, RUN_SECONDS, loadSave, writeSave, type PlayerStats } from '../data/stats';
+import { MAP_THEMES, stageScale, STAGE_COUNT } from '../data/maps';
 import { Player } from '../objects/Player';
 import { CombatSystem } from '../systems/CombatSystem';
 import { EnemySystem } from '../systems/EnemySystem';
@@ -37,8 +37,10 @@ export class GameScene extends Phaser.Scene {
   combat!: CombatSystem;
   enemies!: EnemySystem;
   private ground!: Ground;
-  /** 当前地图主题索引 */
+  /** 当前地图主题索引（= 关卡序号，整局固定不切换） */
   private mapIndex = 0;
+  /** 本关的强度倍率（攻击 / 血量 / 速度，按关卡连乘） */
+  private stageScale = { atk: 1, hp: 1, spd: 1 };
   /** 属性强化的叠加层数（UI 底部小图标展示） */
   statStacks: Record<string, number> = {};
 
@@ -81,7 +83,7 @@ export class GameScene extends Phaser.Scene {
 
   constructor() { super('Game'); }
 
-  create(data: { trait: TraitId; starterMove?: string }) {
+  create(data: { trait: TraitId; starterMove?: string; stage?: number }) {
     this.runEnded = false;
     this.paused = false;
     this.level = 1;
@@ -98,6 +100,12 @@ export class GameScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor('#0a0f14');
     this.ground = new Ground(this);
+
+    // 本局关卡：地图整局固定，不再随进度轮换
+    const stage = Math.max(0, Math.min(STAGE_COUNT - 1, Math.floor(data.stage ?? 0)));
+    this.mapIndex = stage;
+    this.stageScale = stageScale(stage);
+    this.ground.applyTheme(stage);
 
     // 世界无限：给一个很大的边界
     this.physics.world.setBounds(-1e6, -1e6, 2e6, 2e6);
@@ -229,15 +237,6 @@ export class GameScene extends Phaser.Scene {
     this.ground.update(this.cameras.main.scrollX, this.cameras.main.scrollY,
       this.scale.width, this.scale.height);
 
-    // 地图推进：按整局进度切换主题
-    const prog = this.elapsed / RUN_SECONDS;
-    const want = themeIndexAtProgress(prog);
-    if (want !== this.mapIndex) {
-      this.mapIndex = want;
-      this.ground.applyTheme(want);
-      this.onMapChange(want);
-    }
-
     // 刷怪
     this.updateSpawning(dt);
     this.enemies.update(this.player.x, this.player.y, time);
@@ -267,7 +266,8 @@ export class GameScene extends Phaser.Scene {
     this.bossRef = boss;
     if (boss) {
       // 终局 BOSS 血更厚，标记身份
-      const hp = 3000 * 2.2;
+      // BOSS 血量同样吃关卡倍率
+      const hp = 3000 * 2.2 * this.stageScale.hp;
       boss.setData('hp', hp);
       boss.setData('maxHp', hp);
       boss.setData('isFinal', true);
@@ -298,14 +298,44 @@ export class GameScene extends Phaser.Scene {
 
   get mapThemeIndex() { return this.mapIndex; }
 
-  /** 调试：直接跳到指定地图，并把局内计时对齐到该段开头，避免立刻被进度覆盖 */
+  /** 当前时间阶段（0~5），按整局进度均分成 6 段 */
+  get timeStage() {
+    return Math.min(5, Math.floor((this.elapsed / RUN_SECONDS) * 6));
+  }
+
+  /**
+   * 调试：跳到指定时间阶段。
+   *
+   * 改版后地图在一局内固定不切换，这 6 个按钮只跳时间轴 ——
+   * 让时间成长（血量、速度、刷怪密度、精英波次）跳到对应阶段，
+   * 地图和怪物池保持不变。
+   */
   jumpToMap(index: number) {
-    const i = Math.max(0, Math.min(MAP_THEMES.length - 1, index));
-    this.mapIndex = i;
-    // 对齐到该段的起点（稍微偏移一点，避免落在边界上）
-    this.elapsed = (i / MAP_THEMES.length) * RUN_SECONDS + 0.5;
-    this.ground.applyTheme(i);
-    this.onMapChange(i);
+    const i = Math.max(0, Math.min(5, index));
+    this.mapIndex = Math.max(0, Math.min(STAGE_COUNT - 1, this.mapIndex));
+    // 对齐到该时间段的开头
+    this.elapsed = (i / 6) * RUN_SECONDS + 0.5;
+    // 清掉已经触发过的 BOSS 标记，允许重新触发
+    this.bossSpawned = { 200: this.elapsed >= 200, 280: this.elapsed >= 280 };
+    this.eliteTimer = 0;
+    // 地图不换，只给一个轻提示
+    this.flashTimeStage(i);
+  }
+
+  /** 时间阶段跳转的轻量提示（不换地图，只提示时间点） */
+  private flashTimeStage(stage: number) {
+    const w = this.scale.width, h = this.scale.height;
+    const label = `${stage * 50} 秒 · 强度阶段 ${stage + 1}/6`;
+    const t = this.add.text(w / 2, h * 0.42, label, {
+      fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
+      fontSize: '20px', fontStyle: 'bold', color: '#ffffff',
+      stroke: '#000000', strokeThickness: 4,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(300).setAlpha(0);
+    this.tweens.add({ targets: t, alpha: 1, y: h * 0.42 - 8, duration: 220, ease: 'Cubic.easeOut' });
+    this.tweens.add({
+      targets: t, alpha: 0, delay: 900, duration: 400,
+      onComplete: () => t.destroy(),
+    });
   }
 
   /** 切换地图时的横幅提示 */
@@ -456,11 +486,12 @@ export class GameScene extends Phaser.Scene {
     // 血量成长放缓：原 1.2 系数 → 0.55，指数 1.35 → 1.5。
     // 后期（5 分钟）从 2.20 倍降到 1.55 倍，减负约 30%；
     // 前 2 分钟几乎持平，避免开局变得太软。
-    const hpMul = (1 + 0.55 * Math.pow(Math.min(t, 300) / 300, 1.5)) * (theme.enemyHpMul ?? 1);
+    // 血量 = 时间成长 × 本关血量倍率（关卡连乘，第 6 关 2.49×）
+    const hpMul = (1 + 0.55 * Math.pow(Math.min(t, 300) / 300, 1.5)) * this.stageScale.hp;
     // 速度成长：原 1 + t/220 在 5 分钟涨到 2.36 倍，主角固定速度必被追上。
     // 改为 300 秒内只涨到 1.18 倍，且前 90 秒完全不加速。
     const speedMul = (1 + 0.18 * Math.pow(Math.max(0, Math.min(t, 300) - 90) / 210, 1.5))
-      * theme.enemySpeedMul;
+      * this.stageScale.spd;
 
     const cap = 260;
     // 每帧最多批量刷出数：全程保持 1-2，避免整屏瞬间涌出
@@ -514,8 +545,9 @@ export class GameScene extends Phaser.Scene {
       if (hit) return;
       if (Phaser.Geom.Intersects.RectangleToRectangle(hb, e.getBounds())) {
         // 接触伤害 = 基础伤害的 55%；手机屏更小更难走位，降到 42%
+        // 再乘本关的攻击倍率（关卡连乘，第 6 关约 2.01×）
         const dmgScale = this.scale.width < 520 ? 0.28 : 0.38;
-        this.player.takeDamage((e.getData('dmg') as number) * dmgScale);
+        this.player.takeDamage((e.getData('dmg') as number) * dmgScale * this.stageScale.atk);
         hit = true;
       }
     });
@@ -954,6 +986,16 @@ export class GameScene extends Phaser.Scene {
     if (this.runEnded) return;
     this.runEnded = true;
     if (survived) Sfx.win(); else Sfx.lose();
+
+    // 通关：解锁下一关（只在真实进度上前进，不受开发者全解锁影响）
+    if (survived) {
+      const sv = loadSave();
+      const cleared = this.mapIndex;
+      if (cleared >= (sv.stageProgress ?? 0)) {
+        sv.stageProgress = Math.min(STAGE_COUNT - 1, cleared + 1);
+        writeSave(sv);
+      }
+    }
     this.scene.launch('GameOver', {
       game: this,
       survived,

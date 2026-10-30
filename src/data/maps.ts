@@ -11,6 +11,7 @@ export interface Decoration {
   scale: number;
 }
 
+/** 一座地图 = 一个关卡，按顺序解锁 */
 export interface MapTheme {
   id: string;
   name: string;
@@ -26,14 +27,10 @@ export interface MapTheme {
   /** 覆盖光的颜色与透明度（营造氛围） */
   ambient: number;
   ambientAlpha: number;
-  /** 该地图怪物移动速度倍率 */
-  enemySpeedMul: number;
   /** 该地图专属小怪池（宝可梦图鉴编号），为空则用全局池 */
   enemyPool?: number[];
   /** 该地图专属精英池 */
   elitePool?: number[];
-  /** 该地图怪物血量倍率 */
-  enemyHpMul?: number;
   /** 该地图刷怪数量倍率（<1 更稀疏，>1 更密集） */
   spawnMul?: number;
   /** 该地图怪物额外掉落经验倍率 */
@@ -50,9 +47,7 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x25452a,
     ambient: 0x8ecf7a,
     ambientAlpha: 0.05,
-    enemySpeedMul: 1,
     enemyPool: [19, 20, 43, 69, 63, 29, 120, 138],
-    enemyHpMul: 1,
     spawnMul: 1,
     expMul: 1,
     decorations: [
@@ -70,10 +65,8 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x142818,
     ambient: 0x3f9b5c,
     ambientAlpha: 0.1,
-    enemySpeedMul: 1.1,
     enemyPool: [43, 69, 63, 29, 66, 72, 120, 138],
     elitePool: [142, 146],
-    enemyHpMul: 0.9,
     spawnMul: 1.15,
     expMul: 1.05,
     decorations: [
@@ -92,10 +85,8 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x1a1a20,
     ambient: 0x6f7bd6,
     ambientAlpha: 0.12,
-    enemySpeedMul: 0.95,
     enemyPool: [41, 42, 92, 93, 109, 110, 66, 80],
     elitePool: [94, 429],
-    enemyHpMul: 1.35,
     spawnMul: 0.85,
     expMul: 1.2,
     decorations: [
@@ -113,10 +104,8 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x1a221a,
     ambient: 0x7fb04a,
     ambientAlpha: 0.11,
-    enemySpeedMul: 0.85,
     enemyPool: [60, 72, 80, 81, 100, 120, 109, 110],
     elitePool: [160, 154],
-    enemyHpMul: 1.1,
     spawnMul: 1.35,
     expMul: 1.1,
     decorations: [
@@ -135,10 +124,8 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x1e0f0b,
     ambient: 0xff6a33,
     ambientAlpha: 0.13,
-    enemySpeedMul: 1.2,
     enemyPool: [19, 20, 29, 41, 42, 81, 100, 110],
     elitePool: [142, 146],
-    enemyHpMul: 1.2,
     spawnMul: 1.1,
     expMul: 1.3,
     decorations: [
@@ -157,10 +144,8 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x1a1824,
     ambient: 0xb08cff,
     ambientAlpha: 0.14,
-    enemySpeedMul: 1.28,
     enemyPool: [92, 93, 109, 110, 120, 138, 66, 80],
     elitePool: [373, 475],
-    enemyHpMul: 1.15,
     spawnMul: 1.2,
     expMul: 1.45,
     decorations: [
@@ -172,10 +157,44 @@ export const MAP_THEMES: MapTheme[] = [
   },
 ];
 
-/** 一局分成几段地图 */
+/** 一局分成几段地图（旧版按时间轮换用，保留以兼容） */
 export const MAP_SEGMENTS = MAP_THEMES.length;
 
-/** 按进度（0~1）取当前地图索引 */
+/** 关卡总数 */
+export const STAGE_COUNT = MAP_THEMES.length;
+
+/**
+ * 关卡强度倍率：每往后一关，怪的攻击 +15%、血量 +20%、速度 +2%，连乘。
+ *
+ * 第 0 关（草原）为 1×，第 5 关（遗迹）依次累乘到：
+ *   攻击 1.15^5 ≈ 2.01×，血量 1.20^5 ≈ 2.49×，速度 1.02^5 ≈ 1.10×
+ *
+ * 注意：这是「关卡本身」的倍率，取代了旧版每张地图自带的
+ * enemyHpMul / enemySpeedMul。地图的刷怪密度与经验倍率仍然保留。
+ */
+export const STAGE_ATK_STEP = 1.15;
+export const STAGE_HP_STEP = 1.20;
+export const STAGE_SPD_STEP = 1.02;
+
+export interface StageScale {
+  /** 敌人伤害倍率 */
+  atk: number;
+  /** 敌人血量倍率 */
+  hp: number;
+  /** 敌人移速倍率 */
+  spd: number;
+}
+
+export function stageScale(stage: number): StageScale {
+  const n = Math.max(0, Math.min(STAGE_COUNT - 1, Math.floor(stage)));
+  return {
+    atk: Math.pow(STAGE_ATK_STEP, n),
+    hp: Math.pow(STAGE_HP_STEP, n),
+    spd: Math.pow(STAGE_SPD_STEP, n),
+  };
+}
+
+/** 按进度（0~1）取当前地图索引（旧版一局内轮换地图用） */
 export function themeIndexAtProgress(progress: number): number {
   const i = Math.floor(progress * MAP_SEGMENTS);
   return Math.max(0, Math.min(MAP_SEGMENTS - 1, i));

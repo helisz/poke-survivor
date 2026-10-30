@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { MenuScene } from './scenes/MenuScene';
+import { MapSelectScene } from './scenes/MapSelectScene';
 import { TraitSelectScene } from './scenes/TraitSelectScene';
 import { PartnerSelectScene } from './scenes/PartnerSelectScene';
 import { ShopScene } from './scenes/ShopScene';
@@ -44,7 +45,7 @@ const config: Phaser.Types.Core.GameConfig = {
     default: 'arcade',
     arcade: { gravity: { x: 0, y: 0 }, debug: false },
   },
-  scene: [BootScene, MenuScene, TraitSelectScene, PartnerSelectScene, ShopScene, GameScene, UIScene, LevelUpScene, GameOverScene],
+  scene: [BootScene, MenuScene, MapSelectScene, TraitSelectScene, PartnerSelectScene, ShopScene, GameScene, UIScene, LevelUpScene, GameOverScene],
 };
 
 const game = new Phaser.Game(config);
@@ -52,6 +53,7 @@ const game = new Phaser.Game(config);
 // 注册可重开场景的工厂：SceneFlow 用它 new 干净实例，
 // 避免复用 Phaser 的 Scene 对象带来的脏状态（见 SceneFlow.ts 注释）。
 registerScene('Menu', () => new MenuScene());
+registerScene('MapSelect', () => new MapSelectScene());
 registerScene('TraitSelect', () => new TraitSelectScene());
 registerScene('PartnerSelect', () => new PartnerSelectScene());
 registerScene('Shop', () => new ShopScene());

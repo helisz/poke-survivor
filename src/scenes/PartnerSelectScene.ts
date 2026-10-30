@@ -15,6 +15,7 @@ function pickN<T>(arr: readonly T[], n: number): T[] {
 /** 第三步：伙伴 3 选 1（排除无法造成伤害的招式） */
 export class PartnerSelectScene extends Phaser.Scene {
   private trait: string | null = null;
+  private stage = 0;
   private choices: typeof POKEMON_PLAYABLE[number][] = [];
   private selected: string | null = null;
   private cardRefs: { box: Phaser.GameObjects.Rectangle; mark: Phaser.GameObjects.Text }[] = [];
@@ -23,8 +24,9 @@ export class PartnerSelectScene extends Phaser.Scene {
 
   constructor() { super('PartnerSelect'); }
 
-  init(data: { trait?: string }) {
+  init(data: { trait?: string; stage?: number }) {
     this.trait = data?.trait ?? null;
+    this.stage = data?.stage ?? 0;
   }
 
   create() {
@@ -46,7 +48,7 @@ export class PartnerSelectScene extends Phaser.Scene {
       fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
       fontSize: '26px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
-    this.add.text(width / 2, height * 0.09 + 28, '第 2 / 2 步 · 三选一', {
+    this.add.text(width / 2, height * 0.09 + 28, '第 3 / 3 步 · 三选一', {
       fontFamily: 'sans-serif', fontSize: '12px', color: TEXT.gold,
     }).setOrigin(0.5);
 
@@ -154,14 +156,14 @@ export class PartnerSelectScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.startBtn.on('pointerdown', () => {
       if (!this.selected) return;
-      goTo(this, 'Game', { trait: this.trait, starterMove: this.selected });
+      goTo(this, 'Game', { trait: this.trait, starterMove: this.selected, stage: this.stage });
     });
 
     // 返回上一步
     const back = this.add.text(24, 30, '← 返回', {
       fontFamily: 'sans-serif', fontSize: '13px', color: TEXT.dim,
     }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
-    back.on('pointerdown', () => goTo(this, 'TraitSelect'));
+    back.on('pointerdown', () => goTo(this, 'TraitSelect', { stage: this.stage }));
   }
 
   private catZh(c: string) {

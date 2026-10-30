@@ -60,6 +60,10 @@ export interface SaveData {
   devExpMul: number;
   /** 局外永久升级等级（商店购买） */
   perm: PermLevels;
+  /** 已通关的最高关卡序号（0 = 只解锁第 1 关；5 = 全通关） */
+  stageProgress: number;
+  /** 开发者：关卡全解锁（不影响真实 stageProgress） */
+  devAllStages: boolean;
 }
 
 /** 局外永久升级：等级越高越强，用金币购买 */
@@ -168,13 +172,14 @@ export function loadSave(): SaveData {
       const raw2 = JSON.parse(raw);
       const d: SaveData = {
         coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, devExpMul: 3,
+        stageProgress: 0, devAllStages: false,
         ...raw2,
         perm: { ...PERM_EMPTY, ...(raw2.perm ?? {}) },
       };
       return d;
     }
   } catch { /* ignore */ }
-  return { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, devExpMul: 3, perm: { ...PERM_EMPTY } };
+  return { coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, devExpMul: 3, stageProgress: 0, devAllStages: false, perm: { ...PERM_EMPTY } };
 }
 
 export function writeSave(data: SaveData) {

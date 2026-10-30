@@ -19,7 +19,7 @@ import Phaser from 'phaser';
  * 重新挂载一个新实例**，保证每次进入都是干净状态。
  */
 
-type SceneKeyActivity = 'Menu' | 'TraitSelect' | 'PartnerSelect' | 'Game' | 'Shop';
+type SceneKeyActivity = 'Menu' | 'MapSelect' | 'TraitSelect' | 'PartnerSelect' | 'Game' | 'Shop';
 
 /** 场景构造器注册表：新增场景时要登记，供重建时 new 一个干净实例 */
 const FACTORIES: Record<string, () => Phaser.Scene> = {};
@@ -32,7 +32,7 @@ const FACTORIES: Record<string, () => Phaser.Scene> = {};
  * 重建后必须按这个表把场景挪回原来的位置。
  */
 const SCENE_ORDER = [
-  'Boot', 'Menu', 'TraitSelect', 'PartnerSelect',
+  'Boot', 'Menu', 'MapSelect', 'TraitSelect', 'PartnerSelect',
   'Shop', 'Game', 'UI', 'LevelUp', 'GameOver',
 ];
 

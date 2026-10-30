@@ -134,10 +134,10 @@ export function openDevPanel(
   // 地图快捷跳转（仅游戏内）
   if (mapJump) {
     const my = cy - ph / 2 + 82 + rows.length * rowH;
-    panel.add(scene.add.text(cx - pw / 2 + 16, my - 8, '地图', {
+    panel.add(scene.add.text(cx - pw / 2 + 16, my - 8, '时间阶段', {
       fontFamily: 'sans-serif', fontSize: '13px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0, 0.5));
-    panel.add(scene.add.text(cx - pw / 2 + 16 + 34, my - 8, '点击直接跳转（调试用）', {
+    panel.add(scene.add.text(cx - pw / 2 + 16 + 58, my - 8, '跳时间轴 · 不换地图', {
       fontFamily: 'sans-serif', fontSize: '10px', color: '#5f7a8c',
     }).setOrigin(0, 0.5));
 
