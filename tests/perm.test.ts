@@ -8,10 +8,14 @@ import {
 const empty = (): PermLevels => ({ ...PERM_EMPTY });
 
 // 赌神是特殊项：3 级上限、独立价目表，不参与统一百分比曲线
-const PCT_UPGRADES = PERM_UPGRADES.filter((u) => u.key !== 'gamble');
+const CRIT_KEYS = ['critRate', 'critDmg'];
+// 普通百分比项：走标准 50→30000 价格曲线
+const PCT_UPGRADES = PERM_UPGRADES.filter((u) => u.key !== 'gamble' && !CRIT_KEYS.includes(u.key));
+// 暴击两项：曲线同形，但价格是普通项的 3 倍
+const CRIT_UPGRADES = PERM_UPGRADES.filter((u) => CRIT_KEYS.includes(u.key));
 
 describe('永久强化：等级上限', () => {
-  it('六项百分比强化都是 10 级上限', () => {
+  it('八项百分比强化都是 10 级上限', () => {
     for (const u of PCT_UPGRADES) {
       expect(u.max, `${u.name} 上限`).toBe(10);
       expect(u.max).toBe(PERM_MAX_LEVEL);
@@ -24,9 +28,37 @@ describe('永久强化：等级上限', () => {
     expect(g.name).toBe('赌神');
   });
 
-  it('七项强化都在', () => {
+  it('九项强化都在', () => {
     expect(PERM_UPGRADES.map((u) => u.key).sort())
-      .toEqual(['cd', 'damage', 'exp', 'gamble', 'hp', 'pickup', 'speed']);
+      .toEqual(['cd', 'critDmg', 'critRate', 'damage', 'exp', 'gamble', 'hp', 'pickup', 'speed']);
+  });
+
+  it('暴击两项排在脚力之后', () => {
+    const keys = PERM_UPGRADES.map((u) => u.key) as string[];
+    expect(keys.indexOf('critRate')).toBe(keys.indexOf('speed') + 1);
+    expect(keys.indexOf('critDmg')).toBe(keys.indexOf('speed') + 2);
+  });
+
+  it('暴击率满级累计正好 +5%（8% → 13%）', () => {
+    expect(permTotal('critRate', 10)).toBeCloseTo(0.05, 6);
+    const s = applyPerm(BASE_STATS, { ...PERM_EMPTY, critRate: 10 });
+    expect(s.critChance).toBeCloseTo(0.13, 6);
+  });
+
+  it('暴击伤害满级累计正好 +25%（1.5x → 1.75x）', () => {
+    expect(permTotal('critDmg', 10)).toBeCloseTo(0.25, 6);
+    const s = applyPerm(BASE_STATS, { ...PERM_EMPTY, critDmg: 10 });
+    expect(s.critMul).toBeCloseTo(1.75, 6);
+  });
+
+  it('暴击伤害是加法不是乘法：1 级只涨到 1.5119x 左右', () => {
+    const s = applyPerm(BASE_STATS, { ...PERM_EMPTY, critDmg: 1 });
+    expect(s.critMul).toBeLessThan(1.52);
+  });
+
+  it('默认暴击率 8%、暴击倍率 1.5', () => {
+    expect(BASE_STATS.critChance).toBe(0.08);
+    expect(BASE_STATS.critMul).toBe(1.5);
   });
 });
 
@@ -175,12 +207,25 @@ describe('永久强化：价格曲线', () => {
     expect(tail / total).toBeGreaterThan(0.8);
   });
 
-  it('六项百分比强化共用同一条价格曲线', () => {
+  it('六项普通百分比强化共用同一条价格曲线', () => {
+    expect(PCT_UPGRADES.length).toBe(6);
     for (const u of PCT_UPGRADES) {
       for (let lv = 0; lv < 10; lv++) {
         expect(permCost(u.key, lv), `${u.name} Lv${lv}→${lv + 1}`)
           .toBe(permCostAtLevel(lv + 1));
       }
+    }
+  });
+
+  it('暴击两项价格是普通项的 3 倍', () => {
+    expect(CRIT_UPGRADES.length).toBe(2);
+    for (const u of CRIT_UPGRADES) {
+      for (let lv = 0; lv < 10; lv++) {
+        expect(permCost(u.key, lv), `${u.name} Lv${lv}→${lv + 1}`)
+          .toBe(permCostAtLevel(lv + 1) * 3);
+      }
+      expect(permCost(u.key, 0)).toBe(150);
+      expect(permCost(u.key, 9)).toBe(90000);
     }
   });
 
@@ -193,6 +238,9 @@ describe('永久强化：价格曲线', () => {
   it('满级调用返回最后一级价，由调用方拦截', () => {
     for (const u of PCT_UPGRADES) {
       expect(permCost(u.key, 10)).toBe(PERM_COST_MAX);
+    }
+    for (const u of CRIT_UPGRADES) {
+      expect(permCost(u.key, 10)).toBe(PERM_COST_MAX * 3);
     }
     expect(permCost('gamble', 3)).toBe(500000);
   });

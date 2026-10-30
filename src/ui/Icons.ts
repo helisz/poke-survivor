@@ -111,6 +111,35 @@ const PERM_ICON_DEFS: Record<string, { key: string; color: number; draw: (g: Pha
       g.fillTriangle(c - 2, c - 2, c + 9, c - 2, c - 3, c + 17);
     },
   },
+  critRate: {
+    key: 'perm_critRate', color: 0xff5c5c,
+    draw: (g, c) => {
+      // 靶心：外圈 + 中圈 + 实心红点，代表「精准」
+      g.lineStyle(3.5, 0xff5c5c, 1);
+      g.strokeCircle(c, c, 15);
+      g.lineStyle(2.5, 0xff5c5c, 0.8);
+      g.strokeCircle(c, c, 8);
+      g.fillStyle(0xff5c5c, 1);
+      g.fillCircle(c, c, 3.5);
+    },
+  },
+  critDmg: {
+    key: 'perm_critDmg', color: 0xff8a3c,
+    draw: (g, c) => {
+      // 爆炸星芒：8 道尖角 + 中心实心，代表「爆发」
+      g.fillStyle(0xff8a3c, 1);
+      for (let i = 0; i < 8; i++) {
+        const a = (Math.PI / 4) * i;
+        const a1 = a - 0.16, a2 = a + 0.16;
+        g.fillTriangle(
+          c + Math.cos(a) * 19, c + Math.sin(a) * 19,
+          c + Math.cos(a1) * 6, c + Math.sin(a1) * 6,
+          c + Math.cos(a2) * 6, c + Math.sin(a2) * 6,
+        );
+      }
+      g.fillCircle(c, c, 5);
+    },
+  },
   pickup: {
     key: 'perm_pickup', color: 0x8a5fbf,
     draw: (g, c) => {

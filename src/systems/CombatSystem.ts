@@ -79,6 +79,7 @@ export class CombatSystem {
               shake: true,
             }
           : null,
+        (proj.getData('crit') as boolean) ?? false,
       );
 
       // 记录命中，供追踪/连锁查重
@@ -234,6 +235,7 @@ export class CombatSystem {
     const def = src.getData('splitDef') as MoveDef;
     const damage = (src.getData('damage') as number) * 0.45;
     const color = src.getData('color') as number;
+    const crit = (src.getData('crit') as boolean) ?? false;
     const n = 6;
     this.fx.burst(src.x, src.y, color, 18, 200, 3.2, 320);
     for (let i = 0; i < n; i++) {
@@ -244,6 +246,7 @@ export class CombatSystem {
       p.setTintFill(color);
       p.setScale(0.2);
       p.setData('damage', damage);
+      p.setData('crit', crit);
       p.setData('pierce', 0);
       p.setData('life', 420);
       p.setData('moveId', def.id);
@@ -325,20 +328,26 @@ export class CombatSystem {
     // 技能升级成长显著提高：每级 +18% → +42%。
     // 让"升级"成为主要的强度来源，玩家能明显感到越打越强。
     const dmgMul = this.player.stats.damageMul * (1 + (level - 1) * 0.42) * evoMul;
-    const damage = def.baseDamage * dmgMul;
+    let damage = def.baseDamage * dmgMul;
+
+    // 暴击：整次出手判定一次，命中所有目标的这一发都按暴击结算。
+    // 放在这里而不是 per-hit，是为了让「一发暴击」的飘字颜色统一，
+    // 玩家能一眼看出这一发是幸运的一发。
+    const crit = Math.random() < this.player.stats.critChance;
+    if (crit) damage *= this.player.stats.critMul;
 
     switch (def.category) {
-      case 'projectile': this.fireProjectile(def, damage, ox, oy); Sfx.shoot(); break;
-      case 'melee': this.fireMelee(def, damage, ox, oy); Sfx.slash(); break;
-      case 'aoe': this.fireAoe(def, damage, ox, oy); Sfx.shoot(); break;
-      case 'aura': this.fireAura(def, damage, ox, oy); Sfx.shoot(); break;
+      case 'projectile': this.fireProjectile(def, damage, ox, oy, crit); Sfx.shoot(); break;
+      case 'melee': this.fireMelee(def, damage, ox, oy, crit); Sfx.shoot(); break;
+      case 'aoe': this.fireAoe(def, damage, ox, oy, crit); Sfx.shoot(); break;
+      case 'aura': this.fireAura(def, damage, ox, oy, crit); Sfx.shoot(); break;
       case 'summon':
         if (def.id === 'morningsun') this.player.heal(25 + level * 10);
         break;
     }
   }
 
-  private fireProjectile(def: MoveDef, damage: number, ox: number, oy: number) {
+  private fireProjectile(def: MoveDef, damage: number, ox: number, oy: number, crit = false) {
     const traits = def.traits ?? [];
     const homing = traits.includes('homing');
     const chain = traits.includes('chain');
@@ -365,6 +374,7 @@ export class CombatSystem {
       p.setTintFill(fxColor);
       // 进化形态的主色 + 辅色一起带上，命中处按这个配色出特效
       p.setData('damage', damage);
+      p.setData('crit', crit);
       p.setData('pierce', def.pierce ?? 0);
       p.setData('life', 1600);
       p.setData('moveId', def.id);
@@ -376,7 +386,7 @@ export class CombatSystem {
       // 电系：不发弹体，直接从施法者身上放射电弧并结算伤害
       if (def.style === 'lightning') {
         this.killProjectile(p);
-        this.fireLightning(def, damage, ox, oy, target);
+        this.fireLightning(def, damage, ox, oy, target, crit);
         return;
       }
       p.setData('fx', fxKind);
@@ -463,7 +473,7 @@ export class CombatSystem {
    *   fan  —— 扇形散射多弹道（龙之爪、铁头、火焰踢）
    *   sweep—— 宽扇形弹幕墙（水流尾、叶刃、闪焰冲锋）
    */
-  private fireMelee(def: MoveDef, damage: number, ox: number, oy: number) {
+  private fireMelee(def: MoveDef, damage: number, ox: number, oy: number, crit = false) {
     const traits = def.traits ?? [];
     const flurry = traits.includes('flurry');
     const sweep = traits.includes('sweep');
@@ -483,7 +493,7 @@ export class CombatSystem {
       const vid = this.newVolley();
       for (let i = 0; i < arcs; i++) {
         const a = ang - spread / 2 + (spread * i) / (arcs - 1);
-        this.meleeBolt(ox, oy, a, range, def, damage, 0.34, vid);
+        this.meleeBolt(ox, oy, a, range, def, damage, 0.34, vid, crit);
       }
       this.fx.burst(ox + Math.cos(ang) * 26, oy + Math.sin(ang) * 26, def.color, 8, 130, 2.8, 180);
     } else if (def.style === 'lightning') {
@@ -491,7 +501,7 @@ export class CombatSystem {
       const branches = 3 + Math.min(lvl, 4);
       const spread = 0.5 + lvl * 0.1;
       this.fx.boltArc(ox, oy, ang, range, def.color, spread, branches);
-      this.damageArc(ox, oy, ang, range, spread, damage, def);
+      this.damageArc(ox, oy, ang, range, spread, damage, def, crit);
     } else if (flurry) {
       // 并排弹道齐射：3 条 → 5 条，间距逐渐拉开
       const lanes = 3 + Math.min(Math.floor(lvl / 2), 2);
@@ -502,7 +512,7 @@ export class CombatSystem {
         const px = ox + Math.cos(ang + Math.PI / 2) * off;
         const py = oy + Math.sin(ang + Math.PI / 2) * off;
         if (def.style === 'fist') this.fx.fistWave(px, py, ang, def.color);
-        this.meleeBolt(px, py, ang, range * 1.15, def, damage, 0.26, vid);
+        this.meleeBolt(px, py, ang, range * 1.15, def, damage, 0.26, vid, crit);
       }
     } else {
       // 扇形散射：弹道数量随等级增加
@@ -513,7 +523,7 @@ export class CombatSystem {
       for (let i = 0; i < shots; i++) {
         const a = ang - spread / 2 + (spread * i) / Math.max(1, shots - 1);
         if (def.style === 'fist') this.fx.fistWave(ox, oy, a, def.color);
-        this.meleeBolt(ox, oy, a, range, def, damage, 0.3, vid);
+        this.meleeBolt(ox, oy, a, range, def, damage, 0.3, vid, crit);
       }
     }
   }
@@ -533,19 +543,19 @@ export class CombatSystem {
   /** 电系投射：从施法者向外放电，命中沿电弧路径的敌人 */
   private fireLightning(
     def: MoveDef, damage: number, ox: number, oy: number,
-    target: Phaser.Physics.Arcade.Sprite | null,
+    target: Phaser.Physics.Arcade.Sprite | null, crit = false,
   ) {
     const range = Math.min((def.range ?? 300) * 1.5, this.screenAimRadius());
     const ang = target ? Math.atan2(target.y - oy, target.x - ox) : this.playerAngle();
     // 主束 + 两侧小分叉
     this.fx.boltArc(ox, oy, ang, range, def.color, 0.34, 3);
-    this.damageArc(ox, oy, ang, range, 0.34, damage, def);
+    this.damageArc(ox, oy, ang, range, 0.34, damage, def, crit);
   }
 
   /** 对一段扇形电弧内的敌人结算伤害（每个敌人只吃一次） */
   private damageArc(
     ox: number, oy: number, ang: number, range: number,
-    spread: number, damage: number, def: MoveDef,
+    spread: number, damage: number, def: MoveDef, crit = false,
   ) {
     const hit = new Set<Phaser.Physics.Arcade.Sprite>();
     this.enemies.forEachActive((e) => {
@@ -556,7 +566,7 @@ export class CombatSystem {
       let diff = Math.abs(Phaser.Math.Angle.Wrap(ea - ang));
       if (diff > spread / 2 + 0.12) return;
       hit.add(e);
-      this.hitEnemy(e, damage, this.evoHitPayload(def.id));
+      this.hitEnemy(e, damage, this.evoHitPayload(def.id), crit);
     });
   }
 
@@ -564,7 +574,7 @@ export class CombatSystem {
   private meleeBolt(
     ox: number, oy: number, ang: number, range: number,
     def: MoveDef, damage: number, scale: number,
-    volleyId?: number,
+    volleyId?: number, crit = false,
   ) {
     const p = this.projectiles.get(ox, oy, 'dot') as Phaser.Physics.Arcade.Image | null;
     if (!p) return;
@@ -573,6 +583,7 @@ export class CombatSystem {
     p.setTintFill(def.color);
     p.setScale(scale);
     p.setData('damage', damage);
+    p.setData('crit', crit);
     p.setData('pierce', def.traits?.includes('pierce') ? 1 : 0);
     p.setData('life', (range / speed) * 1000);
     p.setData('moveId', def.id);
@@ -587,7 +598,7 @@ export class CombatSystem {
     this.fx.castPulse(ox, oy, def.color, 16);
   }
 
-  private fireAoe(def: MoveDef, damage: number, ox: number, oy: number) {
+  private fireAoe(def: MoveDef, damage: number, ox: number, oy: number, crit = false) {
     const traits = def.traits ?? [];
     const slam = traits.includes('slam');
     const shockwave = traits.includes('shockwave');
@@ -636,11 +647,11 @@ export class CombatSystem {
 
     const evoHit = this.evoHitPayload(def.id);
     this.enemies.forEachActive((e) => {
-      if (Phaser.Math.Distance.Between(cx, cy, e.x, e.y) <= radius) this.hitEnemy(e, damage, evoHit);
+      if (Phaser.Math.Distance.Between(cx, cy, e.x, e.y) <= radius) this.hitEnemy(e, damage, evoHit, crit);
     });
   }
 
-  private fireAura(def: MoveDef, damage: number, ox: number, oy: number) {
+  private fireAura(def: MoveDef, damage: number, ox: number, oy: number, crit = false) {
     // 范围收敛：判定半径按原值一半，每级成长同步缩小
     const radius = (def.range ?? 110) * 0.72 + (this.getMoveLevel(def.id) - 1) * 7;
     const cx = this.player.x, cy = this.player.y;
@@ -697,7 +708,7 @@ export class CombatSystem {
       const evoHit = this.evoHitPayload(def.id);
       this.enemies.forEachActive((e) => {
         if (Phaser.Math.Distance.Between(px, py, e.x, e.y) <= radius) {
-          this.hitEnemy(e, damage * (n === 3 ? 1 : 0.4), evoHit);
+          this.hitEnemy(e, damage * (n === 3 ? 1 : 0.4), evoHit, crit);
         }
       });
       if (n > 1) this.scene.time.delayedCall(350, () => tick(n - 1));
@@ -721,10 +732,11 @@ export class CombatSystem {
     e: Phaser.Physics.Arcade.Sprite,
     damage: number,
     evo?: { color: number; accent: number; particles: number; shake: boolean } | null,
+    crit = false,
   ) {
     this.damageDealt += damage;
     if (evo) this.evoHitFx(e.x, e.y, evo);
-    const died = this.enemies.damage(e, damage, this.now);
+    const died = this.enemies.damage(e, damage, this.now, crit);
     if (died) {
       const kind = e.getData('kind') as string;
       this.kills++;

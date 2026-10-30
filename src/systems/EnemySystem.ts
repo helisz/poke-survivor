@@ -23,19 +23,28 @@ export class EnemySystem {
   }
 
   /** 飘出伤害数字 */
-  showDamage(x: number, y: number, amount: number, kind: string) {
+  showDamage(x: number, y: number, amount: number, kind: string, crit = false) {
     const t = this.dmgPool.pop() ?? this.scene.add.text(0, 0, '', {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontStyle: 'bold', fontSize: '13px',
       color: '#ffffff', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(40);
     t.setActive(true).setVisible(true).setAlpha(1).setScale(1);
     t.setPosition(x + Phaser.Math.Between(-6, 6), y - 8);
+    // 暴击不带「!」后缀只靠颜色+字号区分，避免弹幕时满屏感叹号太吵
     t.setText(String(Math.round(amount)));
-    t.setFontSize(kind === 'boss' ? 17 : kind === 'elite' ? 15 : 12);
-    t.setColor(kind === 'normal' ? '#ffffff' : '#ffd75e');
+    const baseSize = kind === 'boss' ? 17 : kind === 'elite' ? 15 : 12;
+    if (crit) {
+      // 暴击：红色 + 比同级常规数字大 30%
+      t.setFontSize(Math.round(baseSize * 1.3));
+      t.setColor('#ff4d4d');
+    } else {
+      t.setFontSize(baseSize);
+      t.setColor(kind === 'normal' ? '#ffffff' : '#ffd75e');
+    }
+    // 暴击飘得更高、停得更久，观赏性更强
     this.scene.tweens.add({
-      targets: t, y: t.y - 26, alpha: 0,
-      duration: 550, ease: 'Quad.easeOut',
+      targets: t, y: t.y - (crit ? 34 : 26), alpha: 0,
+      duration: crit ? 700 : 550, ease: 'Quad.easeOut',
       onComplete: () => { t.setActive(false).setVisible(false); this.dmgPool.push(t); },
     });
   }
@@ -301,12 +310,12 @@ export class EnemySystem {
     this.drawHpBars();
   }
 
-  damage(e: Phaser.Physics.Arcade.Sprite, amount: number, time: number) {
+  damage(e: Phaser.Physics.Arcade.Sprite, amount: number, time: number, crit = false) {
     const hp = (e.getData('hp') as number) - amount;
     e.setData('hp', hp);
     e.setTint(0xffffff);
     e.setData('flashUntil', time + 70);
-    this.showDamage(e.x, e.y, amount, e.getData('kind') as string);
+    this.showDamage(e.x, e.y, amount, e.getData('kind') as string, crit);
     if (hp <= 0) {
       this.recycle(e);
       return true;

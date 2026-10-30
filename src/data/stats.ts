@@ -22,6 +22,10 @@ export interface PlayerStats {
   expMul: number;
   damageTakenMul: number;
   radius: number;
+  /** 暴击率（0~1）。出手时按此概率判定暴击。 */
+  critChance: number;
+  /** 暴击伤害倍率。1.5 = 比正常伤害多 50%。 */
+  critMul: number;
 }
 
 export const BASE_STATS: PlayerStats = {
@@ -29,6 +33,8 @@ export const BASE_STATS: PlayerStats = {
   // 经验获取提升 50%：1 → 1.5。局外「悟性」和学者特性都在这个基数上乘算，
   // 所以它们的效果也同步被放大。
   pickup: 85, expMul: 1.5, damageTakenMul: 3, radius: 11,
+  // 暴击：8% 概率打出 1.5 倍伤害（比正常多 50%）
+  critChance: 0.08, critMul: 1.5,
 };
 
 export const MAX_SLOTS = 6;
@@ -79,6 +85,8 @@ export interface PermLevels {
   hp: number;        // 最大 HP +12/级
   damage: number;    // 伤害 +6%/级
   speed: number;     // 移速 +4%/级
+  critRate: number;  // 暴击率 +0.5%/级
+  critDmg: number;   // 暴击伤害 +3%/级
   pickup: number;    // 拾取范围 +10%/级
   exp: number;       // 经验 +8%/级
   cd: number;        // 冷却 -4%/级
@@ -86,7 +94,7 @@ export interface PermLevels {
 }
 
 export const PERM_EMPTY: PermLevels = {
-  hp: 0, damage: 0, speed: 0, pickup: 0, exp: 0, cd: 0, gamble: 0,
+  hp: 0, damage: 0, speed: 0, critRate: 0, critDmg: 0, pickup: 0, exp: 0, cd: 0, gamble: 0,
 };
 
 /** 所有强化项统一 10 级上限 */
@@ -135,6 +143,10 @@ export const PERM_UPGRADES = [
   { key: 'hp',     name: '体魄', max: PERM_MAX_LEVEL, gainAt: ramp(0.01, 0.03) },
   { key: 'damage', name: '威力', max: PERM_MAX_LEVEL, gainAt: ramp(0.01, 0.10) },
   { key: 'speed',  name: '脚力', max: PERM_MAX_LEVEL, gainAt: flat(0.01) },
+  // 暴击率：10 级累计正好 +5%（8% → 13%）。曲线递增，单级 0.24% → 0.76%
+  { key: 'critRate', name: '锐眼', max: PERM_MAX_LEVEL, gainAt: ramp(0.0024, 0.0076) },
+  // 暴击伤害：10 级累计正好 +25%（1.5x → 1.75x）。曲线递增，单级 1.19% → 3.81%
+  { key: 'critDmg',  name: '怒击', max: PERM_MAX_LEVEL, gainAt: ramp(0.0119, 0.0381) },
   { key: 'pickup', name: '磁引', max: PERM_MAX_LEVEL, gainAt: ramp(0.01, 0.03) },
   { key: 'exp',    name: '悟性', max: PERM_MAX_LEVEL, gainAt: ramp(0.03, 0.10) },
   { key: 'cd',     name: '节律', max: PERM_MAX_LEVEL, gainAt: flat(0.01) },
@@ -183,7 +195,9 @@ export function permCost(key: PermKey, level: number): number {
     const i = Math.max(0, Math.min(GAMBLE_COSTS.length - 1, Math.floor(level)));
     return GAMBLE_COSTS[i];
   }
-  return permCostAtLevel(level + 1);
+  const base = permCostAtLevel(level + 1);
+  // 暴击两项是稀有属性，价格按普通属性的 3 倍收
+  return key === 'critRate' || key === 'critDmg' ? base * 3 : base;
 }
 
 /** 把永久升级折算进一局的开局属性（增益按累积曲线算，不是简单乘级数） */
@@ -193,6 +207,10 @@ export function applyPerm(stats: PlayerStats, perm: PermLevels): PlayerStats {
   s.hp = s.maxHp;
   s.damageMul *= 1 + permTotal('damage', perm.damage);
   s.speed *= 1 + permTotal('speed', perm.speed);
+  // 暴击率是加法（0.08 → 0.13），不是乘法
+  s.critChance += permTotal('critRate', perm.critRate);
+  // 暴击伤害也是加法（1.5 → 1.8），不是乘法
+  s.critMul += permTotal('critDmg', perm.critDmg);
   s.pickup *= 1 + permTotal('pickup', perm.pickup);
   s.expMul *= 1 + permTotal('exp', perm.exp);
   s.cooldownMul *= Math.max(0.5, 1 - permTotal('cd', perm.cd));
