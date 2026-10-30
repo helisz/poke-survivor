@@ -174,6 +174,10 @@ export class GameScene extends Phaser.Scene {
     // 默认 1：曾经的 ?? 3 是测试期为了快速升级硬塞的，会让所有玩家的
     // 经验获取变成 3 倍（把基础 1.5 顶成 4.5），正式版必须归位。
     this.player.stats.expMul *= save.devExpMul ?? 1;
+    // 镜头拉近 1.25 倍：人物/怪物/地图一起放大，可视范围收窄约 36%。
+    // 刷怪半径、离屏回收、伤害数字换算都走 cam.zoom，会自动跟着收缩，
+    // 不需要另外调参。
+    this.cameras.main.setZoom(1.25);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
     this.enemies = new EnemySystem(this);
