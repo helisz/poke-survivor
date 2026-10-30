@@ -89,6 +89,10 @@ export class GameScene extends Phaser.Scene {
   /** 本局累计得分（击杀分 + 通关奖励）。UIScene 每帧读取显示。 */
   score = 0;
   private bossSkillTimer = 0;
+  /** 冰系 BOSS 命中后的减速状态（避免重复命中叠加） */
+  private frostActive = false;
+  private frostBaseSpeed = 0;
+  private frostTimer?: Phaser.Time.TimerEvent;
   private bossBarBg?: Phaser.GameObjects.Rectangle;
   private bossBarFill?: Phaser.GameObjects.Rectangle;
   private bossNameText?: Phaser.GameObjects.Text;
@@ -1203,34 +1207,38 @@ export class GameScene extends Phaser.Scene {
   private onFinalBossAnnounce() {
     const w = this.scale.width, h = this.scale.height;
     const narrow = w < 640;
-    const barW = Math.min(narrow ? w - 60 : 460, w - 60);
-    const barH = 12;
+    // 主相机是 zoom=1.25，GameScene 里的 HUD 会被一起放大。
+    // setScrollFactor(0) 只固定位置、不取消缩放，所以这里要把尺寸先除掉 zoom，
+    // 渲染回屏幕上才是预期的像素尺寸 —— 否则 330px 的血条会被画成 413px 直接溢出屏幕。
+    const z = this.cameras.main.zoom || 1;
+    const barW = (Math.min(narrow ? w - 60 : 460, w - 60)) / z;
+    const barH = 12 / z;
     // 底部已有技能栏 + 属性图标 + 摇杆区，血条放在它们上方
     const y = h - (narrow ? 170 : 120);
 
     // 名字
     const bossLabel = `${this.bossPokemonName ?? '终局'} · 终局`;
-    this.bossNameText = this.add.text(w / 2, y - 24, bossLabel, {
+    this.bossNameText = this.add.text(w / 2, y - 24 / z, bossLabel, {
       fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
-      fontSize: narrow ? '15px' : '17px', fontStyle: 'bold', color: '#ff6b6b',
-      stroke: '#1a0000', strokeThickness: 4,
+      fontSize: `${(narrow ? 15 : 17) / z}px`, fontStyle: 'bold', color: '#ff6b6b',
+      stroke: '#1a0000', strokeThickness: 4 / z,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(420);
 
     // 底槽
     this.bossBarBg = this.add.rectangle(w / 2, y, barW, barH, 0x1a0a10, 0.9)
       .setOrigin(0.5).setScrollFactor(0).setDepth(420)
-      .setStrokeStyle(1.5, 0x8b1a2b);
+      .setStrokeStyle(1.5 / z, 0x8b1a2b);
 
     // 血条本体：左端固定在底槽左侧，用 scaleX 从左往右收缩
-    this.bossBarFill = this.add.rectangle(w / 2 - barW / 2, y, barW, barH - 4, 0xd63b4d, 1)
+    this.bossBarFill = this.add.rectangle(w / 2 - barW / 2, y, barW, barH - 4 / z, 0xd63b4d, 1)
       .setOrigin(0, 0.5).setScrollFactor(0).setDepth(421);
     this.bossBarW = barW;
 
     // 顶部大字宣告
     const banner = this.add.text(w / 2, h * 0.38, 'BOSS 来袭', {
       fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
-      fontSize: narrow ? '38px' : '48px', fontStyle: 'bold', color: '#ff4d4d',
-      stroke: '#000000', strokeThickness: 6,
+      fontSize: `${(narrow ? 38 : 48) / z}px`, fontStyle: 'bold', color: '#ff4d4d',
+      stroke: '#000000', strokeThickness: 6 / z,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(420).setAlpha(0).setScale(0.6);
 
     this.tweens.add({
@@ -1239,8 +1247,8 @@ export class GameScene extends Phaser.Scene {
     });
 
     // 提示：击杀才能过关
-    this.add.text(w / 2, y + 22, '击杀 BOSS 才能过关', {
-      fontFamily: 'sans-serif', fontSize: narrow ? '11px' : '12px', color: '#ffb3b3',
+    this.add.text(w / 2, y + 22 / z, '击杀 BOSS 才能过关', {
+      fontFamily: 'sans-serif', fontSize: `${(narrow ? 11 : 12) / z}px`, color: '#ffb3b3',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(420).setName('bossHint');
   }
 
@@ -1273,54 +1281,186 @@ export class GameScene extends Phaser.Scene {
     (this.children.getByName('bossHint') as Phaser.GameObjects.Text)?.destroy();
   }
 
-  /** 终局 BOSS 技能：冲锋 + 环形弹幕 */
+  /** 终局 BOSS 技能：按属性走不同招式，每招都带粒子效果 */
   private updateBossSkill(dtMs: number) {
     const boss = this.bossRef;
     if (!boss || !boss.active || !boss.getData('isFinal')) return;
 
     this.bossSkillTimer += dtMs;
-    if (this.bossSkillTimer < 2600) return;
+    if (this.bossSkillTimer < 2400) return;
     this.bossSkillTimer = 0;
-    Sfx.bossSkill();
 
     const hp = boss.getData('hp') as number;
     const maxHp = boss.getData('maxHp') as number;
     const enraged = hp / Math.max(1, maxHp) < 0.4;
+    const prof = this.bossProfile();
+    Sfx.bossSkill();
 
-    // 技能一：向玩家冲锋
-    const ang = Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
-    const dash = enraged ? 620 : 450;
-    boss.setVelocity(Math.cos(ang) * dash, Math.sin(ang) * dash);
-    this.time.delayedCall(420, () => {
-      if (boss.active) boss.setVelocity(0, 0);
-    });
-    // 冲锋拖尾
-    this.combat.fx.burst(boss.x, boss.y, 0xff4d4d, 14, 220, 4, 320);
+    switch (prof.kind) {
+      case 'dragon': this.skillDragonRush(boss, prof, enraged); break;
+      case 'storm':  this.skillThunderStorm(boss, prof, enraged); break;
+      case 'ice':    this.skillIceShards(boss, prof, enraged); break;
+      case 'water':  this.skillTidalWave(boss, prof, enraged); break;
+      case 'rock':   this.skillRockQuake(boss, prof, enraged); break;
+      default:       this.skillPsyWave(boss, prof, enraged); break;
+    }
+  }
 
-    // 技能二：环形弹幕（血量低时多一圈）
-    this.time.delayedCall(520, () => {
+  /** 按 BOSS 种类给出招式配置：颜色、粒子数、弹速都跟着属性走 */
+  private bossProfile(): { kind: string; main: number; accent: number; motes: number } {
+    switch (this.bossPokemonId) {
+      case 150: return { kind: 'psy',    main: 0xc060ff, accent: 0xff7ae0, motes: 22 }; // 超梦：超能紫
+      case 151: return { kind: 'psy',    main: 0xff8ad0, accent: 0xffe0f4, motes: 26 }; // 梦幻：粉光
+      case 145: return { kind: 'storm',  main: 0xffe74d, accent: 0x8ad0ff, motes: 24 }; // 闪电鸟：雷黄
+      case 144: return { kind: 'ice',    main: 0x7fd8ff, accent: 0xe6f9ff, motes: 24 }; // 急冻鸟：冰蓝
+      case 131: return { kind: 'water',  main: 0x4aa8ff, accent: 0xa8e4ff, motes: 22 }; // 拉普拉斯：水蓝
+      case 112: return { kind: 'rock',   main: 0xc08a4a, accent: 0xf0d59a, motes: 20 }; // 钻角犀兽：土石
+      default:  return { kind: 'psy',    main: 0xff4d4d, accent: 0xffb3b3, motes: 18 };
+    }
+  }
+
+  /** 地面系：震地 + 碎石飞溅 */
+  private skillRockQuake(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean) {
+    const fx = this.combat.fx;
+    // 蓄力：脚下尘环
+    fx.shockRing(boss.x, boss.y, prof.accent, 30, 260);
+    this.cameras.main.shake(120, 0.004);
+
+    this.time.delayedCall(340, () => {
       if (!boss.active) return;
-      const rings = enraged ? 2 : 1;
-      for (let r = 0; r < rings; r++) {
-        const n = 10;
-        for (let i = 0; i < n; i++) {
-          const a = (Math.PI * 2 * i) / n + r * 0.3;
-          this.spawnBossBullet(boss.x, boss.y, a, enraged ? 210 : 175);
-        }
+      const n = enraged ? 14 : 10;
+      const baseAng = Math.random() * Math.PI * 2;
+      for (let i = 0; i < n; i++) {
+        const a = baseAng + (Math.PI * 2 * i) / n;
+        this.spawnBossBullet(boss.x, boss.y, a, enraged ? 240 : 200, prof.main, 2.2);
       }
-      this.cameras.main.shake(180, 0.006);
+      fx.burst(boss.x, boss.y, prof.accent, prof.motes, 280, 5, 520);
+      fx.shockRing(boss.x, boss.y, prof.main, 110, 380);
+      this.cameras.main.shake(240, 0.009);
+    });
+  }
+
+  /** 水系：浪涌三连，扇形推进 */
+  private skillTidalWave(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean) {
+    const fx = this.combat.fx;
+    const ang = Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
+    const waves = enraged ? 3 : 2;
+    for (let w = 0; w < waves; w++) {
+      this.time.delayedCall(w * 220, () => {
+        if (!boss.active) return;
+        const n = enraged ? 13 : 11;
+        for (let i = 0; i < n; i++) {
+          const spread = (i / (n - 1) - 0.5) * 1.9;
+          this.spawnBossBullet(boss.x, boss.y, ang + spread, 190 + w * 25, prof.main, 2.4);
+        }
+        fx.burst(boss.x, boss.y, prof.accent, 12, 190, 3.5, 380);
+        fx.castPulse(boss.x, boss.y, prof.accent, 26);
+      });
+    }
+    this.cameras.main.shake(140, 0.004);
+  }
+
+  /** 冰系：冰棱散射，命中冻结减速 */
+  private skillIceShards(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean) {
+    const fx = this.combat.fx;
+    const ang = Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
+    fx.castPulse(boss.x, boss.y, prof.accent, 30);
+
+    this.time.delayedCall(300, () => {
+      if (!boss.active) return;
+      const n = enraged ? 9 : 7;
+      for (let i = 0; i < n; i++) {
+        const a = ang + (i / (n - 1) - 0.5) * 1.4;
+        this.spawnBossBullet(boss.x, boss.y, a, 260, prof.main, 2.6, true);
+      }
+      // 冰霜炸开：一排小碎晶
+      for (let i = 0; i < 6; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const d = 30 + Math.random() * 40;
+        fx.burst(boss.x + Math.cos(a) * d, boss.y + Math.sin(a) * d, prof.accent, 6, 120, 3, 460);
+      }
+      this.cameras.main.shake(160, 0.005);
+    });
+  }
+
+  /** 电系：落雷三连，每道上一击落点周边再炸一圈 */
+  private skillThunderStorm(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean) {
+    const fx = this.combat.fx;
+    const strikes = enraged ? 4 : 3;
+    for (let k = 0; k < strikes; k++) {
+      this.time.delayedCall(k * 300, () => {
+        if (!boss.active) return;
+        // 第一道砸玩家当前位置附近，后续随机偏移，避免全部重叠
+        const jitter = k === 0 ? 0 : 90;
+        const tx = this.player.x + Phaser.Math.Between(-jitter, jitter);
+        const ty = this.player.y + Phaser.Math.Between(-jitter, jitter);
+        // 从 BOSS 到落点拉一条电弧
+        fx.bolt(boss.x, boss.y, tx, ty, prof.main);
+        fx.burst(tx, ty, prof.main, prof.motes, 260, 4, 460);
+        fx.shockRing(tx, ty, prof.accent, 80, 320);
+        // 落点伤害
+        const d = Phaser.Math.Distance.Between(tx, ty, this.player.x, this.player.y);
+        if (d < 54) this.player.takeDamage(enraged ? 12 : 10);
+        this.cameras.main.shake(150, 0.006);
+      });
+    }
+  }
+
+  /** 超能系：念力脉冲 + 追踪光球 */
+  private skillPsyWave(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean) {
+    const fx = this.combat.fx;
+    // 蓄力环：向外扩散两层
+    fx.shockRing(boss.x, boss.y, prof.accent, 40, 400);
+    this.time.delayedCall(150, () => {
+      if (boss.active) fx.shockRing(boss.x, boss.y, prof.main, 64, 460);
+    });
+
+    this.time.delayedCall(420, () => {
+      if (!boss.active) return;
+      const n = enraged ? 6 : 4;
+      const baseAng = Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
+      for (let i = 0; i < n; i++) {
+        const a = baseAng + (i / n) * Math.PI * 2;
+        this.spawnBossBullet(boss.x, boss.y, a, 165, prof.main, 3.0);
+      }
+      fx.burst(boss.x, boss.y, prof.accent, prof.motes, 230, 4, 520);
+      fx.castPulse(boss.x, boss.y, prof.main, 40);
+    });
+  }
+
+  /** 龙/近战系：冲锋突进 + 冲击波 */
+  private skillDragonRush(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean) {
+    const fx = this.combat.fx;
+    const ang = Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
+    const dash = enraged ? 640 : 480;
+    boss.setVelocity(Math.cos(ang) * dash, Math.sin(ang) * dash);
+    fx.burst(boss.x, boss.y, prof.main, prof.motes, 250, 4.5, 380);
+    this.cameras.main.shake(120, 0.004);
+
+    this.time.delayedCall(420, () => {
+      if (!boss.active) return;
+      boss.setVelocity(0, 0);
+      fx.shockRing(boss.x, boss.y, prof.accent, 90, 340);
+      fx.burst(boss.x, boss.y, prof.accent, 16, 200, 4, 420);
+      // 冲锋后甩一圈弹
+      const n = enraged ? 12 : 8;
+      for (let i = 0; i < n; i++) {
+        const a = (Math.PI * 2 * i) / n;
+        this.spawnBossBullet(boss.x, boss.y, a, enraged ? 220 : 185, prof.main, 2.2);
+      }
     });
   }
 
   /** BOSS 弹幕 */
-  private spawnBossBullet(x: number, y: number, ang: number, speed: number) {
+  private spawnBossBullet(x: number, y: number, ang: number, speed: number,
+                          color = 0xff3355, scale = 1.6, frost = false) {
     const b = this.physics.add.image(x, y, 'dot')
-      .setDepth(7).setTintFill(0xff3355).setScale(1.6);
+      .setDepth(7).setTintFill(color).setScale(scale);
     const body = b.body as Phaser.Physics.Arcade.Body;
     body.setEnable(true);
     body.setCircle(6, -2, -2);
     b.setVelocity(Math.cos(ang) * speed, Math.sin(ang) * speed);
-    this.combat.fx.burst(x, y, 0xff3355, 3, 90, 2, 180);
+    this.combat.fx.burst(x, y, color, 3, 90, 2, 180);
 
     // 命中玩家判定
     const timer = this.time.addEvent({
@@ -1328,14 +1468,35 @@ export class GameScene extends Phaser.Scene {
         if (!b.active) { timer.remove(); return; }
         const d = Phaser.Math.Distance.Between(b.x, b.y, this.player.x, this.player.y);
         if (d < 22) {
-          this.player.takeDamage(14);
-          this.combat.fx.burst(b.x, b.y, 0xff3355, 8, 160, 3, 220);
+          this.player.takeDamage(frost ? 9 : 14);
+          if (frost) {
+            // 冰弹命中附带减速：把移速压到 70%，1.2 秒后恢复
+            this.applyFrost();
+          }
+          this.combat.fx.burst(b.x, b.y, color, 8, 160, 3, 220);
           b.destroy(); timer.remove();
         }
       },
     });
     // 3.2 秒后自动销毁
     this.time.delayedCall(3200, () => { if (b.active) b.destroy(); timer.remove(); });
+  }
+
+  /** 冰弹命中：短暂减速。重复命中不叠加，只重置计时 */
+  private applyFrost() {
+    const st = this.player.stats;
+    if (!this.frostActive) {
+      this.frostActive = true;
+      this.frostBaseSpeed = st.speed;
+      st.speed *= 0.7;
+    }
+    this.frostTimer?.remove();
+    this.frostTimer = this.time.delayedCall(1200, () => {
+      if (this.frostActive) {
+        st.speed = this.frostBaseSpeed;
+        this.frostActive = false;
+      }
+    });
   }
 
   private endRun(survived: boolean) {
