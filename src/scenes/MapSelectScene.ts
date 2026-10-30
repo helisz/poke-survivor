@@ -1,13 +1,12 @@
 import Phaser from 'phaser';
 import { MAP_THEMES, STAGE_COUNT } from '../data/maps';
-import { loadSave, writeSave } from '../data/stats';
+import { loadSave } from '../data/stats';
 import { formatScore } from '../data/score';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
 import { attachPressFeedback } from '../ui/Feedback';
 import { RoundedPanel } from '../ui/RoundedPanel';
-import { devRevealed } from '../ui/devGate';
 
 /** 每张地图在列表里的图标符号 */
 const THEME_GLYPH: Record<string, string> = {
@@ -44,9 +43,6 @@ export class MapSelectScene extends Phaser.Scene {
   }[] = [];
   private startBtn!: RoundedPanel;
   private startTxt!: Phaser.GameObjects.Text;
-  private lockBtn!: Phaser.GameObjects.Container;
-  private lockIcon!: Phaser.GameObjects.Text;
-  private lockLabel!: Phaser.GameObjects.Text;
 
   create() {
     installTextTextureCleanup(this);
@@ -74,8 +70,6 @@ export class MapSelectScene extends Phaser.Scene {
     this.buildCards(width, height);
     this.buildBackButton();
     this.buildStartButton(width, height);
-    // 解锁开关已移到主页开发者面板；选关页只在开发者模式开启时才保留这个快捷锁
-    if (devRevealed()) this.buildDevLock(width, height);
     this.refresh();
   }
 
@@ -176,36 +170,6 @@ export class MapSelectScene extends Phaser.Scene {
     });
   }
 
-  /** 右下角开发者锁：切换「按进度锁定 / 全部解锁」 */
-  private buildDevLock(width: number, height: number) {
-    const x = width - 40;
-    const y = height - 26;
-    this.lockBtn = this.add.container(x, y);
-
-    const bg = this.add.circle(0, 0, 16, UI.secondary, 0.92)
-      .setStrokeStyle(1.5, UI.primaryStroke, 0.75).setInteractive({ useHandCursor: true });
-      attachPressFeedback(bg);
-    this.lockIcon = this.add.text(0, 0, '🔒', {
-      fontFamily: '"Apple Symbols", sans-serif', fontSize: '14px', color: TEXT.gold,
-    }).setOrigin(0.5);
-    this.lockLabel = this.add.text(-24, 0, '', {
-      fontFamily: 'sans-serif', fontSize: '10px', color: TEXT.dim,
-    }).setOrigin(1, 0.5);
-
-    this.lockBtn.add([bg, this.lockIcon, this.lockLabel]);
-
-    bg.on('pointerdown', (p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
-      ev?.stopPropagation?.();
-      this.save = loadSave();
-      this.save.devAllStages = !this.save.devAllStages;
-      writeSave(this.save);
-      Sfx.select();
-      // 全解锁关掉后，若当前选中的关卡超出真实进度，清掉选择
-      if (this.selected !== null && this.selected > this.maxUnlockedIndex()) this.selected = null;
-      this.refresh();
-    });
-  }
-
   private refresh() {
     const maxIdx = this.maxUnlockedIndex();
 
@@ -238,11 +202,5 @@ export class MapSelectScene extends Phaser.Scene {
     this.startBtn.setStrokeStyle(2, ok ? UI.primaryStroke : UI.disabledStroke);
     this.startTxt.setColor(ok ? TEXT.onPrimary : TEXT.off);
     this.startTxt.setText(ok ? `开始第 ${(this.selected ?? 0) + 1} 关` : '请选择关卡');
-
-    // 锁图标反映当前模式
-    const allOpen = !!this.save.devAllStages;
-    this.lockIcon.setText(allOpen ? '🔓' : '🔒');
-    this.lockLabel.setText(allOpen ? '全解锁' : '已锁定');
-    this.lockLabel.setColor(allOpen ? TEXT.gold : TEXT.dim);
   }
 }
