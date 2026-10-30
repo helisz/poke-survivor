@@ -17,6 +17,9 @@ export class BootScene extends Phaser.Scene {
     // 训练家 4 帧图集：down/up/left/right
     this.load.spritesheet('ash', 'trainer/ash_sheet.png', { frameWidth: 48, frameHeight: 48 });
 
+    // 游戏 logo（透明底 PNG）
+    this.load.image('logo', 'logo.png');
+
     for (const id of POKEMON_IDS) {
       const key = `pk_${id}`;
       this.load.image(key, `pokemon/${String(id).padStart(3, '0')}.png`);
