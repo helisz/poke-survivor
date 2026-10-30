@@ -1,9 +1,19 @@
 import Phaser from 'phaser';
-import { MAP_THEMES, STAGE_COUNT, stageScale } from '../data/maps';
+import { MAP_THEMES, STAGE_COUNT } from '../data/maps';
 import { loadSave, writeSave } from '../data/stats';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
+
+/** 每张地图在列表里的图标符号 */
+const THEME_GLYPH: Record<string, string> = {
+  grassland: '❀',
+  forest: '♣',
+  cave: '◈',
+  swamp: '≈',
+  volcano: '▲',
+  ruins: '⌘',
+};
 
 /**
  * 第一步：选关。
@@ -23,6 +33,9 @@ export class MapSelectScene extends Phaser.Scene {
     name: Phaser.GameObjects.Text;
     sub: Phaser.GameObjects.Text;
     lock: Phaser.GameObjects.Text;
+    icon: Phaser.GameObjects.Rectangle;
+    glyph: Phaser.GameObjects.Text;
+    base: number;
     locked: boolean;
   }[] = [];
   private startBtn!: Phaser.GameObjects.Rectangle;
@@ -71,40 +84,41 @@ export class MapSelectScene extends Phaser.Scene {
     const topLimit = height * 0.21;
     const bottomLimit = height - 132;
     const gap = 8;
-    const cols = 2;
-    const cardW = Math.min((width - 44 - gap) / cols, 190);
-    const rows = Math.ceil(STAGE_COUNT / cols);
-    const cardH = Math.min((bottomLimit - topLimit - gap * (rows - 1)) / rows, 96);
-    const gridW = cardW * cols + gap * (cols - 1);
-    const left = width / 2 - gridW / 2;
+    // 单列列表：一行一关
+    const cardW = Math.min(width - 44, 340);
+    const cardH = Math.min((bottomLimit - topLimit - gap * (STAGE_COUNT - 1)) / STAGE_COUNT, 64);
+    const iconSize = Math.min(cardH - 14, 46);
 
     MAP_THEMES.forEach((theme, i) => {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const x = left + col * (cardW + gap) + cardW / 2;
-      const y = topLimit + row * (cardH + gap) + cardH / 2;
+      const x = width / 2;
+      const y = topLimit + i * (cardH + gap) + cardH / 2;
 
       const box = this.add.rectangle(x, y, cardW, cardH, UI.card)
         .setStrokeStyle(2, UI.cardStroke)
         .setInteractive({ useHandCursor: true });
 
-      // 地图配色小色块，作为关卡识别的视觉锚点
-      const swatch = this.add.rectangle(x - cardW / 2 + 18, y, 22, cardH - 26, theme.base)
-        .setStrokeStyle(1, theme.ambient, 0.6);
+      // 方形图标块：地图配色打底 + 装饰符号，作为关卡识别锚点
+      const left = x - cardW / 2;
+      const iconCx = left + 12 + iconSize / 2;
+      const icon = this.add.rectangle(iconCx, y, iconSize, iconSize, theme.base)
+        .setStrokeStyle(1.5, theme.ambient, 0.85);
+      const glyph = this.add.text(iconCx, y, THEME_GLYPH[theme.id] ?? '·', {
+        fontFamily: '"Apple Symbols", sans-serif', fontSize: `${Math.round(iconSize * 0.55)}px`,
+        color: '#ffffff',
+      }).setOrigin(0.5).setAlpha(0.9);
 
-      const name = this.add.text(x - cardW / 2 + 36, y - 14, theme.name, {
+      const textX = iconCx + iconSize / 2 + 12;
+      const name = this.add.text(textX, y - 9, theme.name, {
         fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
         fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0, 0.5);
 
-      const scale = stageScale(i);
-      const sub = this.add.text(x - cardW / 2 + 36, y + 10,
-        `第 ${i + 1} 关 · 血 ${scale.hp.toFixed(2)}× 攻 ${scale.atk.toFixed(2)}×`, {
-          fontFamily: 'sans-serif', fontSize: '9px', color: '#6f8ea6',
-        }).setOrigin(0, 0.5);
+      const sub = this.add.text(textX, y + 11, `第 ${i + 1} 关`, {
+        fontFamily: 'sans-serif', fontSize: '10px', color: '#6f8ea6',
+      }).setOrigin(0, 0.5);
 
-      const lock = this.add.text(x + cardW / 2 - 16, y - cardH / 2 + 14, '🔒', {
-        fontFamily: '"Apple Symbols", sans-serif', fontSize: '13px', color: '#6f8ea6',
+      const lock = this.add.text(x + cardW / 2 - 16, y, '🔒', {
+        fontFamily: '"Apple Symbols", sans-serif', fontSize: '14px', color: '#6f8ea6',
       }).setOrigin(0.5).setVisible(false);
 
       box.on('pointerdown', () => this.choose(i));
@@ -115,8 +129,7 @@ export class MapSelectScene extends Phaser.Scene {
         if (this.selected !== i) box.setStrokeStyle(2, this.cards[i]?.locked ? UI.cardStroke : UI.cardStroke);
       });
 
-      void swatch;
-      this.cards.push({ index: i, box, name, sub, lock, locked: false });
+      this.cards.push({ index: i, box, name, sub, lock, icon, glyph, base: theme.base, locked: false });
     });
   }
 
@@ -195,12 +208,16 @@ export class MapSelectScene extends Phaser.Scene {
         c.name.setColor('#5a6b78');
         c.sub.setColor('#3f4c56');
         c.lock.setVisible(true);
+        c.icon.setFillStyle(0x1a1f24);
+        c.glyph.setAlpha(0.28);
       } else {
         c.box.setFillStyle(on ? UI.cardOn : UI.card);
         c.box.setStrokeStyle(on ? 2.5 : 2, on ? UI.primary : UI.cardStroke);
         c.name.setColor('#ffffff');
         c.sub.setColor('#6f8ea6');
         c.lock.setVisible(false);
+        c.icon.setFillStyle(c.base);
+        c.glyph.setAlpha(0.9);
       }
     }
 
