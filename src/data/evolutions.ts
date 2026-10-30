@@ -138,6 +138,57 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   ],
 };
 
+/**
+ * 多级进化阶梯：每 5 级一阶。
+ *
+ * 原伦理只有一段（如皮卡丘→雷丘）。要在雷丘之后再进化，就得有下一段数据，
+ * 但素材库里没有「雷丘的下一形态」，所以这里做的是**同名强化阶**：
+ * 用同一个 toId/name，但伤害倍率继续叠、名字加星号后缀。
+ * 视觉上靠技能栏星标区分（1 星→2 星→3 星）。
+ */
+export interface EvoLadderStep {
+  def: EvolutionDef;
+  /** 招式等级门槛：第 n 阶要 Lv.(5 * n) */
+  moveLevel: number;
+}
+
+/** 每阶额外叠加的伤害倍率（第 1 阶用原表数据，之后每阶 +25%） */
+const LADDER_STEP_DMG = 1.25;
+/** 每阶额外叠加的冷却缩减（之后每阶 ×0.94） */
+const LADDER_STEP_CD = 0.94;
+/** 最多几阶（对应技能栏最多 3 颗星） */
+export const MAX_EVO_STAGE = 3;
+
+/**
+ * 取某个招式「当前进化次数 stage」之后的下一次进化。
+ * stage = 0 → 原伦理第一段；
+ * stage ≥ 1 → 阶梯阶（招式 Lv.5×(stage+1) 解锁）。
+ * 返回 null 表示已到顶。
+ */
+export function evoLadderFor(moveId: string, stage: number): EvoLadderStep | null {
+  const chain = EVOLUTIONS[moveId];
+  if (!chain || !chain.length) return null;
+  if (stage >= MAX_EVO_STAGE) return null;
+
+  if (stage === 0) {
+    return { def: chain[0], moveLevel: MOVE_LEVEL_EVOLVE_AT };
+  }
+
+  // 第 2 阶起：沿用第一段的形态，倍数继续叠，名字加星
+  const base = chain[0];
+  const starCount = stage + 1;
+  return {
+    def: {
+      ...base,
+      name: `${base.name} ${'★'.repeat(starCount)}`,
+      dmgMul: base.dmgMul * Math.pow(LADDER_STEP_DMG, stage),
+      cdMul: Math.max(0.45, base.cdMul * Math.pow(LADDER_STEP_CD, stage)),
+      note: `${base.note}（第 ${starCount} 阶强化）`,
+    },
+    moveLevel: 5 * (stage + 1),
+  };
+}
+
 /** 判断单条条件是否满足 */
 export function condMet(
   c: EvolveCond,

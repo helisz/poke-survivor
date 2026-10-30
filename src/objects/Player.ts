@@ -8,6 +8,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   hurtTimer = 0;
   moves: string[] = [];
   private followers: Phaser.GameObjects.Image[] = [];
+  /** 每个跟随宝可梦脚下一片阴影（浮空 → 阴影比本体更靠下） */
+  private followerShadows: Phaser.GameObjects.Ellipse[] = [];
+  /** 主角脚下的阴影 */
+  private heroShadow?: Phaser.GameObjects.Ellipse;
   private followerRadius = Math.round(46 * GLOBAL_SCALE);
   private bob = 0;
   /** 走路动画相位：只在移动时推进，停下归零 */
@@ -36,6 +40,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // 与普通怪同尺寸（普通怪 0.62 × 0.75 全局缩放 ≈ 0.465）
     this.setScale(PLAYER_SCALE);
     this.walkBaseScale = PLAYER_SCALE;
+
+    // 主角脚下阴影：贴地，宽度跟随角色，压在地面之上、角色之下
+    this.heroShadow = scene.add.ellipse(x, y + 14, 34, 13, 0x000000, 0.32)
+      .setDepth(6);
   }
 
   private applyTrait(trait: TraitId) {
@@ -68,6 +76,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const fx = this.x + 0;
     const img = this.scene.add.image(fx, this.y, key).setScale(0.375 * GLOBAL_SCALE).setDepth(9);
     this.followers.push(img);
+    // 浮空宝可梦的阴影：只画在地上，不跟着本体上浮
+    const sh = this.scene.add.ellipse(fx, this.y + 18, 24, 9, 0x000000, 0.26).setDepth(6);
+    this.followerShadows.push(sh);
   }
 
   /** 进化换图：follower 顺序与招式槽一致 */
@@ -97,6 +108,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       const ty = this.y + Math.sin(ang) * this.followerRadius;
       f.setPosition(Phaser.Math.Linear(f.x, tx, 0.25), Phaser.Math.Linear(f.y, ty, 0.25));
       f.setDepth(this.y > f.y ? 8 : 11);
+      // 阴影跟随水平位置，但纵向固定偏下 —— 宝可梦是浮空的，
+      // 影子落在地面上，玩家能一眼看出「它在飘」
+      const sh = this.followerShadows[i];
+      if (sh) {
+        sh.x = f.x;
+        sh.y = f.y + 16;
+        sh.setDepth(6);
+      }
     });
   }
 
@@ -186,6 +205,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   updateTimers(dt: number) {
     if (this.hurtTimer > 0) this.hurtTimer -= dt;
+    // 主角阴影贴地跟随，宽度随走路挤压轻微变化
+    if (this.heroShadow) {
+      this.heroShadow.x = this.x;
+      this.heroShadow.y = this.y + 14;
+    }
   }
 
   get isDead() { return this.stats.hp <= 0; }

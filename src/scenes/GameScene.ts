@@ -10,9 +10,9 @@ import { Ground } from '../systems/Ground';
 import { PickupSystem } from '../systems/PickupSystem';
 import { PICKUP_DEFS, type PickupKind } from '../data/pickups';
 import type { TraitId } from '../data/stats';
-import { EVOLUTIONS, canEvolve, type EvolutionDef } from '../data/evolutions';
+import { EVOLUTIONS, canEvolve, evoLadderFor, type EvolutionDef } from '../data/evolutions';
 import { applyPerm, rerollsPerRun } from '../data/stats';
-import { POKEMON_PLAYABLE } from '../data/pokedex';
+import { POKEMON_PLAYABLE, POKEDEX_NAME } from '../data/pokedex';
 import { UI } from '../ui/Theme';
 
 export interface UpgradeOption {
@@ -88,6 +88,9 @@ export class GameScene extends Phaser.Scene {
   private bossBarBg?: Phaser.GameObjects.Rectangle;
   private bossBarFill?: Phaser.GameObjects.Rectangle;
   private bossNameText?: Phaser.GameObjects.Text;
+  /** 终局 BOSS 实际刷出的宝可梦（决定血条名字） */
+  private bossPokemonName?: string;
+  private bossPokemonId?: number;
   private bossBarW = 300;
   private orbGroup!: Phaser.Physics.Arcade.Group;
   private healGroup!: Phaser.Physics.Arcade.Group;
@@ -299,7 +302,12 @@ export class GameScene extends Phaser.Scene {
     const boss = this.enemies.spawn('boss', p.x, p.y, 1, 1, 30);
     this.bossRef = boss;
     if (boss) {
-      // 终局 BOSS 血更厚，标记身份
+      // 记住实际刷出来的是哪只 BOSS：血条上的名字必须跟着贴图走，
+      // 不能写死「黑化超梦」—— BOSS_POOL 里还有班基拉斯。
+      const texKey = boss.texture.key;
+      const pkId = Number(texKey.replace('pk_', ''));
+      this.bossPokemonName = POKEDEX_NAME[pkId] ?? '神秘 BOSS';
+      this.bossPokemonId = pkId;
       // BOSS 血量同样吃关卡倍率；终局 BOSS 血量翻倍（6600 → 13200 基础）
       const hp = 3000 * 2.2 * 2 * this.stageScale.hp;
       boss.setData('hp', hp);
@@ -774,12 +782,19 @@ export class GameScene extends Phaser.Scene {
       const chain = EVOLUTIONS[moveId];
       if (!chain) continue;
       const stage = this.combat.getEvoStage(moveId);
-      // 一局每个招式最多进化 1 次（策划案：一局最多进化 2 次，按招式计）
-      if (stage >= 1) continue;
-      const next = chain[stage];
-      if (!next) continue;
-      // 招式自身等级也参与判定：练到 Lv.8 就能进化，不必等玩家总等级
+      // 允许逐级进化：已进化 N 次 → 下一次要满足「招式 Lv.(5×(N+1))」
+      const ladder = evoLadderFor(moveId, stage);
+      if (!ladder) continue;
+      const next = ladder.def;
       const moveCtx = { ...ctx, moveLevel: this.combat.getMoveLevel(moveId) };
+      // 多级进化只看招式等级门槛（每 5 级一次），不再看玩家总等级/时长
+      if (stage > 0) {
+        if (this.combat.getMoveLevel(moveId) >= ladder.moveLevel) {
+          out.push({ moveId, evo: next });
+        }
+        continue;
+      }
+      // 第一次进化：老规则保留（玩家等级 / 存活时长 / 招式 8 级任一）
       if (canEvolve(next, moveCtx)) out.push({ moveId, evo: next });
     }
     return out;
@@ -817,10 +832,15 @@ export class GameScene extends Phaser.Scene {
     for (const id of owned) {
       const def = MOVES[id];
       const lv = this.combat.getMoveLevel(id);
+      // 进化后：卡面用进化后的招式名和宝可梦，玩家看到的就是雷丘而不是皮卡丘
+      const evoName = this.combat.getEvoName(id);
+      const displayName = evoName ?? def.name;
+      const displayPokeId = this.combat.getDisplayPokeId(id) ?? def.pokeId;
       pool.push({
-        kind: 'upgrade', id: `up_${id}`, title: `${def.name}  Lv.${lv + 1}`,
+        kind: 'upgrade', id: `up_${id}`, title: `${displayName}  Lv.${lv + 1}`,
         desc: `伤害 +18%（当前 Lv.${lv}）`, color: def.color,
-        pokeId: def.pokeId, pokeName: this.pokeNameOf(id),
+        pokeId: displayPokeId,
+        pokeName: POKEDEX_NAME[displayPokeId] ?? this.pokeNameOf(id),
         apply: () => this.combat.upgradeMove(id),
       });
     }
@@ -987,7 +1007,8 @@ export class GameScene extends Phaser.Scene {
     const y = h - (narrow ? 170 : 120);
 
     // 名字
-    this.bossNameText = this.add.text(w / 2, y - 24, '黑化超梦 · 终局', {
+    const bossLabel = `${this.bossPokemonName ?? '终局'} · 终局`;
+    this.bossNameText = this.add.text(w / 2, y - 24, bossLabel, {
       fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
       fontSize: narrow ? '15px' : '17px', fontStyle: 'bold', color: '#ff6b6b',
       stroke: '#1a0000', strokeThickness: 4,

@@ -9,6 +9,10 @@ export class LevelUpScene extends Phaser.Scene {
   private vertical = false;
   /** 卡片容器：重掷时整体清空重画 */
   private cardGroup!: Phaser.GameObjects.Container;
+  /** 最后一张卡的下沿 y，用于把重掷按钮贴上去 */
+  private lastCardBottom = 0;
+  /** 重掷按钮的容器（重掷/改布局时整体重排） */
+  private rerollBox?: Phaser.GameObjects.Container;
 
   constructor() { super('LevelUp'); }
 
@@ -48,13 +52,17 @@ export class LevelUpScene extends Phaser.Scene {
    * 重掷不消耗等级，只是重摇三张卡。
    */
   private buildRerollButton(width: number, height: number) {
-    const y = height - 58;
-    const w = 150, h = 40;
-    const bg = this.add.rectangle(width / 2, y, w, h, UI.secondary)
+    // 贴第三张卡正下方居中，比原来小一圈（150×40 → 116×30）
+    const w = 116, h = 30;
+    const y = Math.min(this.lastCardBottom + 18 + h / 2, height - 24);
+    const box = this.add.container(width / 2, y);
+    const bg = this.add.rectangle(0, 0, w, h, UI.secondary)
       .setStrokeStyle(2, UI.primaryStroke);
-    const label = this.add.text(width / 2, y, '', {
-      fontFamily: 'sans-serif', fontSize: '14px', fontStyle: 'bold', color: TEXT.gold,
+    const label = this.add.text(0, 0, '', {
+      fontFamily: 'sans-serif', fontSize: '12px', fontStyle: 'bold', color: TEXT.gold,
     }).setOrigin(0.5);
+    box.add([bg, label]);
+    this.rerollBox = box;
 
     const refresh = () => {
       const n = this.gs.rerollsLeft;
@@ -66,6 +74,8 @@ export class LevelUpScene extends Phaser.Scene {
     };
     this.refreshReroll = refresh;
     refresh();
+    // 重掷会重建卡片，按钮跟着新的最后一张卡重新贴位
+    this.repositionReroll();
 
     bg.setInteractive({ useHandCursor: true });
     bg.on('pointerdown', () => this.reroll());
@@ -74,6 +84,14 @@ export class LevelUpScene extends Phaser.Scene {
   }
 
   private refreshReroll: () => void = () => {};
+
+  /** 把重掷按钮贴到当前最后一张卡的正下方居中 */
+  private repositionReroll() {
+    if (!this.rerollBox) return;
+    const { width, height } = this.scale;
+    this.rerollBox.x = width / 2;
+    this.rerollBox.y = Math.min(this.lastCardBottom + 18 + 15, height - 24);
+  }
 
   /** 花一次重掷，换一批新卡 */
   private reroll() {
@@ -84,6 +102,7 @@ export class LevelUpScene extends Phaser.Scene {
     this.options = this.gs.buildUpgradeOptions();
     this.renderCards();
     this.refreshReroll();
+    this.repositionReroll();
   }
 
   private renderCards() {
@@ -108,6 +127,13 @@ export class LevelUpScene extends Phaser.Scene {
       }
       this.makeCard(opt, i, x, y, cardW, cardH);
     });
+
+    // 记住最后一张卡的下沿，重掷按钮要贴它正下方居中
+    const lastY = this.vertical
+      ? Math.max(height * 0.20, (height - (n * cardH + (n - 1) * gap)) / 2 - height * 0.06)
+        + (n - 1) * (cardH + gap) + cardH / 2
+      : height * 0.56;
+    this.lastCardBottom = lastY + cardH / 2;
   }
 
   private makeCard(opt: UpgradeOption, index: number, x: number, y: number, w: number, h: number) {

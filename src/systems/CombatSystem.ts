@@ -152,6 +152,11 @@ export class CombatSystem {
     return s?.evoPokeId ?? MOVES[moveId]?.pokeId;
   }
 
+  /** 某招式进化后名字（未进化返回 undefined，卡面据此决定显示原始名） */
+  getEvoName(moveId: string) {
+    return this.slots.find((x) => x.moveId === moveId)?.evoName;
+  }
+
   /** 某招式当前显示名（进化后是进化名） */
   getDisplayName(moveId: string) {
     const s = this.slots.find((x) => x.moveId === moveId);
