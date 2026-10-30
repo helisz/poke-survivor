@@ -60,7 +60,7 @@ export class UIScene extends Phaser.Scene {
   private dmgFlash?: Phaser.GameObjects.Text;
 
   /** 布局参数，唯一由 relayout() 计算 */
-  private L = { hpW: 200, hpH: 14, hpY: 56, barW: 300, slotSize: 42, slotGap: 9, slotY: 600 };
+  private L = { hpW: 200, hpH: 14, hpY: 56, barW: 300, slotSize: 48, slotGap: 5, slotY: 600 };
 
   constructor() { super('UI'); }
 
@@ -208,14 +208,12 @@ export class UIScene extends Phaser.Scene {
     this.killText.setPosition(pad, hpY + hpH / 2 + 26);
 
     // 招式槽贴底，只留一点边距；属性强化一行移到它上面
-    // 格子缩小一点、间隙加大：原 46/6 的圆角+描边在视觉上黏成一排，
-    // 缩小到 42/9 后每格轮廓能分开
-    const size = narrow ? 34 : 42;
+    const size = narrow ? 40 : 48;
     const safeBottom = this.readSafeBottom();
     // 技能槽离屏幕底部的最小留白（手机安全区 + 视觉呼吸）
     const edgeGap = (narrow ? 14 : 16) + safeBottom;
     this.L.slotSize = size;
-    this.L.slotGap = narrow ? 7 : 9;
+    this.L.slotGap = narrow ? 4 : 5;
     this.L.slotY = height - edgeGap - size / 2;
 
     this.layoutSlots();
@@ -335,7 +333,7 @@ export class UIScene extends Phaser.Scene {
     while (this.slotIcons.length < MAX_SLOTS) {
       const i = this.slotIcons.length;
       // 技能栏不加阴影：格子贴在一起，投影会串成一圈黑框
-      const box = new RoundedPanel(this, 0, 0, 42, 42, 0x0e1a24, 1, { radius: 8 })
+      const box = new RoundedPanel(this, 0, 0, 48, 48, 0x0e1a24, 1, { radius: 0 })
         .setStrokeStyle(2, UI.cardStroke)
         .setDepth(500);
       box.setShadowVisible(false);
@@ -349,7 +347,7 @@ export class UIScene extends Phaser.Scene {
 
       // 独立透明命中层：不参与视觉，只负责点击，尺寸可以给得很大
       // （视觉框本身不做 interactive，避免 setSize 每帧重置 hitArea 导致点不中）
-      const hit = this.add.rectangle(0, 0, 42, 42, 0xffffff, 0)
+      const hit = this.add.rectangle(0, 0, 48, 48, 0xffffff, 0)
         .setDepth(504)
         .setInteractive({ useHandCursor: true });
       hit.on('pointerdown', () => this.showMoveTip(i));
