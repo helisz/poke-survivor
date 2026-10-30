@@ -29,11 +29,18 @@ export function attachPressFeedback(
 
   const pressScale = opts.scale ?? 0.96;
   const baseAlpha = opts.alpha ?? 1;
-  // 记录原始缩放，回弹时还原（不同卡片的基准缩放不一样）
+
+  // 圆角面板是 Container：直接缩容器会把 hitArea 一起缩小，
+  // 鼠标停在原位就被判成「移出」→ 反复触发 pointerout，按下状态丢失。
+  // 所以这类对象只缩内部图形，命中的矩形尺寸始终不变。
+  const rounded = obj as unknown as { popScale?: (s: number) => void };
+  const usePop = typeof rounded.popScale === 'function';
+
   let baseScaleX = (target as unknown as { scaleX: number }).scaleX ?? 1;
   let baseScaleY = (target as unknown as { scaleY: number }).scaleY ?? 1;
 
   const onDown = () => {
+    if (usePop) { rounded.popScale!(pressScale); return; }
     baseScaleX = (target as unknown as { scaleX: number }).scaleX ?? 1;
     baseScaleY = (target as unknown as { scaleY: number }).scaleY ?? 1;
     (target as unknown as { setScale: (x: number, y?: number) => void })
@@ -41,6 +48,7 @@ export function attachPressFeedback(
     (target as unknown as { setAlpha: (a: number) => void }).setAlpha(Math.min(1, baseAlpha));
   };
   const onUp = () => {
+    if (usePop) { rounded.popScale!(1); return; }
     (target as unknown as { setScale: (x: number, y?: number) => void })
       .setScale(baseScaleX, baseScaleY);
     (target as unknown as { setAlpha: (a: number) => void }).setAlpha(baseAlpha);

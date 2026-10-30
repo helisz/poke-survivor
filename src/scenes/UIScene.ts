@@ -332,9 +332,11 @@ export class UIScene extends Phaser.Scene {
     // 改为场景顶层独立对象，统一由 layoutSlots() 摆放。
     while (this.slotIcons.length < MAX_SLOTS) {
       const i = this.slotIcons.length;
+      // 技能栏不加阴影：格子贴在一起，投影会串成一圈黑框
       const box = new RoundedPanel(this, 0, 0, 46, 46, 0x0e1a24, 1, { radius: 9 })
         .setStrokeStyle(2, UI.cardStroke)
         .setDepth(500);
+      box.setShadowVisible(false);
       const icon = this.add.image(0, 0, 'pk_25').setScale(0.55).setDepth(501).setVisible(false);
       const lv = this.add.text(0, 0, '1', {
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '11px', color: '#ffffff', fontStyle: 'bold',
@@ -581,6 +583,7 @@ export class UIScene extends Phaser.Scene {
     while (this.pickupChips.length < entries.length) {
       const bg = new RoundedPanel(this, 0, 0, size + 34, size, UI.card, 0.92, { radius: 8 })
         .setStrokeStyle(1.5, UI.cardStroke).setDepth(40);
+      bg.setShadowVisible(false);
       const icon = this.add.image(0, 0, 'pk_magnet')
         .setDisplaySize(size - 6, size - 6).setDepth(41);
       const txt = this.add.text(0, 0, '', {

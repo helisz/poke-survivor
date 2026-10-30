@@ -36,10 +36,13 @@ export class MenuScene extends Phaser.Scene {
     //  b) 显示尺寸取纹理尺寸的整数分之一（资源 800 宽 → 显示 400），
     //     整数比缩放时每个目标像素正好落在源像素中心，不会串色。
     const logoW = Math.min(width - 68, 400);
-    const logoH = logoW * (246 / 800);
+    // 新 logo 原图 1258×382，按原比例算高
+    const logoH = logoW * (382 / 1258);
     const logo = this.add.image(width / 2, height / 3, 'logo')
       .setDisplaySize(logoW, logoH).setDepth(20);
-    logo.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    // 新 logo 是 1258×382 的精细像素画，缩放后要用 LINEAR，
+    // NEAREST 会让抗锯齿好的原图缩出硬台阶
+    logo.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
 
     // ② 左上角：金币（带硬币图标）+ 下方最长生存
     const padX = 18;
