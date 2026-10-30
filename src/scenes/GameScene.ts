@@ -14,6 +14,7 @@ import { EVOLUTIONS, canEvolve, evoLadderFor, type EvolutionDef } from '../data/
 import { applyPerm, rerollsPerRun } from '../data/stats';
 import { POKEMON_PLAYABLE, POKEDEX_NAME, BOSS_POOL } from '../data/pokedex';
 import { ensureSprites } from '../data/lazySprites';
+import { killScore, clearBonus, type ScoreKind } from '../data/score';
 import { UI } from '../ui/Theme';
 
 export interface UpgradeOption {
@@ -85,6 +86,8 @@ export class GameScene extends Phaser.Scene {
   private bossRef: Phaser.Physics.Arcade.Sprite | null = null;
   /** 终局 BOSS：时间到后刷出，击杀才过关 */
   private finalBossSpawned = false;
+  /** 本局累计得分（击杀分 + 通关奖励）。UIScene 每帧读取显示。 */
+  score = 0;
   private bossSkillTimer = 0;
   private bossBarBg?: Phaser.GameObjects.Rectangle;
   private bossBarFill?: Phaser.GameObjects.Rectangle;
@@ -181,6 +184,12 @@ export class GameScene extends Phaser.Scene {
       // 经验随时间成长：前 60 秒 1×，之后线性提升，5 分钟时约 2.6×
       const t = this.elapsed;
       const timeMul = 1 + Math.min(t / 200, 1.6);
+      // 记分：终局 BOSS 用 finalboss 档，中途 BOSS 用 miniboss 档
+      const kind = isBoss
+        ? (this.finalBossSpawned ? 'finalboss' : 'miniboss')
+        : isElite ? 'elite' : 'normal';
+      this.score += killScore(kind, this.mapIndex, t);
+
       const base = isBoss ? 120 : isElite ? 36 : 2;
       const mapExp = this.ground.theme.expMul ?? 1;
       this.dropOrb(x, y, Math.max(1, Math.round(base * timeMul * mapExp)), isElite, isBoss);
@@ -1187,6 +1196,23 @@ export class GameScene extends Phaser.Scene {
       }
       if (changed) { sv.seenEnemies = [...seen]; writeSave(sv); }
     }
+    // 通关奖励：只有活到最后并击杀终局 BOSS 才有
+    if (survived) {
+      this.score += clearBonus(this.mapIndex);
+    }
+
+    // 写入本关最高分 + 判断是否破纪录
+    const sv2 = loadSave();
+    const best = Array.isArray(sv2.stageBest) && sv2.stageBest.length === STAGE_COUNT
+      ? [...sv2.stageBest] : new Array(STAGE_COUNT).fill(0);
+    const prevBest = best[this.mapIndex] ?? 0;
+    const isNewRecord = this.score > prevBest;
+    if (isNewRecord) {
+      best[this.mapIndex] = this.score;
+      sv2.stageBest = best;
+      writeSave(sv2);
+    }
+
     // 通关：解锁下一关（只在真实进度上前进，不受开发者全解锁影响）
     if (survived) {
       const sv = loadSave();
@@ -1204,6 +1230,9 @@ export class GameScene extends Phaser.Scene {
       time: this.elapsed,
       level: this.level,
       kills: this.combat.kills,
+      score: this.score,
+      prevBest,
+      isNewRecord,
     });
   }
 

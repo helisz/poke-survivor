@@ -70,6 +70,8 @@ export interface SaveData {
   seenPartners: number[];
   /** 图鉴：在场上见过（作为敌人/BOSS 出现过）的宝可梦 id */
   seenEnemies: number[];
+  /** 每关历史最高分。下标 = 关卡序号（0~5），无记录为 0。 */
+  stageBest: number[];
 }
 
 /** 局外永久升级：等级越高越强，用金币购买 */
@@ -211,6 +213,10 @@ export function loadSave(): SaveData {
         perm: { ...PERM_EMPTY, ...(raw2.perm ?? {}) },
         seenPartners: raw2.seenPartners ?? [],
         seenEnemies: raw2.seenEnemies ?? [],
+        // 老存档没有这个字段：补 6 个 0，不能因为缺字段就当存档损坏
+        stageBest: Array.isArray(raw2.stageBest) && raw2.stageBest.length === 6
+          ? raw2.stageBest.map((v: unknown) => (typeof v === 'number' && isFinite(v) ? v : 0))
+          : [0, 0, 0, 0, 0, 0],
       };
       // 迁移：devExpMul 的默认值曾经是 3（测试期快速升级），正式版改成 1。
       // 老存档里存的 3 不是玩家自己调的，直接归位；玩家手动改过的其它值保留。
@@ -221,6 +227,7 @@ export function loadSave(): SaveData {
   return {
     coins: 0, bestTime: 0, unlocked: [], devDmgMul: 1, devTakenMul: 1, devExpMul: 1,
     stageProgress: 0, devAllStages: false, seenPartners: [], seenEnemies: [],
+    stageBest: [0, 0, 0, 0, 0, 0],
     perm: { ...PERM_EMPTY },
   };
 }

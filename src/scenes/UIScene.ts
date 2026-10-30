@@ -10,6 +10,7 @@ import { installTextTextureCleanup, abandonRun } from '../systems/SceneFlow';
 import { PICKUP_DEFS } from '../data/pickups';
 import { UI, TEXT } from '../ui/Theme';
 import { RoundedPanel } from '../ui/RoundedPanel';
+import { formatScore } from '../data/score';
 
 /** 招式类别中文名 */
 const CAT_ZH: Record<string, string> = {
@@ -33,6 +34,7 @@ export class UIScene extends Phaser.Scene {
   private timeText!: Phaser.GameObjects.Text;
   private lvText!: Phaser.GameObjects.Text;
   private killText!: Phaser.GameObjects.Text;
+  private scoreText!: Phaser.GameObjects.Text;
   private slotIcons: {
     box: Phaser.GameObjects.Rectangle | RoundedPanel;
     icon: Phaser.GameObjects.Image;
@@ -89,6 +91,10 @@ export class UIScene extends Phaser.Scene {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '15px', color: TEXT.gold, fontStyle: 'bold',
     });
     this.killText = this.add.text(0, 0, '击杀 0', {
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '12px', color: '#8fa8b8',
+    });
+    // 分数：和击杀数同字号同色，紧贴在它下面一行
+    this.scoreText = this.add.text(0, 0, '分数 0', {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '12px', color: '#8fa8b8',
     });
 
@@ -206,6 +212,7 @@ export class UIScene extends Phaser.Scene {
     // 等级/击杀：血条下方（不贴底，避开招式槽与手机安全区）
     this.lvText.setPosition(pad, hpY + hpH / 2 + 8);
     this.killText.setPosition(pad, hpY + hpH / 2 + 26);
+    this.scoreText.setPosition(pad, hpY + hpH / 2 + 44);
 
     // 招式槽贴底，只留一点边距；属性强化一行移到它上面
     const size = narrow ? 40 : 48;
@@ -255,6 +262,7 @@ export class UIScene extends Phaser.Scene {
 
     this.lvText.setText(`Lv.${this.gs.level}`);
     this.killText.setText(`击杀 ${this.gs.combat.kills}`);
+    this.scoreText.setText(`分数 ${formatScore(this.gs.score)}`);
 
     this.syncSlots();
     this.drawCooldowns();

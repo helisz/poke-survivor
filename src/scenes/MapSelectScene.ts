@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { MAP_THEMES, STAGE_COUNT } from '../data/maps';
 import { loadSave, writeSave } from '../data/stats';
+import { formatScore } from '../data/score';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
@@ -116,7 +117,10 @@ export class MapSelectScene extends Phaser.Scene {
         fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
       }).setOrigin(0, 0.5);
 
-      const sub = this.add.text(textX, y + 11, `第 ${i + 1} 关`, {
+      // 副标题带历史最高分：没打过显示「—」，避免 0 分看起来像打不过
+      const best = (this.save.stageBest ?? [])[i] ?? 0;
+      const bestTxt = best > 0 ? `最高 ${formatScore(best)}` : '最高 —';
+      const sub = this.add.text(textX, y + 11, `第 ${i + 1} 关 · ${bestTxt}`, {
         fontFamily: 'sans-serif', fontSize: '10px', color: '#6f8ea6',
       }).setOrigin(0, 0.5);
 

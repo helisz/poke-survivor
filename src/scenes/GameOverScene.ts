@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { loadSave, writeSave, PERM_EMPTY } from '../data/stats';
 import { MOVES } from '../data/moves';
 import type { GameScene } from './GameScene';
+import { formatScore } from '../data/score';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
@@ -11,7 +12,10 @@ import { RoundedPanel } from '../ui/RoundedPanel';
 export class GameOverScene extends Phaser.Scene {
   constructor() { super('GameOver'); }
 
-  create(data: { game: GameScene; survived: boolean; time: number; level: number; kills: number }) {
+  create(data: {
+    game: GameScene; survived: boolean; time: number; level: number; kills: number;
+    score?: number; prevBest?: number; isNewRecord?: boolean;
+  }) {
     // 场景 shutdown 时清理本场景 Text 的 canvas 纹理，防止重建时命中已销毁帧
     installTextTextureCleanup(this);
     const { width, height } = this.scale;
@@ -54,7 +58,8 @@ export class GameOverScene extends Phaser.Scene {
     const tstr = `${m}:${String(s).padStart(2, '0')}`;
 
     // 主要数据
-    const rows = [
+    const rows: [string, string][] = [
+      ['本局得分', formatScore(data.score ?? 0)],
       ['生存时间', tstr],
       ['等级', `Lv.${data.level}`],
       ['击杀数', `${data.kills}`],

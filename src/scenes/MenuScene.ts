@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { loadSave } from '../data/stats';
+import { formatScore } from '../data/score';
 import { openDevPanel, makeDevButton } from '../ui/DevPanel';
 import { openHelpPanel } from '../ui/HelpPanel';
 import { Sfx } from '../systems/Sfx';
@@ -48,6 +49,22 @@ export class MenuScene extends Phaser.Scene {
     this.add.text(padX, coinY + 24, `最长生存 ${this.fmt(save.bestTime)}`, {
       fontFamily: 'sans-serif', fontSize: '11px', color: '#cfe4f5',
     }).setOrigin(0, 0.5).setDepth(20).setShadow(0, 1, '#041018', 3);
+
+    // 最高关卡 + 那一关的最高分。
+    // 取「有记录的最高关」而不是 stageProgress —— 进度可能停在没打过的关，
+    // 那关分数是 0，显示「第 5 关 0 分」很怪。这里只认真正打出过分的关。
+    {
+      const best = save.stageBest ?? [];
+      let bestStage = -1;
+      let bestScore = 0;
+      best.forEach((v, i) => { if (v > bestScore) { bestScore = v; bestStage = i; } });
+      const label = bestStage >= 0
+        ? `最高 第${bestStage + 1}关 ${formatScore(bestScore)}`
+        : '最高 第—关 —';
+      this.add.text(padX, coinY + 42, label, {
+        fontFamily: 'sans-serif', fontSize: '11px', color: '#8fa8b8',
+      }).setOrigin(0, 0.5).setDepth(20).setShadow(0, 1, '#041018', 3);
+    }
 
     // ③ 底部操作区
     //  上排：「强化」+「图鉴」并排，两个按钮合计宽度/高度与「开始」完全一致
