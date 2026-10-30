@@ -61,6 +61,35 @@ describe('场景渲染顺序', () => {
   });
 });
 
+describe('输入回调里的场景切换', () => {
+  it('goTo 必须先检查 mgr.isProcessing，正在处理中则推迟到下一帧', () => {
+    // 血泪教训：在 pointerdown 回调里直接调 mgr.remove()/add()，Phaser 会把操作
+    // 压进 _queue 延后执行；紧随其后的 add() 于是"再加一个同 key 的场景"，
+    // 与手动改数组顺序的 restoreSceneOrder 互相打架，导致 Game/UI 的 sys
+    // 状态错乱 —— status 显示 RUNNING，getScenes(true) 里却查不到，画面卡死。
+    const src = readFileSync(flowPath, 'utf8');
+    const goToBlock = src.slice(src.indexOf('export function goTo'), src.indexOf('function performGoTo'));
+    expect(goToBlock, 'goTo 未检查 isProcessing').toContain('isProcessing');
+    expect(goToBlock, 'goTo 未把切换推迟到下一帧').toMatch(/requestAnimationFrame/);
+  });
+
+  it('场景管理动作集中在 performGoTo 里，goTo 只做调度', () => {
+    const src = readFileSync(flowPath, 'utf8');
+    expect(src).toContain('function performGoTo');
+    const performBlock = src.slice(src.indexOf('function performGoTo'), src.indexOf('export function abandonRun'));
+    expect(performBlock).toContain('mgr.remove');
+    expect(performBlock).toContain('mgr.add');
+    expect(performBlock).toContain('restoreSceneOrder');
+  });
+
+  it('abandonRun 会先清掉游戏场景的暂停状态', () => {
+    const src = readFileSync(flowPath, 'utf8');
+    const block = src.slice(src.indexOf('export function abandonRun'));
+    expect(block, 'abandonRun 未复位 paused').toContain('paused = false');
+    expect(block, 'abandonRun 未恢复物理世界').toMatch(/physics\?\.world\?\.resume/);
+  });
+});
+
 describe('SceneFlow 统一入口', () => {
   it('模块存在', () => {
     expect(existsSync(flowPath)).toBe(true);

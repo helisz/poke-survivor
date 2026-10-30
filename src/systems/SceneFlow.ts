@@ -104,6 +104,32 @@ export function goTo(
 ) {
   const mgr = scene.scene.manager;
 
+  // 【最关键的坑】Phaser 的 SceneManager 有个 isProcessing 标志。
+  // 在 pointerdown 这类输入回调里调 mgr.remove() / mgr.add()，不会立即执行，
+  // 而是压进 _queue 延后处理。此时紧跟着的 add() 会因为旧场景还没被移除
+  // 而"再加一个同 key 的场景"，同时 restoreSceneOrder 手动改的数组顺序
+  // 和被延迟的 remove 互相打架 —— 结果就是 Game/UI 的 sys 状态错乱：
+  // status 显示 RUNNING，但 getScenes(true) 里查不到，画面卡死不动。
+  //
+  // 解法：把整个切换扔到下一帧（scene.time.delayedCall(0) 走的是场景时钟，
+  // 场景停了就不跑；用 game.loop 的 once('poststep') 更稳）。
+  // 调用方（按钮回调）返回后再执行，isProcessing 已归 false，操作全部同步生效。
+  if (mgr.isProcessing) {
+    // requestAnimationFrame 不依赖场景时钟，即使场景已暂停也会触发
+    requestAnimationFrame(() => performGoTo(mgr, target, data));
+    return;
+  }
+
+  performGoTo(mgr, target, data);
+}
+
+/** 真正的切换逻辑。只做场景管理，不碰任何游戏对象。 */
+function performGoTo(
+  mgr: Phaser.Scenes.SceneManager,
+  target: SceneKeyActivity,
+  data?: Record<string, unknown>,
+) {
+
   // 1. 彻底移除目标场景的旧实例，避免复用带脏状态的 Scene 对象
   //    （Text 纹理已失效、类字段残留旧引用、监听器还挂在旧对象上）
   if (mgr.getScene(target)) {
@@ -146,10 +172,34 @@ export function goTo(
   }
 }
 
-/** 放弃本局：不结算，直接回主菜单 */
+/**
+ * 放弃本局：不结算，直接回主菜单。
+ *
+ * 必须先恢复游戏场景的 paused / 恢复物理与时间，否则即便场景被切走，
+ * 残留的暂停状态也会让下一次开局卡住。
+ */
 export function abandonRun(scene: Phaser.Scene) {
-  const gs = (scene as unknown as { gs?: { paused?: boolean } }).gs;
-  if (gs) gs.paused = false;
+  const gs = (scene as unknown as {
+    gs?: {
+      paused?: boolean;
+      physics?: { world?: { resume?: () => void } };
+    };
+  }).gs;
+  if (gs) {
+    gs.paused = false;
+    try {
+      gs.physics?.world?.resume?.();
+    } catch {
+      /* 已恢复则忽略 */
+    }
+  }
+  // 无论 gs 是否存在，都确保 Game 场景本身不再处于暂停态
+  try {
+    const gameScene = scene.scene.manager.getScene('Game');
+    if (gameScene && gameScene.sys.isPaused()) scene.scene.manager.resume('Game');
+  } catch {
+    /* 已恢复则忽略 */
+  }
   goTo(scene, 'Menu');
 }
 
