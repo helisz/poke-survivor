@@ -74,36 +74,88 @@ export interface PermLevels {
 
 export const PERM_EMPTY: PermLevels = { hp: 0, damage: 0, speed: 0, pickup: 0, exp: 0, cd: 0 };
 
-/** 永久升级定义：max 上限，cost(n) 为从 n 升到 n+1 的金币价 */
+/** 所有强化项统一 10 级上限 */
+export const PERM_MAX_LEVEL = 10;
+
+/** 价格起点与满级点：1 级最便宜，买满（第 10 级）时最贵 */
+export const PERM_COST_MIN = 50;
+export const PERM_COST_MAX = 30000;
+
+/**
+ * 第 n 级（1-based，n=1..10）的购买价。
+ *
+ * 曲线要求：前几级几乎看不出涨（起步平缓），越往后增速越陡。
+ * 用指数 power=5 的归一化曲线：
+ *   p = min + (max-min) * ((n-1)/9)^5
+ * 实际价格 50 / 51 / 66 / 173 / 569 / 1635 / 3994 / 8575 / 16670 / 30000，
+ * 首级只涨 1 金币，最后一级一跃 +13330，正好是「平缓起步 + 尾部急拉」。
+ *
+ * 不用更陡的 power=6：那样第 1、2 级都会取整成 50，价格不再严格递增。
+ */
+export function permCostAtLevel(level: number): number {
+  const n = Math.min(Math.max(level, 1), PERM_MAX_LEVEL);
+  const t = (n - 1) / (PERM_MAX_LEVEL - 1);
+  return Math.round(PERM_COST_MIN + (PERM_COST_MAX - PERM_COST_MIN) * Math.pow(t, 5));
+}
+
+/**
+ * 永久升级定义。
+ *
+ * gainAt(level) 给出「第 level 级这一级」带来的百分比增量：
+ * - from/to 相同 → 每级固定值（脚力、节律）
+ * - from/to 不同 → 从 from 匀速线性升到 to（体魄、威力、磁引、悟性）
+ *
+ * 注意：不是每级固定值，而是每级的增量本身在递增，
+ * 所以满级累计 > 单级最大值 × 级数的一半。见 permTotal。
+ */
+function ramp(from: number, to: number) {
+  return (level: number) => {
+    const n = Math.min(Math.max(level, 1), PERM_MAX_LEVEL);
+    return from + (to - from) * ((n - 1) / (PERM_MAX_LEVEL - 1));
+  };
+}
+const flat = (v: number) => () => v;
+
 export const PERM_UPGRADES = [
-  { key: 'hp',     name: '体魄',   desc: '最大 HP +1%',    max: 20, baseCost: 40,  step: 0.01, fmt: 'pct' },
-  { key: 'damage', name: '威力',   desc: '伤害 +1%',       max: 20, baseCost: 55,  step: 0.01, fmt: 'pct' },
-  { key: 'speed',  name: '脚力',   desc: '移速 +1%',       max: 15, baseCost: 50,  step: 0.01, fmt: 'pct' },
-  { key: 'pickup', name: '磁引',   desc: '拾取范围 +2%',   max: 15, baseCost: 35,  step: 0.02, fmt: 'pct' },
-  { key: 'exp',    name: '悟性',   desc: '经验 +1%',       max: 20, baseCost: 60,  step: 0.01, fmt: 'pct' },
-  { key: 'cd',     name: '节律',   desc: '冷却 -1%',       max: 15, baseCost: 75,  step: 0.01, fmt: 'pct' },
+  { key: 'hp',     name: '体魄', max: PERM_MAX_LEVEL, gainAt: ramp(0.01, 0.03) },
+  { key: 'damage', name: '威力', max: PERM_MAX_LEVEL, gainAt: ramp(0.01, 0.10) },
+  { key: 'speed',  name: '脚力', max: PERM_MAX_LEVEL, gainAt: flat(0.01) },
+  { key: 'pickup', name: '磁引', max: PERM_MAX_LEVEL, gainAt: ramp(0.01, 0.03) },
+  { key: 'exp',    name: '悟性', max: PERM_MAX_LEVEL, gainAt: ramp(0.03, 0.10) },
+  { key: 'cd',     name: '节律', max: PERM_MAX_LEVEL, gainAt: flat(0.01) },
 ] as const;
 
 export type PermKey = keyof PermLevels;
 
-export function permCost(key: PermKey, level: number): number {
+/** 某个强化项升到 level 级时的累计增益（0~1 之间的小数） */
+export function permTotal(key: PermKey, level: number): number {
   const def = PERM_UPGRADES.find((u) => u.key === key)!;
-  // 每购买一次，下一级价格只涨 5%（逐级取整再累乘，避免浮点误差滚雪球）
-  let price: number = def.baseCost;
-  for (let i = 0; i < level; i++) price = Math.round(price * 1.05);
-  return price;
+  let sum = 0;
+  for (let i = 1; i <= level; i++) sum += def.gainAt(i);
+  return sum;
 }
 
-/** 把永久升级折算进一局的开局属性 */
+/** 某一级的单级增益（用于商店展示「本级 +x%」） */
+export function permStep(key: PermKey, level: number): number {
+  const def = PERM_UPGRADES.find((u) => u.key === key)!;
+  return def.gainAt(Math.min(Math.max(level, 1), def.max));
+}
+
+/** 从 level 升到 level+1 的购买价 */
+export function permCost(key: PermKey, level: number): number {
+  return permCostAtLevel(level + 1);
+}
+
+/** 把永久升级折算进一局的开局属性（增益按累积曲线算，不是简单乘级数） */
 export function applyPerm(stats: PlayerStats, perm: PermLevels): PlayerStats {
   const s = { ...stats };
-  s.maxHp *= 1 + perm.hp * 0.01;
+  s.maxHp *= 1 + permTotal('hp', perm.hp);
   s.hp = s.maxHp;
-  s.damageMul *= 1 + perm.damage * 0.01;
-  s.speed *= 1 + perm.speed * 0.01;
-  s.pickup *= 1 + perm.pickup * 0.02;
-  s.expMul *= 1 + perm.exp * 0.01;
-  s.cooldownMul *= Math.max(0.5, 1 - perm.cd * 0.01);
+  s.damageMul *= 1 + permTotal('damage', perm.damage);
+  s.speed *= 1 + permTotal('speed', perm.speed);
+  s.pickup *= 1 + permTotal('pickup', perm.pickup);
+  s.expMul *= 1 + permTotal('exp', perm.exp);
+  s.cooldownMul *= Math.max(0.5, 1 - permTotal('cd', perm.cd));
   return s;
 }
 

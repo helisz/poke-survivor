@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PERM_UPGRADES, permCost, loadSave, writeSave, PERM_EMPTY, type PermKey } from '../data/stats';
+import { PERM_UPGRADES, permCost, permTotal, permStep, loadSave, writeSave, PERM_EMPTY, type PermKey } from '../data/stats';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { makeCoinIcon, makePermIcon } from '../ui/Icons';
@@ -19,6 +19,7 @@ export class ShopScene extends Phaser.Scene {
     icon: Phaser.GameObjects.Image;
     lvText: Phaser.GameObjects.Text;
     totalText: Phaser.GameObjects.Text;
+    stepText: Phaser.GameObjects.Text;
     btn: Phaser.GameObjects.Rectangle;
     btnText: Phaser.GameObjects.Text;
     cost: Phaser.GameObjects.Text;
@@ -89,7 +90,8 @@ export class ShopScene extends Phaser.Scene {
         fontFamily: 'sans-serif', fontSize: '15px', color: '#cfe4f5', fontStyle: 'bold',
       }).setOrigin(0, 0.5);
 
-      this.add.text(textX, line2Y, u.desc, {
+      // 单级增益随等级变化，先占位，refresh 里再填
+      const stepText = this.add.text(textX, line2Y, '', {
         fontFamily: 'sans-serif', fontSize: '11px', color: '#6f8ea6',
       }).setOrigin(0, 0.5);
 
@@ -117,7 +119,7 @@ export class ShopScene extends Phaser.Scene {
 
       btn.on('pointerdown', () => this.buy(u.key));
 
-      this.rows.push({ key: u.key, icon, lvText, totalText, btn, btnText, cost, costIcon });
+      this.rows.push({ key: u.key, icon, lvText, totalText, stepText, btn, btnText, cost, costIcon });
     });
 
     // 底部：重置 + 返回
@@ -191,9 +193,13 @@ export class ShopScene extends Phaser.Scene {
       const def = PERM_UPGRADES.find((u) => u.key === r.key)!;
       const lv = this.save.perm[r.key];
       const maxed = lv >= def.max;
-      const totalPct = (def.step * lv * 100).toFixed(0);
+      const totalPct = (permTotal(r.key, lv) * 100).toFixed(1).replace(/\.0$/, '');
       r.lvText.setText(`Lv.${lv}/${def.max}`);
       r.totalText.setText(lv > 0 ? `累计 +${totalPct}%` : '尚未强化');
+      // 下一级能给多少：满级后显示本级值
+      const nextLv = maxed ? def.max : lv + 1;
+      const stepPct = (permStep(r.key, nextLv) * 100).toFixed(1).replace(/\.0$/, '');
+      r.stepText.setText(`${maxed ? '本级' : '下一级'} +${stepPct}%`);
       if (maxed) {
         r.btnText.setText('已满').setVisible(true);
         r.cost.setText('');

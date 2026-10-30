@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MOVES } from '../src/data/moves';
-import { BASE_STATS, PERM_UPGRADES, permCost } from '../src/data/stats';
+import { BASE_STATS, PERM_UPGRADES, permCost, permTotal } from '../src/data/stats';
 
 const all = Object.values(MOVES);
 
@@ -58,36 +58,35 @@ describe('移动速度：比普通怪快约 10%', () => {
 
   it('永久强化仍能在降速后提升移速', () => {
     const p = { hp: 0, damage: 0, speed: 10, pickup: 0, exp: 0, cd: 0 };
-    const boosted = BASE_STATS.speed * (1 + p.speed * 0.01);
+    const boosted = BASE_STATS.speed * (1 + permTotal('speed', p.speed));
     expect(boosted).toBeGreaterThan(BASE_STATS.speed);
   });
 });
 
-describe('商店价格：每点上涨 5%', () => {
-  it('相邻两级价格正好差 5%', () => {
+describe('商店价格：50 起步、30000 封顶的急拉曲线', () => {
+  it('每级价格都严格递增，且第 1 级 50、第 10 级 30000', () => {
     for (const u of PERM_UPGRADES) {
-      for (let lv = 0; lv < Math.min(u.max - 1, 8); lv++) {
-        const a = permCost(u.key, lv);
-        const b = permCost(u.key, lv + 1);
-        // 金币取整会让低价档位在 4%~6% 间浮动
-        expect(b / a, `${u.name} Lv${lv}→${lv + 1}`).toBeGreaterThanOrEqual(1.04);
-        expect(b / a, `${u.name} Lv${lv}→${lv + 1}`).toBeLessThanOrEqual(1.06);
+      expect(permCost(u.key, 0)).toBe(50);
+      for (let lv = 0; lv < u.max - 1; lv++) {
+        expect(permCost(u.key, lv + 1), `${u.name} Lv${lv}→${lv + 1}`)
+          .toBeGreaterThan(permCost(u.key, lv));
       }
+      expect(permCost(u.key, u.max - 1)).toBe(30000);
     }
   });
 
-  it('涨价比旧版 1.55 平缓得多', () => {
-    const old = PERM_UPGRADES[0].baseCost * Math.pow(1.55, 10);
-    const now = permCost(PERM_UPGRADES[0].key, 10);
-    expect(now).toBeLessThan(old * 0.35);
+  it('前三级几乎没有涨价（平缓起步）', () => {
+    const k = PERM_UPGRADES[0].key;
+    const d1 = permCost(k, 1) - permCost(k, 0);
+    const d2 = permCost(k, 2) - permCost(k, 1);
+    expect(d1).toBeLessThanOrEqual(3);
+    expect(d2).toBeLessThanOrEqual(20);
   });
 
-  it('满级总花费在合理区间', () => {
-    for (const u of PERM_UPGRADES) {
-      let total = 0;
-      for (let i = 0; i < u.max; i++) total += permCost(u.key, i);
-      expect(total, `${u.name} 满级总价`).toBeLessThan(3000);
-      expect(total, `${u.name} 满级总价`).toBeGreaterThan(u.max * u.baseCost * 0.9);
-    }
+  it('最后一级的涨幅是最大的一跳', () => {
+    const k = PERM_UPGRADES[0].key;
+    const last = permCost(k, 9) - permCost(k, 8);
+    const first = permCost(k, 1) - permCost(k, 0);
+    expect(last).toBeGreaterThan(first * 100);
   });
 });
