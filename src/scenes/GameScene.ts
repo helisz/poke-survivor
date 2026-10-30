@@ -170,7 +170,8 @@ export class GameScene extends Phaser.Scene {
     this.baseTakenMul = this.player.stats.damageTakenMul;
     this.baseExpMul = this.player.stats.expMul;
     this.player.stats.damageMul *= save.devDmgMul ?? 1;
-    this.player.stats.damageTakenMul *= save.devTakenMul ?? 0;
+    // 默认 1（正常伤害）。曾经是 ?? 0 = 无敌，字段缺失时会变成打不死
+    this.player.stats.damageTakenMul *= save.devTakenMul ?? 1;
     // 默认 1：曾经的 ?? 3 是测试期为了快速升级硬塞的，会让所有玩家的
     // 经验获取变成 3 倍（把基础 1.5 顶成 4.5），正式版必须归位。
     this.player.stats.expMul *= save.devExpMul ?? 1;
@@ -890,7 +891,8 @@ export class GameScene extends Phaser.Scene {
       }
       if (d < 20) {
         const pct = (h.getData('heal') as number) ?? 0.2;
-        const amount = Math.round(this.player.stats.maxHp * pct);
+        // 活力特性等回血加成：按倍率放大恢复量
+        const amount = Math.round(this.player.stats.maxHp * pct * this.player.stats.healMul);
         this.player.heal(amount);
         Sfx.heal();
         this.combat.fx.burst(h.x, h.y, 0x2bd85a, 14, 200, 3, 300);

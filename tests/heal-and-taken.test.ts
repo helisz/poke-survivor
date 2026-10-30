@@ -37,8 +37,12 @@ describe('回血球掉率曲线', () => {
 });
 
 describe('主角承受伤害', () => {
-  it('基准倍率为 3（是原始 1 倍的三倍）', () => {
-    expect(BASE_STATS.damageTakenMul).toBeCloseTo(3, 4);
+  it('基准倍率为 1（正式版参加 1 倍，3 倍是测试期遗留）', () => {
+    expect(BASE_STATS.damageTakenMul).toBeCloseTo(1, 4);
+  });
+
+  it('受伤加成默认 1，不是 0（0 会变成无敌）', () => {
+    expect(BASE_STATS.damageTakenMul).toBeGreaterThan(0);
   });
 
   it('减伤类特性仍能在此基础上生效', () => {

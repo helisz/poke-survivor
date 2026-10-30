@@ -8,20 +8,22 @@ import { attachPressFeedback } from '../ui/Feedback';
 import { RoundedPanel } from '../ui/RoundedPanel';
 
 /**
- * 强化页：用金币购买局外永久升级（每级仅 1-2%）。
- * 每行：大图标 | 名称 + 单级增益 + 等级/累计 | 购买按钮 + 金额（带硬币图标）。
- * 底部「重置强化」——全部归零并把历史花费退回余额。
+ * 强化页：用金币购买局外永久升级。
+ *
+ * 布局：3 列卡片矩阵。卡片上只有图标、名称、等级、价格按钮。
+ * 具体数值（单级增益、累计增益）不进卡片 —— 点开卡片才在弹层里看。
+ * 这样 9 项能一屏平铺，扫一眼就知道哪个买得起，不被满屏百分比淹。
  */
 export class ShopScene extends Phaser.Scene {
   constructor() { super('Shop'); }
 
   private save = loadSave();
-  private rows: {
+  private cards: {
     key: PermKey;
     icon: Phaser.GameObjects.Image;
+    nameText: Phaser.GameObjects.Text;
     lvText: Phaser.GameObjects.Text;
-    totalText: Phaser.GameObjects.Text;
-    stepText: Phaser.GameObjects.Text;
+    panel: RoundedPanel;
     btn: RoundedPanel;
     btnText: Phaser.GameObjects.Text;
     cost: Phaser.GameObjects.Text;
@@ -29,6 +31,8 @@ export class ShopScene extends Phaser.Scene {
   }[] = [];
   private coinText!: Phaser.GameObjects.Text;
   private recenterCoin: () => void = () => {};
+  /** 详情弹层：同一时刻只开一个 */
+  private sheet?: Phaser.GameObjects.Container;
 
   create() {
     // 场景 shutdown 时清理本场景 Text 的 canvas 纹理，防止重建时命中已销毁帧
@@ -36,117 +40,230 @@ export class ShopScene extends Phaser.Scene {
     const { width, height } = this.scale;
     this.save = loadSave();
     this.save.perm ??= { ...PERM_EMPTY };
-    this.rows = [];
+    this.cards = [];
+    this.sheet = undefined;
 
     this.add.rectangle(width / 2, height / 2, width, height, 0x041018);
     makeCoinIcon(this, 22);
 
-    // 标题 + 余额（右上角，与主菜单一致的硬币样式）
-    this.add.text(width / 2, 34, '强 化', {
+    // 标题 + 余额
+    this.add.text(width / 2, 30, '强 化', {
       fontFamily: 'sans-serif', fontSize: '22px', color: TEXT.gold, fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    const coinX = width / 2;
-    this.coinText = this.add.text(coinX + 11, 62, '', {
+    this.coinText = this.add.text(width / 2 + 11, 58, '', {
       fontFamily: 'sans-serif', fontSize: '17px', color: '#ffd75e', fontStyle: 'bold',
     }).setOrigin(0, 0.5);
-    const coinIcon = this.add.image(coinX - 4, 62, 'ui_coin').setDisplaySize(20, 20);
-    // 让「图标 + 数字」整体居中；数字变化后需重新对齐
+    const coinIcon = this.add.image(width / 2 - 4, 58, 'ui_coin').setDisplaySize(20, 20);
     this.recenterCoin = () => {
       const total = 20 + 4 + this.coinText.width;
       coinIcon.x = width / 2 - total / 2 + 10;
       this.coinText.x = coinIcon.x + 14;
     };
-    this.recenterCoin();
 
-    // 六行：大图标居左，文字列对齐，右侧购买块固定宽度
-    const top = Math.max(96, height * 0.135);
-    const bottom = height - 118;
-    const rowH = Math.min(88, (bottom - top) / PERM_UPGRADES.length);
-    const w = Math.min(width - 28, 460);
-    const left = width / 2 - w / 2;
+    this.buildGrid(width, height);
+    this.buildFooter(width, height);
+    this.refresh();
+  }
 
-    const ICON = 44;
-    const iconX = left + 12 + ICON / 2;      // 图标左内边距 12
-    const textX = iconX + ICON / 2 + 10;     // 文字紧贴图标，间距 10
-    const btnW = 92;
-    const btnX = left + w - btnW / 2 - 12;
+  /** 3 列卡片矩阵 */
+  private buildGrid(width: number, height: number) {
+    const COLS = 3;
+    const top = Math.max(94, height * 0.115);
+    const bottom = height - 74;          // 给底部两个按钮让位
+    const rowCount = Math.ceil(PERM_UPGRADES.length / COLS);
+    const gapX = 10;
+    const gapY = 10;
+    const gridW = Math.min(width - 28, 520);
+    const left = width / 2 - gridW / 2;
+    const cardW = (gridW - gapX * (COLS - 1)) / COLS;
+    const cardH = Math.min(cardW * 1.3, (bottom - top - gapY * (rowCount - 1)) / rowCount);
 
     PERM_UPGRADES.forEach((u, i) => {
-      const cy = top + i * rowH + rowH / 2;
-      const cardH = rowH - 8;
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const cx = left + col * (cardW + gapX) + cardW / 2;
+      const cy = top + row * (cardH + gapY) + cardH / 2;
 
-      new RoundedPanel(this, width / 2, cy, w, cardH, 0x0b1721, 1, { radius: 10 })
-        .setStrokeStyle(1.5, 0x1e3444);
+      const panel = new RoundedPanel(this, cx, cy, cardW, cardH, 0x0b1721, 1, { radius: 12 })
+        .setStrokeStyle(1.5, 0x1e3444)
+        .setInteractive({ useHandCursor: true });
+      attachPressFeedback(panel);
+      panel.on('pointerdown', () => this.openSheet(u.key));
 
-      // 大图标
+      // 图标：卡片上方约 40% 的位置
       const iconKey = makePermIcon(this, u.key);
-      const icon = this.add.image(iconX, cy, iconKey ?? 'ui_coin').setDisplaySize(ICON, ICON);
+      const iconSize = Math.min(cardW * 0.42, 46);
+      const icon = this.add.image(cx, cy - cardH * 0.24, iconKey ?? 'ui_coin')
+        .setDisplaySize(iconSize, iconSize);
 
-      // 文字列：三行都以 textX 左对齐
-      const line1Y = cy - cardH * 0.26;
-      const line2Y = cy;
-      const line3Y = cy + cardH * 0.26;
-
-      this.add.text(textX, line1Y, u.name, {
-        fontFamily: 'sans-serif', fontSize: '15px', color: '#cfe4f5', fontStyle: 'bold',
-      }).setOrigin(0, 0.5);
-
-      // 单级增益随等级变化，先占位，refresh 里再填
-      const stepText = this.add.text(textX, line2Y, '', {
-        fontFamily: 'sans-serif', fontSize: '11px', color: '#6f8ea6',
-      }).setOrigin(0, 0.5);
-
-      const lvText = this.add.text(textX, line3Y, '', {
-        fontFamily: 'sans-serif', fontSize: '11px', color: '#8fb3cc', fontStyle: 'bold',
-      }).setOrigin(0, 0.5);
-      // 固定列宽：Lv.x/xx 最宽约 52px，确保「累计/尚未强化」在每行都同一竖直线上
-      const totalText = this.add.text(textX + 56, line3Y, '', {
-        fontFamily: 'sans-serif', fontSize: '11px', color: '#63c256',
-      }).setOrigin(0, 0.5);
-
-      // 购买按钮：单行内容「价格 + 硬币图标」，整体作为一个可点区域
-      const btn = new RoundedPanel(this, btnX, cy, btnW, 40, UI.primary, 1, { radius: 10 })
-        .setStrokeStyle(1.5, UI.primaryStroke).setInteractive({ useHandCursor: true });
-        attachPressFeedback(btn);
-      // btnText 用作「已满」等状态文字，位于硬币块上方同步显示
-      const btnText = this.add.text(btnX, cy, '', {
-        fontFamily: 'sans-serif', fontSize: '13px', color: '#041018', fontStyle: 'bold',
+      const nameText = this.add.text(cx, cy + cardH * 0.03, u.name, {
+        fontFamily: 'sans-serif', fontSize: '14px', color: '#cfe4f5', fontStyle: 'bold',
       }).setOrigin(0.5);
 
-      // 金额块（数字 + 硬币图标）水平居中排在按钮内部
-      const cost = this.add.text(btnX, cy, '', {
-        fontFamily: 'sans-serif', fontSize: '17px', color: '#041018', fontStyle: 'bold',
-      }).setOrigin(0, 0.5);
-      const costIcon = this.add.image(btnX, cy, 'ui_coin').setDisplaySize(17, 17);
+      const lvText = this.add.text(cx, cy + cardH * 0.2, '', {
+        fontFamily: 'sans-serif', fontSize: '11px', color: '#8fb3cc',
+      }).setOrigin(0.5);
 
+      // 购买按钮：贴卡片下沿，宽度几乎占满
+      const btnW = cardW - 16;
+      const btnH = 26;
+      const btnY = cy + cardH / 2 - btnH / 2 - 7;
+      const btn = new RoundedPanel(this, cx, btnY, btnW, btnH, UI.primary, 1, { radius: 8 })
+        .setStrokeStyle(1, UI.primaryStroke);
+      // 点按钮直接买，不弹详情 —— 高频操作少一步
       btn.on('pointerdown', () => this.buy(u.key));
 
-      this.rows.push({ key: u.key, icon, lvText, totalText, stepText, btn, btnText, cost, costIcon });
-    });
+      const btnText = this.add.text(cx, btnY, '', {
+        fontFamily: 'sans-serif', fontSize: '11px', color: '#041018', fontStyle: 'bold',
+      }).setOrigin(0.5);
 
-    // 底部：重置 + 返回
-    const by = height - 44;
-    const reset = new RoundedPanel(this, width / 2 - 78, by, 150, 40, 0x3a1f22, 1, { radius: 10 })
+      const cost = this.add.text(cx, btnY, '', {
+        fontFamily: 'sans-serif', fontSize: '12px', color: '#041018', fontStyle: 'bold',
+      }).setOrigin(0, 0.5);
+      const costIcon = this.add.image(cx, btnY, 'ui_coin').setDisplaySize(12, 12);
+
+      this.cards.push({ key: u.key, icon, nameText, lvText, panel, btn, btnText, cost, costIcon });
+    });
+  }
+
+  private buildFooter(width: number, height: number) {
+    const by = height - 36;
+    const reset = new RoundedPanel(this, width / 2 - 72, by, 136, 36, 0x3a1f22, 1, { radius: 9 })
       .setStrokeStyle(1.5, 0x6f3a3f).setInteractive({ useHandCursor: true });
-      attachPressFeedback(reset);
-    this.add.text(width / 2 - 78, by, '重置强化', {
+    attachPressFeedback(reset);
+    this.add.text(width / 2 - 72, by, '重置强化', {
       fontFamily: 'sans-serif', fontSize: '13px', color: '#e08a90', fontStyle: 'bold',
     }).setOrigin(0.5);
     reset.on('pointerdown', () => this.resetAll());
 
-    const back = new RoundedPanel(this, width / 2 + 78, by, 130, 40, 0x1c3344, 1, { radius: 10 })
+    const back = new RoundedPanel(this, width / 2 + 72, by, 120, 36, 0x1c3344, 1, { radius: 9 })
       .setStrokeStyle(1.5, 0x2f4b60).setInteractive({ useHandCursor: true });
-      attachPressFeedback(back);
-    this.add.text(width / 2 + 78, by, '返 回', {
+    attachPressFeedback(back);
+    this.add.text(width / 2 + 72, by, '返 回', {
       fontFamily: 'sans-serif', fontSize: '14px', color: '#9cc4dc', fontStyle: 'bold',
     }).setOrigin(0.5);
     back.on('pointerdown', () => { Sfx.click(); goTo(this, 'Menu'); });
+  }
 
-    this.refresh();
+  /**
+   * 点卡片弹出的详情层。
+   *
+   * 具体数值只在这里出现：累计增益、单级增益、满级上限。
+   * 卡片上刻意不写百分比，是为了 9 项能在手机上平铺成一屏。
+   */
+  private openSheet(key: PermKey) {
+    if (this.sheet) { this.sheet.destroy(); this.sheet = undefined; }
+    Sfx.click();
+
+    const { width, height } = this.scale;
+    const def = PERM_UPGRADES.find((u) => u.key === key)!;
+    const lv = this.save.perm[key];
+    const maxed = lv >= def.max;
+
+    const c = this.add.container(0, 0).setDepth(200).setData('key', key);
+
+    // 遮罩：点空白关闭
+    const dim = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.62)
+      .setInteractive();
+    dim.on('pointerdown', () => { this.closeSheet(); });
+    c.add(dim);
+
+    const sheetW = Math.min(width - 44, 330);
+    const sheetH = 300;
+    const sy = height / 2;
+
+    const panel = new RoundedPanel(this, width / 2, sy, sheetW, sheetH, 0x0f1f2c, 1, { radius: 16 })
+      .setStrokeStyle(1.5, 0x2a4559);
+    c.add(panel);
+
+    // 吞掉弹层上的点击，别穿透到遮罩把自己关了
+    const blocker = this.add.rectangle(width / 2, sy, sheetW, sheetH, 0x000000, 0)
+      .setInteractive();
+    c.add(blocker);
+
+    const top = sy - sheetH / 2;
+    const iconKey = makePermIcon(this, key);
+    c.add(this.add.image(width / 2, top + 44, iconKey ?? 'ui_coin').setDisplaySize(46, 46));
+
+    c.add(this.add.text(width / 2, top + 84, def.name, {
+      fontFamily: 'sans-serif', fontSize: '19px', color: '#e6f2fc', fontStyle: 'bold',
+    }).setOrigin(0.5));
+
+    c.add(this.add.text(width / 2, top + 108, `等级 ${lv} / ${def.max}`, {
+      fontFamily: 'sans-serif', fontSize: '13px', color: '#8fb3cc',
+    }).setOrigin(0.5));
+
+    // 数值区
+    const lines: [string, string][] = [];
+    if (key === 'gamble') {
+      lines.push(['作用', '每局升级多一次重掷']);
+      lines.push(['当前', lv > 0 ? `每局重掷 +${lv} 次（共 ${3 + lv} 次）` : '尚未强化（保底 3 次）']);
+      lines.push([maxed ? '状态' : '下一级', maxed ? '已达上限' : '再 +1 次重掷']);
+    } else {
+      const pct = (n: number) => `${(n * 100).toFixed(1).replace(/\.0$/, '')}%`;
+      const nextLv = maxed ? def.max : lv + 1;
+      lines.push(['累计增益', lv > 0 ? `+${pct(permTotal(key, lv))}` : '尚未强化']);
+      lines.push([maxed ? '本级增益' : '下一级增益', `+${pct(permStep(key, nextLv))}`]);
+      lines.push(['满级累计', `+${pct(permTotal(key, def.max))}`]);
+    }
+
+    lines.forEach(([label, value], i) => {
+      const ly = top + 142 + i * 26;
+      c.add(this.add.text(width / 2 - sheetW / 2 + 24, ly, label, {
+        fontFamily: 'sans-serif', fontSize: '13px', color: '#6f8ea6',
+      }).setOrigin(0, 0.5));
+      c.add(this.add.text(width / 2 + sheetW / 2 - 24, ly, value, {
+        fontFamily: 'sans-serif', fontSize: '13px', color: '#cfe4f5', fontStyle: 'bold',
+      }).setOrigin(1, 0.5));
+    });
+
+    // 购买按钮 / 已满
+    const by = top + sheetH - 44;
+    if (maxed) {
+      c.add(new RoundedPanel(this, width / 2, by, 160, 40, UI.disabled, 1, { radius: 10 }));
+      c.add(this.add.text(width / 2, by, '已达上限', {
+        fontFamily: 'sans-serif', fontSize: '14px', color: '#7a8fa0', fontStyle: 'bold',
+      }).setOrigin(0.5));
+    } else {
+      const price = permCost(key, lv);
+      const afford = this.save.coins >= price;
+      const b = new RoundedPanel(this, width / 2, by, 180, 40, afford ? UI.primary : UI.disabled, 1, { radius: 10 })
+        .setStrokeStyle(1.2, afford ? UI.primaryStroke : 0x2a3b48)
+        .setInteractive({ useHandCursor: true });
+      attachPressFeedback(b);
+      b.on('pointerdown', () => this.buy(key));
+      c.add(b);
+
+      const ic = this.add.image(0, by, 'ui_coin').setDisplaySize(15, 15)
+        .setAlpha(afford ? 1 : 0.45);
+      const label = this.add.text(0, by, `${price}`, {
+        fontFamily: 'sans-serif', fontSize: '15px', color: afford ? '#041018' : '#7a8fa0', fontStyle: 'bold',
+      }).setOrigin(0, 0.5);
+      const blockW = 15 + 4 + label.width;
+      ic.setX(width / 2 - blockW / 2 + 7.5);
+      label.setX(ic.x + 11.5);
+      c.add(ic);
+      c.add(label);
+    }
+
+    // 右上角关闭
+    const close = this.add.text(width / 2 + sheetW / 2 - 22, top + 22, '×', {
+      fontFamily: 'sans-serif', fontSize: '22px', color: '#6f8ea6', fontStyle: 'bold',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    close.on('pointerdown', () => { Sfx.click(); this.closeSheet(); });
+    c.add(close);
+
+    this.sheet = c;
+  }
+
+  private closeSheet() {
+    this.sheet?.destroy();
+    this.sheet = undefined;
   }
 
   private buy(key: PermKey) {
+    Sfx.click();
     const def = PERM_UPGRADES.find((u) => u.key === key)!;
     const lv = this.save.perm[key];
     if (lv >= def.max) return;
@@ -194,50 +311,39 @@ export class ShopScene extends Phaser.Scene {
   private refresh() {
     this.coinText.setText(`${this.save.coins}`);
     this.recenterCoin();
-    for (const r of this.rows) {
-      const def = PERM_UPGRADES.find((u) => u.key === r.key)!;
-      const lv = this.save.perm[r.key];
+    for (const c of this.cards) {
+      const def = PERM_UPGRADES.find((u) => u.key === c.key)!;
+      const lv = this.save.perm[c.key];
       const maxed = lv >= def.max;
-      r.lvText.setText(`Lv.${lv}/${def.max}`);
+      c.lvText.setText(`${lv}/${def.max}`);
 
-      if (r.key === 'gamble') {
-        // 赌神不是百分比：显示「每局多 N 次重掷」
-        r.totalText.setText(lv > 0 ? `每局重掷 +${lv} 次` : '尚未强化');
-        r.stepText.setText(maxed ? '已达上限' : '下一级 +1 次重掷');
-      } else {
-        const totalPct = (permTotal(r.key, lv) * 100).toFixed(1).replace(/\.0$/, '');
-        r.totalText.setText(lv > 0 ? `累计 +${totalPct}%` : '尚未强化');
-        // 下一级能给多少：满级后显示本级值
-        const nextLv = maxed ? def.max : lv + 1;
-        const stepPct = (permStep(r.key, nextLv) * 100).toFixed(1).replace(/\.0$/, '');
-        r.stepText.setText(`${maxed ? '本级' : '下一级'} +${stepPct}%`);
-      }
       if (maxed) {
-        r.btnText.setText('已满').setVisible(true);
-        r.cost.setText('');
-        r.costIcon.setVisible(false);
-        r.btn.setFillStyle(UI.disabled).disableInteractive();
+        c.btnText.setText('已满').setVisible(true);
+        c.cost.setText('').setVisible(false);
+        c.costIcon.setVisible(false);
+        c.btn.setFillStyle(UI.disabled).disableInteractive();
+        c.panel.setStrokeStyle(1.5, 0x2a4559);
       } else {
-        const price = permCost(r.key, lv);
+        const price = permCost(c.key, lv);
         const afford = this.save.coins >= price;
-        r.btnText.setVisible(false);
-        r.cost.setText(`${price}`);
-        r.costIcon.setVisible(true);
-        // 硬币图标 + 数字作为一组，在按钮内水平居中；
-        // 先量文本实际宽度再定位，不同位数金额都不会左右跳动。
-        const iconW = 17;
-        const gap = 3;
-        const blockW = iconW + gap + r.cost.width;
-        const startX = r.btn.x - blockW / 2;
-        r.costIcon.setX(startX + iconW / 2);
-        r.cost.setX(startX + iconW + gap);
-        r.btn.setFillStyle(afford ? UI.primary : UI.disabled);
-        // 买不起时数字与图标一起变暗，避免看着像能点
-        r.cost.setColor(afford ? '#041018' : '#7a8fa0');
-        r.costIcon.setAlpha(afford ? 1 : 0.45);
-        r.btn.setInteractive({ useHandCursor: true });
-        attachPressFeedback(r.btn);
+        c.btnText.setVisible(false);
+        c.cost.setText(`${price}`).setVisible(true);
+        c.costIcon.setVisible(true);
+        // 硬币 + 数字成组居中，位数变化不会左右跳
+        const iconW = 12, gap = 3;
+        const blockW = iconW + gap + c.cost.width;
+        const startX = c.btn.x - blockW / 2;
+        c.costIcon.setX(startX + iconW / 2);
+        c.cost.setX(startX + iconW + gap);
+        c.btn.setFillStyle(afford ? UI.primary : UI.disabled).setInteractive({ useHandCursor: true });
+        c.cost.setColor(afford ? '#041018' : '#7a8fa0');
+        c.costIcon.setAlpha(afford ? 1 : 0.45);
+        // 买得起的卡片描边亮一档，扫一眼就知道该点哪
+        c.panel.setStrokeStyle(1.5, afford ? 0x2f5a76 : 0x1e3444);
       }
     }
+    // 弹层开着就同步刷新，买完等级变了数字要跟上
+    const opened = this.sheet?.getData('key') as PermKey | undefined;
+    if (opened) this.openSheet(opened);
   }
 }

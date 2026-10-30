@@ -65,6 +65,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       case 'vitality':
         this.stats.maxHp += 18;
         this.stats.hp = this.stats.maxHp;
+        // 回血球效果 +15%：游戏里没有持续回血，唯一的回血手段是捡球
+        this.stats.healMul *= 1.15;
         break;
       case 'scholar':  this.stats.expMul *= 1.08; break;
       case 'magnet':   this.stats.pickup *= 1.25; break;

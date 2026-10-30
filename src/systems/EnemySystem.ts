@@ -175,7 +175,7 @@ export class EnemySystem {
     e.setTexture(key);
     e.setAngle(0);
     e.setAlpha(1);
-    e.setScale((kind === 'boss' ? 2.1 : kind === 'elite' ? 1.35 : 0.62 + Math.random() * 0.08) * GLOBAL_SCALE);
+    e.setScale((kind === 'boss' ? 1.47 : kind === 'elite' ? 1.35 : 0.62 + Math.random() * 0.08) * GLOBAL_SCALE);
 
     const baseHp = kind === 'boss' ? 3000 : kind === 'elite' ? 260 : 26;
     const baseSpeed = kind === 'boss' ? 62 : kind === 'elite' ? 92 : 74;
@@ -205,8 +205,10 @@ export class EnemySystem {
     else e.clearTint();
 
     const body = e.body as Phaser.Physics.Arcade.Body;
-    // 判定圈：随 GLOBAL_SCALE 缩小，保持和视觉尺寸贴合
-    const base = kind === 'boss' ? 38 : kind === 'elite' ? 26 : 16;
+    // 判定圈：随 GLOBAL_SCALE 缩小，保持和视觉尺寸贴合。
+    // BOSS 判定半径跟着体型走：体型 2.1→1.47 缩了 0.7 倍，半径同步 38→27，
+    // 否则会出现「贴图明显变小，判定圈还是原来那么大」的挨打错觉。
+    const base = kind === 'boss' ? 27 : kind === 'elite' ? 26 : 16;
     const r = Math.round(base * GLOBAL_SCALE);
     body.setCircle(r, e.width / 2 - r, e.height / 2 - r);
     body.setEnable(true);

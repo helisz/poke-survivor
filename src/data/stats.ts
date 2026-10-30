@@ -4,7 +4,7 @@ export const TRAITS = [
   { id: 'affinity', name: '亲和',   icon: 'heart',  desc: '拾取范围 +15%，经验 +5%' },
   { id: 'power',    name: '蛮力',   icon: 'fist',   desc: '伤害 +5%' },
   { id: 'haste',    name: '迅捷',   icon: 'clock',  desc: '招式冷却 -4%' },
-  { id: 'vitality', name: '活力',   icon: 'plus',   desc: '最大 HP +18，回血 +15%' },
+  { id: 'vitality', name: '活力',   icon: 'plus',   desc: '最大 HP +18，回血球效果 +15%' },
   { id: 'scholar',  name: '好学',   icon: 'book',   desc: '经验 +8%' },
   { id: 'magnet',   name: '磁力',   icon: 'magnet', desc: '拾取范围 +25%' },
   { id: 'guard',    name: '守护',   icon: 'armor',  desc: '受伤 -8%' },
@@ -26,15 +26,18 @@ export interface PlayerStats {
   critChance: number;
   /** 暴击伤害倍率。1.5 = 比正常伤害多 50%。 */
   critMul: number;
+  /** 回血效果倍率。1 = 正常；拾取回血球时按此放大恢复量。 */
+  healMul: number;
 }
 
 export const BASE_STATS: PlayerStats = {
   hp: 180, maxHp: 180, speed: 118, damageMul: 1.05, cooldownMul: 1,
   // 经验获取提升 50%：1 → 1.5。局外「悟性」和学者特性都在这个基数上乘算，
   // 所以它们的效果也同步被放大。
-  pickup: 85, expMul: 1.5, damageTakenMul: 3, radius: 11,
+  pickup: 85, expMul: 1.5, damageTakenMul: 1, radius: 11,
   // 暴击：8% 概率打出 1.5 倍伤害（比正常多 50%）
   critChance: 0.08, critMul: 1.5,
+  healMul: 1,
 };
 
 export const MAX_SLOTS = 6;
@@ -143,10 +146,10 @@ export const PERM_UPGRADES = [
   { key: 'hp',     name: '体魄', max: PERM_MAX_LEVEL, gainAt: ramp(0.01, 0.03) },
   { key: 'damage', name: '威力', max: PERM_MAX_LEVEL, gainAt: ramp(0.01, 0.10) },
   { key: 'speed',  name: '脚力', max: PERM_MAX_LEVEL, gainAt: flat(0.01) },
-  // 暴击率：10 级累计正好 +5%（8% → 13%）。曲线递增，单级 0.24% → 0.76%
-  { key: 'critRate', name: '锐眼', max: PERM_MAX_LEVEL, gainAt: ramp(0.0024, 0.0076) },
-  // 暴击伤害：10 级累计正好 +25%（1.5x → 1.75x）。曲线递增，单级 1.19% → 3.81%
-  { key: 'critDmg',  name: '怒击', max: PERM_MAX_LEVEL, gainAt: ramp(0.0119, 0.0381) },
+  // 暴击率：每级固定 +2%，10 级累计 +20%（8% → 28%）
+  { key: 'critRate', name: '锐眼', max: PERM_MAX_LEVEL, gainAt: flat(0.02) },
+  // 暴击伤害：曲线递增，单级 6% → 24%，10 级累计 +150%（1.5x → 3.0x）
+  { key: 'critDmg',  name: '怒击', max: PERM_MAX_LEVEL, gainAt: ramp(0.06, 0.24) },
   { key: 'pickup', name: '磁引', max: PERM_MAX_LEVEL, gainAt: ramp(0.01, 0.03) },
   { key: 'exp',    name: '悟性', max: PERM_MAX_LEVEL, gainAt: ramp(0.03, 0.10) },
   { key: 'cd',     name: '节律', max: PERM_MAX_LEVEL, gainAt: flat(0.01) },

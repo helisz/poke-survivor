@@ -108,7 +108,7 @@ export function isFloating(id: number): boolean {
  * 移动表现用的是浮空还是蹦跳。
  *
  * 和 isFloating 的区别只有一条：BOSS 一律浮空。
- * BOSS 体型 2.1 倍、有压迫感，蹦跳会显得滑稽，所以强制飘。
+ * BOSS 体型 1.47 倍、有压迫感，蹦跳会显得滑稽，所以强制飘。
  */
 export function isFloatingMon(id: number, isBoss = false): boolean {
   return isBoss || FLOATING_IDS.has(id);

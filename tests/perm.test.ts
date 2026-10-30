@@ -39,21 +39,28 @@ describe('永久强化：等级上限', () => {
     expect(keys.indexOf('critDmg')).toBe(keys.indexOf('speed') + 2);
   });
 
-  it('暴击率满级累计正好 +5%（8% → 13%）', () => {
-    expect(permTotal('critRate', 10)).toBeCloseTo(0.05, 6);
+  it('暴击率每级固定 +2%，满级累计 +20%（8% → 28%）', () => {
+    for (let lv = 1; lv <= 10; lv++) expect(permStep('critRate', lv)).toBeCloseTo(0.02, 6);
+    expect(permTotal('critRate', 10)).toBeCloseTo(0.20, 6);
     const s = applyPerm(BASE_STATS, { ...PERM_EMPTY, critRate: 10 });
-    expect(s.critChance).toBeCloseTo(0.13, 6);
+    expect(s.critChance).toBeCloseTo(0.28, 6);
   });
 
-  it('暴击伤害满级累计正好 +25%（1.5x → 1.75x）', () => {
-    expect(permTotal('critDmg', 10)).toBeCloseTo(0.25, 6);
+  it('暴击伤害曲线递增，满级 3.0x（累计 +150%）', () => {
+    // 每级增量单调递增：6% → 24%
+    expect(permStep('critDmg', 1)).toBeCloseTo(0.06, 6);
+    expect(permStep('critDmg', 10)).toBeCloseTo(0.24, 6);
+    for (let lv = 1; lv < 10; lv++) {
+      expect(permStep('critDmg', lv + 1)).toBeGreaterThan(permStep('critDmg', lv));
+    }
+    expect(permTotal('critDmg', 10)).toBeCloseTo(1.5, 6);
     const s = applyPerm(BASE_STATS, { ...PERM_EMPTY, critDmg: 10 });
-    expect(s.critMul).toBeCloseTo(1.75, 6);
+    expect(s.critMul).toBeCloseTo(3.0, 6);
   });
 
-  it('暴击伤害是加法不是乘法：1 级只涨到 1.5119x 左右', () => {
+  it('暴击伤害是加法不是乘法：1 级只涨到 1.56x', () => {
     const s = applyPerm(BASE_STATS, { ...PERM_EMPTY, critDmg: 1 });
-    expect(s.critMul).toBeLessThan(1.52);
+    expect(s.critMul).toBeCloseTo(1.56, 6);
   });
 
   it('默认暴击率 8%、暴击倍率 1.5', () => {

@@ -109,7 +109,7 @@ export class UIScene extends Phaser.Scene {
         const st = this.gs.player.stats;
         // 改了倍率立即重算（先还原再应用，避免连乘）
         st.damageMul = this.gs.baseDamageMul * (save.devDmgMul ?? 1);
-        st.damageTakenMul = this.gs.baseTakenMul * (save.devTakenMul ?? 0);
+        st.damageTakenMul = this.gs.baseTakenMul * (save.devTakenMul ?? 1);
         st.expMul = this.gs.baseExpMul * (save.devExpMul ?? 1);
       }, () => {
         this.gs.paused = false;
