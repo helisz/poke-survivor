@@ -293,8 +293,8 @@ export class GameScene extends Phaser.Scene {
     this.bossRef = boss;
     if (boss) {
       // 终局 BOSS 血更厚，标记身份
-      // BOSS 血量同样吃关卡倍率
-      const hp = 3000 * 2.2 * this.stageScale.hp;
+      // BOSS 血量同样吃关卡倍率；终局 BOSS 血量翻倍（6600 → 13200 基础）
+      const hp = 3000 * 2.2 * 2 * this.stageScale.hp;
       boss.setData('hp', hp);
       boss.setData('maxHp', hp);
       boss.setData('isFinal', true);
