@@ -224,18 +224,7 @@ export class GameScene extends Phaser.Scene {
     this.combat.addMove(startMove);
 
     // 图鉴：本局选用的伙伴记入「伙伴」页（用招式反查宝可梦 id）
-    {
-      const partnerId = MOVES[startMove]?.pokeId;
-      if (partnerId) {
-        const sv = loadSave();
-        const seen = new Set(sv.seenPartners ?? []);
-        if (!seen.has(partnerId)) {
-          seen.add(partnerId);
-          sv.seenPartners = [...seen];
-          writeSave(sv);
-        }
-      }
-    }
+    this.markPartnerSeen(startMove);
 
     // 输入
     const kb = this.input.keyboard!;
@@ -249,10 +238,22 @@ export class GameScene extends Phaser.Scene {
 
     // 开局先撒一圈初始怪：否则第一只怪要等刷怪累积（0.6/s 起）才出现，
     // 这段时间玩家只是空跑。给 8 只贴着屏幕边缘的，开局立刻有东西打。
+    //
+    // 按需加载下贴图是异步的：等本关池子就绪再撒，否则会撒出一圈黑块。
     const hpMul0 = 1 * this.stageScale.hp;
     const spdMul0 = 1 * this.stageScale.spd;
-    for (let i = 0; i < 8; i++) {
-      this.spawnRing(hpMul0, spdMul0);
+    const theme = MAP_THEMES[stage];
+    const needIds = new Set<number>([
+      ...(theme?.enemyPool ?? []), ...(theme?.elitePool ?? []), ...BOSS_POOL,
+    ]);
+    const allReady = [...needIds].every((id) => this.textures.exists(`pk_${id}`));
+    if (allReady) {
+      for (let i = 0; i < 8; i++) this.spawnRing(hpMul0, spdMul0);
+    } else {
+      ensureSprites(this, [...needIds], () => {
+        if (this.runEnded) return;
+        for (let i = 0; i < 8; i++) this.spawnRing(hpMul0, spdMul0);
+      });
     }
   }
 
@@ -930,7 +931,12 @@ export class GameScene extends Phaser.Scene {
           color: rarColor,
           rarity: rar,
           pokeId: def.pokeId, pokeName: this.pokeNameOf(def.id),
-          apply: () => this.combat.addMove(def.id),
+          apply: () => {
+            this.combat.addMove(def.id);
+            // 图鉴：升级拿到的伙伴同样要记入「伙伴」页。
+            // 之前只记了开局那一只，所以用完 6 个伙伴只解锁 1~2 个。
+            this.markPartnerSeen(def.id);
+          },
         });
       }
     }
@@ -1243,6 +1249,23 @@ export class GameScene extends Phaser.Scene {
    * 约 60 张 —— 比首屏 166 张省了三分之二。怪物贴图没到位会画成
    * 空白方块，所以必须在开打前请求，而不是刷出怪物时再临时加载。
    */
+  /**
+   * 把某个招式对应的宝可梦记入图鉴「伙伴」页。
+   *
+   * 开局招式 + 每个升级拿到的招式都要调。以前只在开局调一次，
+   * 玩家一局用满 6 个伙伴却只解锁 1~2 个图鉴。
+   */
+  private markPartnerSeen(moveId: string) {
+    const partnerId = MOVES[moveId]?.pokeId;
+    if (!partnerId) return;
+    const sv = loadSave();
+    const seen = new Set(sv.seenPartners ?? []);
+    if (seen.has(partnerId)) return;
+    seen.add(partnerId);
+    sv.seenPartners = [...seen];
+    writeSave(sv);
+  }
+
   private preloadRunSprites(stage: number) {
     const theme = MAP_THEMES[stage];
     const ids = new Set<number>([

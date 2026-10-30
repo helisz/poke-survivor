@@ -71,7 +71,11 @@ export class EnemySystem {
     if (kind === 'boss') list = BOSS_POOL;
     else if (kind === 'elite') list = this.theme?.elitePool?.length ? this.theme.elitePool : ELITE_POOL;
     else list = this.theme?.enemyPool?.length ? this.theme.enemyPool : ENEMY_POOL;
-    const id = Phaser.Utils.Array.GetRandom(list);
+    // 只从「贴图已加载」的候选中挑：按需加载没到位时，
+    // 随机撞上未加载的 id 会拿到 __MISSING 占位图（一块纯黑）。
+    const ready = list.filter((id) => this.scene.textures.exists(`pk_${id}`));
+    const pickFrom = ready.length > 0 ? ready : list;
+    const id = Phaser.Utils.Array.GetRandom(pickFrom);
     return `pk_${id}`;
   }
 
@@ -122,6 +126,9 @@ export class EnemySystem {
 
   spawn(kind: EnemyKind, x: number, y: number, hpMul = 1, speedMul = 1, dmg = 8) {
     const key = this.pickKey(kind);
+    // 按需加载下贴图可能还没到位：此时 group.get 会拿到 __MISSING 占位图，
+    // 画出来就是一块纯黑。直接跳过本次生成，等下一帧再刷。
+    if (!this.scene.textures.exists(key)) return null;
     let e = this.group.get(x, y, key) as Phaser.Physics.Arcade.Sprite | null;
     if (!e) return null;
     // 图鉴：这只怪第一次出现在场上就算「见过」

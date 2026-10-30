@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { MAP_THEMES } from '../src/data/maps';
 import {
@@ -93,5 +93,14 @@ describe('怪物贴图完整性', () => {
     for (const p of POKEMON_PLAYABLE) {
       expect(available.has(p.id), `可玩 ${p.id} ${p.name} 缺贴图`).toBe(true);
     }
+  });
+
+  it('EnemySystem.spawn 必须有缺图守卫，否则会刷出 __MISSING 黑块', () => {
+    // 按需加载是异步的：进关瞬间贴图可能没到位，group.get(x,y,key) 会拿到
+    // Phaser 的 __MISSING 占位纹理，画出来就是一块纯黑。
+    // 静态资源都在，这类 bug 只能靠运行时守卫防，所以直接锁源码。
+    const src = readFileSync(resolve(__dirname, '../src/systems/EnemySystem.ts'), 'utf8');
+    expect(src).toMatch(/spawn\([\s\S]{0,400}?textures\.exists\(key\)/);
+    expect(src).toMatch(/pickKey[\s\S]{0,800}?textures\.exists\(`pk_\$\{id\}`\)/);
   });
 });
