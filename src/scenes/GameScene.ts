@@ -559,7 +559,8 @@ export class GameScene extends Phaser.Scene {
     const speedMul = (1 + 0.18 * Math.pow(Math.max(0, Math.min(t, 300) - 90) / 210, 1.5))
       * this.stageScale.spd;
 
-    const cap = 260;
+    // 同屏怪物上限。设计值 300 —— 手机端 260 会明显感觉“打到一半没怪了”。
+    const cap = 300;
     // 每帧最多批量刷出数：全程保持 1-2，避免整屏瞬间涌出
     const batch = t < 120 ? 1 : t < 240 ? 2 : 3;
     while (this.spawnAccum >= 1) {
