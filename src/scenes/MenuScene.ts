@@ -34,6 +34,11 @@ export class MenuScene extends Phaser.Scene {
       fontSize: '12px', color: '#a8c4d8',
     }).setOrigin(0.5);
 
+    // 构建标记：一眼确认手机跑的是不是最新版（缓存排查用）
+    this.add.text(width / 2, height - 12, `build ${__BUILD_ID__}`, {
+      fontFamily: 'monospace', fontSize: '9px', color: '#3d5566',
+    }).setOrigin(0.5);
+
     // 商店入口
     const shopY = height * 0.20 + 112;
     const shopBtn = this.add.rectangle(width / 2, shopY, 132, 32, 0x14293a)
