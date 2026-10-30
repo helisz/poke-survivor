@@ -7,6 +7,7 @@ import { Sfx } from '../systems/Sfx';
 import { MAP_THEMES } from '../data/maps';
 import type { GameScene } from './GameScene';
 import { installTextTextureCleanup, abandonRun } from '../systems/SceneFlow';
+import { UI, TEXT } from '../ui/Theme';
 
 /** 招式类别中文名 */
 const CAT_ZH: Record<string, string> = {
@@ -62,16 +63,16 @@ export class UIScene extends Phaser.Scene {
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0, 0.5);
 
-    this.expBg = this.add.rectangle(0, 0, 300, 6, 0x11202c).setOrigin(0, 0);
+    this.expBg = this.add.rectangle(0, 0, 300, 6, UI.card).setOrigin(0, 0);
     // 宽度必须 > 0：Rectangle 的 displayWidth = width * scaleX，width=0 时 scaleX 永远算不出
-    this.expBar = this.add.rectangle(0, 0, 1, 6, 0x449ddf).setOrigin(0, 0);
+    this.expBar = this.add.rectangle(0, 0, 1, 6, UI.primary).setOrigin(0, 0);
 
     this.timeText = this.add.text(0, 0, '0:00', {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5, 0);
 
     this.lvText = this.add.text(0, 0, 'Lv.1', {
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '15px', color: '#449ddf', fontStyle: 'bold',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '15px', color: TEXT.gold, fontStyle: 'bold',
     });
     this.killText = this.add.text(0, 0, '击杀 0', {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '12px', color: '#8fa8b8',
@@ -279,7 +280,7 @@ export class UIScene extends Phaser.Scene {
     while (this.slotIcons.length < MAX_SLOTS) {
       const i = this.slotIcons.length;
       const box = this.add.rectangle(0, 0, 46, 46, 0x0e1a24)
-        .setStrokeStyle(2, 0x24404f)
+        .setStrokeStyle(2, UI.cardStroke)
         .setDepth(500);
       const icon = this.add.image(0, 0, 'pk_25').setScale(0.55).setDepth(501).setVisible(false);
       const lv = this.add.text(0, 0, '1', {

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { loadSave, writeSave, type SaveData } from '../data/stats';
+import { UI, TEXT } from './Theme';
 
 /**
  * 开发者模式面板（菜单 / 游戏内共用）
@@ -45,12 +46,12 @@ export function openDevPanel(
   const ph = 96 + rows.length * rowH + mapH + 52 + (onQuit ? 38 : 0);
   const cx = width / 2, cy = height / 2;
 
-  const bg = scene.add.rectangle(cx, cy, pw, ph, 0x0b151d, 0.99)
-    .setStrokeStyle(2, 0x449ddf).setInteractive();
+  const bg = scene.add.rectangle(cx, cy, pw, ph, 0x140f08, 0.99)
+    .setStrokeStyle(2, UI.primary).setInteractive();
   panel.add(bg);
 
   panel.add(scene.add.text(cx, cy - ph / 2 + 20, '开发者模式', {
-    fontFamily: 'sans-serif', fontSize: '16px', color: '#449ddf', fontStyle: 'bold',
+    fontFamily: 'sans-serif', fontSize: '16px', color: TEXT.gold, fontStyle: 'bold',
   }).setOrigin(0.5));
   panel.add(scene.add.text(cx, cy - ph / 2 + 41, '修改立即保存，下一局生效', {
     fontFamily: 'sans-serif', fontSize: '10px', color: '#5f7a8c',
@@ -69,7 +70,7 @@ export function openDevPanel(
     }).setOrigin(0, 0.5));
 
     const valText = scene.add.text(cx + pw / 2 - 16, ry - 8, `${save[row.key]}×`, {
-      fontFamily: 'sans-serif', fontSize: '15px', color: '#449ddf', fontStyle: 'bold',
+      fontFamily: 'sans-serif', fontSize: '15px', color: TEXT.gold, fontStyle: 'bold',
     }).setOrigin(1, 0.5);
     panel.add(valText);
 
@@ -83,8 +84,8 @@ export function openDevPanel(
     resetFns.push(() => { save[row.key] = 1; valText.setText('1×'); });
 
     const mk = (dx: number, dir: -1 | 1, sym: string) => {
-      const b = scene.add.rectangle(cx + dx, ry + 16, 34, 28, 0x16293a)
-        .setStrokeStyle(1.5, 0x2b4256).setInteractive({ useHandCursor: true });
+      const b = scene.add.rectangle(cx + dx, ry + 16, 34, 28, UI.cardOn)
+        .setStrokeStyle(1.5, UI.cardStroke).setInteractive({ useHandCursor: true });
       const t = scene.add.text(cx + dx, ry + 16, sym, {
         fontFamily: 'sans-serif', fontSize: '16px', color: '#ffffff',
       }).setOrigin(0.5);
@@ -105,8 +106,8 @@ export function openDevPanel(
     if (row.invincible) {
       const cbX = cx + pw / 2 - 44;
       const cbY = ry + 18;
-      const checkbox = scene.add.rectangle(cbX, cbY, 16, 16, 0x16293a)
-        .setStrokeStyle(1.5, row.key === 'devTakenMul' && save.devTakenMul === 0 ? 0x63c256 : 0x2b4256)
+      const checkbox = scene.add.rectangle(cbX, cbY, 16, 16, UI.cardOn)
+        .setStrokeStyle(1.5, row.key === 'devTakenMul' && save.devTakenMul === 0 ? 0x63c256 : UI.cardStroke)
         .setInteractive({ useHandCursor: true });
       const tick = scene.add.text(cbX, cbY, '✓', {
         fontFamily: 'sans-serif', fontSize: '12px', color: '#63c256', fontStyle: 'bold',
@@ -118,7 +119,7 @@ export function openDevPanel(
       refreshInvincible = () => {
         const on = save.devTakenMul === 0;
         tick.setVisible(on);
-        checkbox.setStrokeStyle(1.5, on ? 0x63c256 : 0x2b4256);
+        checkbox.setStrokeStyle(1.5, on ? 0x63c256 : UI.cardStroke);
         label.setColor(on ? '#63c256' : '#5f7a8c');
       };
       const toggle = () => setVal(save.devTakenMul === 0 ? 1 : 0);
@@ -151,8 +152,8 @@ export function openDevPanel(
       const cur = mapJump.current();
       btns.forEach((b, i) => {
         const on = i === cur;
-        b.bg.setFillStyle(on ? 0x449ddf : 0x16293a);
-        b.bg.setStrokeStyle(1.5, on ? 0x449ddf : 0x2b4256);
+        b.bg.setFillStyle(on ? UI.primary : UI.cardOn);
+        b.bg.setStrokeStyle(1.5, on ? UI.primary : UI.cardStroke);
         b.txt.setColor(on ? '#041018' : '#9cc4dc');
       });
     };
@@ -161,8 +162,8 @@ export function openDevPanel(
       const col = i % cols, row = Math.floor(i / cols);
       const bx = cx - pw / 2 + 16 + col * (bw + gap) + bw / 2;
       const by = my + 22 + row * (bh + gap);
-      const bg = scene.add.rectangle(bx, by, bw, bh, 0x16293a)
-        .setStrokeStyle(1.5, 0x2b4256).setInteractive({ useHandCursor: true });
+      const bg = scene.add.rectangle(bx, by, bw, bh, UI.cardOn)
+        .setStrokeStyle(1.5, UI.cardStroke).setInteractive({ useHandCursor: true });
       const txt = scene.add.text(bx, by, t.name, {
         fontFamily: 'sans-serif', fontSize: '12px', color: '#9cc4dc',
       }).setOrigin(0.5);
@@ -223,7 +224,7 @@ export function openDevPanel(
   });
   panel.add([resetBtn, resetTxt]);
 
-  const closeBtn = scene.add.rectangle(cx + 62, cy + ph / 2 - 26, 100, 30, 0x449ddf)
+  const closeBtn = scene.add.rectangle(cx + 62, cy + ph / 2 - 26, 100, 30, UI.primary)
     .setInteractive({ useHandCursor: true });
   const closeTxt = scene.add.text(cx + 62, cy + ph / 2 - 26, '关闭', {
     fontFamily: 'sans-serif', fontSize: '13px', color: '#041018', fontStyle: 'bold',
@@ -245,7 +246,7 @@ export function makeDevButton(scene: Phaser.Scene, onClick: () => void, depth = 
   const TOP_Y = (scene.scale.width < 640 ? 52 : 56) - 2;
   const btn = scene.add.container(width - 34, TOP_Y).setDepth(depth);
   const bg = scene.add.circle(0, 0, 17, 0x0e1a24, 0.92)
-    .setStrokeStyle(1.5, 0x2b4256).setInteractive({ useHandCursor: true });
+    .setStrokeStyle(1.5, UI.cardStroke).setInteractive({ useHandCursor: true });
   const gear = scene.add.text(0, 0, '⚙', {
     fontFamily: '"Apple Symbols", "Segoe UI Symbol", sans-serif', fontSize: '20px', color: '#9cc4dc',
   }).setOrigin(0.5);

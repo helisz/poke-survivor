@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { GameScene, UpgradeOption } from './GameScene';
 import { installTextTextureCleanup } from '../systems/SceneFlow';
+import { UI, TEXT } from '../ui/Theme';
 
 export class LevelUpScene extends Phaser.Scene {
   private gs!: GameScene;
@@ -19,7 +20,7 @@ export class LevelUpScene extends Phaser.Scene {
     // 遮罩
     this.add.rectangle(0, 0, width, height, 0x000000, 0.72).setOrigin(0).setInteractive();
     this.add.text(width / 2, height * 0.14, '升级！', {
-      fontFamily: 'sans-serif', fontSize: '26px', color: '#449ddf', fontStyle: 'bold',
+      fontFamily: 'sans-serif', fontSize: '26px', color: TEXT.gold, fontStyle: 'bold',
     }).setOrigin(0.5);
     this.add.text(width / 2, height * 0.14 + 30, '选择一项强化', {
       fontFamily: 'sans-serif', fontSize: '12px', color: '#8fa8b8',
@@ -61,7 +62,7 @@ export class LevelUpScene extends Phaser.Scene {
 
   private makeCard(opt: UpgradeOption, index: number, x: number, y: number, w: number, h: number) {
     const c = this.add.container(x, y);
-    const bg = this.add.rectangle(0, 0, w, h, 0x0e1a24).setStrokeStyle(2, 0x24404f);
+    const bg = this.add.rectangle(0, 0, w, h, 0x0e1a24).setStrokeStyle(2, UI.cardStroke);
     const accent = this.add.rectangle(0, -h / 2 + 4, w - 8, 5, opt.color).setOrigin(0.5, 0);
     c.add([bg, accent]);
 
@@ -102,7 +103,7 @@ export class LevelUpScene extends Phaser.Scene {
       const textW = w - 40 - slotW;
 
       const num = this.add.text(-w / 2 + 14, -h / 2 + 14, `${index + 1}`, {
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '16px', color: '#449ddf', fontStyle: 'bold',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '16px', color: TEXT.gold, fontStyle: 'bold',
       });
       const tag = this.add.text(-w / 2 + 34, -h / 2 + 16, badge, { fontFamily: 'sans-serif', fontSize: '11px', color: badgeColor, fontStyle: isEvo ? 'bold' : 'normal' });
       const title = this.add.text(-w / 2 + 14, -h / 2 + 40, opt.title, {
@@ -143,7 +144,7 @@ export class LevelUpScene extends Phaser.Scene {
 
     bg.setInteractive({ useHandCursor: true })
       .on('pointerover', () => bg.setStrokeStyle(2, opt.color))
-      .on('pointerout', () => bg.setStrokeStyle(2, 0x24404f))
+      .on('pointerout', () => bg.setStrokeStyle(2, UI.cardStroke))
       .on('pointerdown', () => this.choose(index));
   }
 

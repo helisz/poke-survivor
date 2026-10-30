@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { UI } from './Theme';
 
 /**
  * 程序化生成一枚金币图标纹理（金圆 + 深色描边 + 内环 + 高光）。
@@ -16,11 +17,11 @@ export function makeUpgradeIcon(scene: Phaser.Scene, size = 18): string {
   const c = S / 2;
   // 三层递进箭头：下宽上尖
   const w1 = S * 0.20, w2 = S * 0.32, w3 = S * 0.44;
-  g.fillStyle(0x63b4ef, 1);
+  g.fillStyle(UI.primaryLight, 1);
   g.fillTriangle(c - w1, c - S * 0.06, c + w1, c - S * 0.06, c, c - S * 0.40);
-  g.fillStyle(0x449ddf, 1);
+  g.fillStyle(UI.primary, 1);
   g.fillTriangle(c - w2, c + S * 0.18, c + w2, c + S * 0.18, c, c - S * 0.14);
-  g.fillStyle(0x2f6f96, 1);
+  g.fillStyle(UI.primaryStroke, 1);
   g.fillTriangle(c - w3, c + S * 0.40, c + w3, c + S * 0.40, c, c + S * 0.10);
   g.generateTexture(UPGRADE_KEY, S, S);
   g.destroy();

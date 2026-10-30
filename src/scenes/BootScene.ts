@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { UI, TEXT } from '../ui/Theme';
 
 const POKEMON_IDS = [
   25, 6, 9, 3, 143, 94, 149, 448, 282, 130, 248, 466, 78, 28, 38, 208,
@@ -28,7 +29,7 @@ export class BootScene extends Phaser.Scene {
     // 进度条
     const { width, height } = this.scale;
     const bar = this.add.rectangle(width / 2, height / 2 + 40, 240, 6, 0x1a2633).setOrigin(0.5);
-    const fill = this.add.rectangle(width / 2 - 120, height / 2 + 40, 0, 6, 0x449ddf).setOrigin(0, 0.5);
+    const fill = this.add.rectangle(width / 2 - 120, height / 2 + 40, 0, 6, UI.primary).setOrigin(0, 0.5);
     this.load.on('progress', (p: number) => { fill.width = 240 * p; });
     this.load.on('complete', () => { bar.destroy(); fill.destroy(); });
   }

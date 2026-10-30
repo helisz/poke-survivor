@@ -3,6 +3,7 @@ import { POKEMON_PLAYABLE, TYPE_COLORS } from '../data/pokedex';
 import { MOVES } from '../data/moves';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
+import { UI, TEXT } from '../ui/Theme';
 
 /** 从数组里随机抽 n 个不重复 */
 function pickN<T>(arr: readonly T[], n: number): T[] {
@@ -46,7 +47,7 @@ export class PartnerSelectScene extends Phaser.Scene {
       fontSize: '26px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5);
     this.add.text(width / 2, height * 0.09 + 28, '第 2 / 2 步 · 三选一', {
-      fontFamily: 'sans-serif', fontSize: '12px', color: '#449ddf',
+      fontFamily: 'sans-serif', fontSize: '12px', color: TEXT.gold,
     }).setOrigin(0.5);
 
     this.buildCards(width, height);
@@ -72,8 +73,8 @@ export class PartnerSelectScene extends Phaser.Scene {
       const color = TYPE_COLORS[p.type] ?? 0x449ddf;
       const move = MOVES[p.move];
 
-      const box = this.add.rectangle(cx, y, cardW, cardH, 0x11202c)
-        .setStrokeStyle(2, 0x1e3344).setInteractive({ useHandCursor: true });
+      const box = this.add.rectangle(cx, y, cardW, cardH, UI.card)
+        .setStrokeStyle(2, UI.cardStroke).setInteractive({ useHandCursor: true });
 
       // 左侧：宝可梦头像
       const iconX = cx - cardW / 2 + cardH * 0.56;
@@ -111,7 +112,7 @@ export class PartnerSelectScene extends Phaser.Scene {
 
       // 右上角的选中标记
       const mark = this.add.text(cx + cardW / 2 - 14, y - cardH / 2 + 14, '', {
-        fontFamily: 'sans-serif', fontSize: '11px', color: '#449ddf', fontStyle: 'bold',
+        fontFamily: 'sans-serif', fontSize: '11px', color: TEXT.gold, fontStyle: 'bold',
       }).setOrigin(1, 0.5);
 
       box.on('pointerdown', () => {
@@ -132,22 +133,22 @@ export class PartnerSelectScene extends Phaser.Scene {
       if (!p) return;
       const on = p.move === this.selected;
       const color = TYPE_COLORS[p.type] ?? 0x449ddf;
-      r.box.setStrokeStyle(2, on ? color : 0x1e3344);
-      r.box.setFillStyle(on ? 0x16293a : 0x11202c);
+      r.box.setStrokeStyle(2, on ? color : UI.cardStroke);
+      r.box.setFillStyle(on ? UI.cardOn : UI.card);
       r.mark.setText(on ? '已选择' : '')
         .setColor(`#${color.toString(16).padStart(6, '0')}`);
     });
     const ok = !!this.selected;
-    this.startBtn.setFillStyle(ok ? 0x449ddf : 0x24404f);
-    this.startBtn.setStrokeStyle(2, ok ? 0x449ddf : 0x2b4256);
+    this.startBtn.setFillStyle(ok ? UI.primary : UI.disabled);
+    this.startBtn.setStrokeStyle(2, ok ? UI.primaryStroke : UI.disabledStroke);
     this.startTxt.setText(ok ? '开 始 游 戏' : '请选择伙伴')
       .setColor(ok ? '#041018' : '#7d96a8');
   }
 
   private buildStartButton(width: number, height: number) {
     const y = height - 70;
-    this.startBtn = this.add.rectangle(width / 2, y, 220, 50, 0x24404f)
-      .setStrokeStyle(2, 0x2b4256).setInteractive({ useHandCursor: true });
+    this.startBtn = this.add.rectangle(width / 2, y, 220, 50, UI.disabled)
+      .setStrokeStyle(2, UI.disabledStroke).setInteractive({ useHandCursor: true });
     this.startTxt = this.add.text(width / 2, y, '请选择伙伴', {
       fontFamily: 'sans-serif', fontSize: '15px', color: '#7d96a8', fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -158,7 +159,7 @@ export class PartnerSelectScene extends Phaser.Scene {
 
     // 返回上一步
     const back = this.add.text(24, 30, '← 返回', {
-      fontFamily: 'sans-serif', fontSize: '13px', color: '#7fa8c0',
+      fontFamily: 'sans-serif', fontSize: '13px', color: TEXT.dim,
     }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
     back.on('pointerdown', () => goTo(this, 'TraitSelect'));
   }

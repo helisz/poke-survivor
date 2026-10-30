@@ -3,6 +3,7 @@ import { TRAITS, type TraitId } from '../data/stats';
 import { Sfx } from '../systems/Sfx';
 import { makeTraitIconTexture, type TraitIcon } from '../ui/TraitIcons';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
+import { UI, TEXT } from '../ui/Theme';
 
 /** 从数组里随机抽 n 个不重复 */
 function pickN<T>(arr: readonly T[], n: number): T[] {
@@ -23,9 +24,6 @@ const ACCENT: Record<TraitId, number> = {
   magnet: 0xc264a8,
   guard: 0x9a8ad0,
 };
-
-/** 「下一步」按钮宽度，底部两钮布局共用 */
-const NEXT_W = 190;
 
 /** 第二步：特性 9 选 3 */
 export class TraitSelectScene extends Phaser.Scene {
@@ -55,7 +53,7 @@ export class TraitSelectScene extends Phaser.Scene {
 
     // 背景微光
     const glow = this.add.graphics();
-    glow.fillStyle(0x449ddf, 0.045);
+    glow.fillStyle(UI.primary, 0.055);
     glow.fillCircle(width / 2, height * 0.2, width * 0.75);
 
     // 标题与副标题的坐标必须与 PartnerSelectScene 完全一致
@@ -65,11 +63,11 @@ export class TraitSelectScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.add.text(width / 2, height * 0.09 + 28, '第 1 / 2 步 · 三选一', {
-      fontFamily: 'sans-serif', fontSize: '12px', color: '#449ddf',
+      fontFamily: 'sans-serif', fontSize: '12px', color: TEXT.gold,
     }).setOrigin(0.5);
 
     this.buildCards(width, height);
-    this.buildBackButton(width, height);
+    this.buildBackButton();
     this.buildNextButton(width, height);
     this.refresh();
   }
@@ -92,8 +90,8 @@ export class TraitSelectScene extends Phaser.Scene {
       const accent = ACCENT[t.id];
       const iconKey = makeTraitIconTexture(this, t.icon as TraitIcon, accent);
 
-      const box = this.add.rectangle(x, y, cardW, cardH, 0x11202c)
-        .setStrokeStyle(2, 0x1e3344).setInteractive({ useHandCursor: true });
+      const box = this.add.rectangle(x, y, cardW, cardH, UI.card)
+        .setStrokeStyle(2, UI.cardStroke).setInteractive({ useHandCursor: true });
       // 左侧强调色竖条
       const bar = this.add.rectangle(x - cardW / 2 + 3, y, 4, cardH - 14, accent)
         .setAlpha(0.55);
@@ -120,10 +118,10 @@ export class TraitSelectScene extends Phaser.Scene {
       }).setOrigin(1, 0.5);
 
       box.on('pointerover', () => {
-        if (this.selected !== t.id) box.setStrokeStyle(2, 0x2c4a60);
+        if (this.selected !== t.id) box.setStrokeStyle(2, UI.cardStrokeHover);
       });
       box.on('pointerout', () => {
-        if (this.selected !== t.id) box.setStrokeStyle(2, 0x1e3344);
+        if (this.selected !== t.id) box.setStrokeStyle(2, UI.cardStroke);
       });
       box.on('pointerdown', () => {
         this.selected = t.id;
@@ -157,64 +155,33 @@ export class TraitSelectScene extends Phaser.Scene {
     if (!this.cardRefs.length || !this.nextBtn) return;
     this.cardRefs.forEach((r, i) => {
       const on = this.choices[i]?.id === this.selected;
-      r.box.setStrokeStyle(on ? 2.5 : 2, on ? r.accent : 0x1e3344);
-      r.box.setFillStyle(on ? 0x16293a : 0x11202c);
+      r.box.setStrokeStyle(on ? 2.5 : 2, on ? r.accent : UI.cardStroke);
+      r.box.setFillStyle(on ? UI.cardOn : UI.card);
       r.mark.setAlpha(on ? 1 : 0);
     });
     const ok = !!this.selected;
-    const accent = ok ? ACCENT[this.selected as TraitId] : 0x449ddf;
-    this.nextBtn.setFillStyle(ok ? accent : 0x24404f);
-    this.nextBtn.setStrokeStyle(2, ok ? accent : 0x2b4256);
+    const accent = ok ? ACCENT[this.selected as TraitId] : UI.primary;
+    this.nextBtn.setFillStyle(ok ? accent : UI.disabled);
+    this.nextBtn.setStrokeStyle(2, ok ? accent : UI.disabledStroke);
     this.nextTxt.setAlpha(ok ? 1 : 0.45);
   }
 
-  /**
-   * 底部两钮的几何：一个次级小钮 + 一个主钮，作为一组整体居中。
-   *
-   * 之前两钮各自用固定偏移算 x，390 宽屏上左边界跑到 16、右边界 104，
-   * 与主钮左边界 100 重叠 4px。改成先算整组宽度再分配，
-   * 无论屏幕多宽都不会重叠或出界。
-   */
-  private static readonly BACK_W = 88;
-  private static readonly NEXT_W_GAP = 10;
-
-  private groupLeft(width: number) {
-    const total = TraitSelectScene.BACK_W + TraitSelectScene.NEXT_W_GAP + NEXT_W;
-    return (width - total) / 2;
-  }
-  private backX(width: number) {
-    return this.groupLeft(width) + TraitSelectScene.BACK_W / 2;
-  }
-  private nextX(width: number) {
-    return this.groupLeft(width) + TraitSelectScene.BACK_W + TraitSelectScene.NEXT_W_GAP + NEXT_W / 2;
-  }
-
-  /** 返回主菜单：与「下一步」同一行，左侧次级按钮 */
-  private buildBackButton(width: number, height: number) {
-    const y = height - 68;
-    const w = TraitSelectScene.BACK_W;
-    const h = 50;
-    // 「下一步」宽 190 居中，其左边界再留 8px 间距；并保证不超出屏幕左边距
-    const x = this.backX(width);
-    const btn = this.add.rectangle(x, y, w, h, 0x14293a, 0.92)
-      .setStrokeStyle(1.5, 0x2f6f96).setInteractive({ useHandCursor: true });
-    this.add.text(x, y, '上一页', {
-      fontFamily: 'sans-serif', fontSize: '14px', color: '#63b4ef',
-    }).setOrigin(0.5);
-    btn.on('pointerover', () => btn.setFillStyle(0x1b3446, 0.95));
-    btn.on('pointerout', () => btn.setFillStyle(0x14293a, 0.92));
-    btn.on('pointerdown', () => { Sfx.click(); goTo(this, 'Menu'); });
+  /** 返回主菜单：与伙伴选择页完全一致，左上角「← 返回」纯文字 */
+  private buildBackButton() {
+    const back = this.add.text(24, 30, '← 返回', {
+      fontFamily: 'sans-serif', fontSize: '13px', color: TEXT.dim,
+    }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+    back.on('pointerdown', () => { Sfx.click(); goTo(this, 'Menu'); });
   }
 
   private buildNextButton(width: number, height: number) {
     const y = height - 68;
-    // 与「上一页」一起构成底部一行，两钮组合整体水平居中
 
-    this.nextBtn = this.add.rectangle(this.nextX(width), y, NEXT_W, 50, 0x24404f)
-      .setStrokeStyle(2, 0x2b4256).setInteractive({ useHandCursor: true });
+    this.nextBtn = this.add.rectangle(width / 2, y, 220, 50, UI.disabled)
+      .setStrokeStyle(2, UI.disabledStroke).setInteractive({ useHandCursor: true });
     // 文字固定为最终态：选中前后都显示"下一步：选伙伴"，
     // 只用按钮底色/透明度表达"是否可选"，避免运行期改文本触发纹理重建。
-    this.nextTxt = this.add.text(this.nextX(width), y, '下一步：选伙伴', {
+    this.nextTxt = this.add.text(width / 2, y, '下一步：选伙伴', {
       fontFamily: 'sans-serif', fontSize: '15px', color: '#041018', fontStyle: 'bold',
     }).setOrigin(0.5).setAlpha(0.45);
     this.nextBtn.on('pointerdown', () => {

@@ -5,6 +5,7 @@ import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { makeCoinIcon } from '../ui/Icons';
 import { MenuBackdrop } from '../ui/MenuBackdrop';
+import { UI, TEXT } from '../ui/Theme';
 
 /** 登录页：动态背景 + 顶部 logo + 底部操作区 */
 export class MenuScene extends Phaser.Scene {
@@ -50,40 +51,38 @@ export class MenuScene extends Phaser.Scene {
     const shopY = startY - startH / 2 - gap - shopH / 2;
 
     // 强化：小一号的次级按钮
-    const shopBtn = this.add.rectangle(width / 2, shopY, 132, shopH, 0x14293a, 0.88)
-      .setStrokeStyle(1.5, 0x2f6f96).setInteractive({ useHandCursor: true }).setDepth(20);
+    const shopBtn = this.add.rectangle(width / 2, shopY, 132, shopH, UI.secondary, 0.88)
+      .setStrokeStyle(1.5, UI.secondaryStroke).setInteractive({ useHandCursor: true }).setDepth(20);
     this.add.text(width / 2, shopY, '强 化', {
-      fontFamily: 'sans-serif', fontSize: '14px', color: '#63b4ef', fontStyle: 'bold',
+      fontFamily: 'sans-serif', fontSize: '14px', color: TEXT.gold, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(21);
     shopBtn.on('pointerdown', () => { Sfx.init(); Sfx.click(); goTo(this, 'Shop'); });
-    shopBtn.on('pointerover', () => shopBtn.setFillStyle(0x1b3446, 0.95));
-    shopBtn.on('pointerout', () => shopBtn.setFillStyle(0x14293a, 0.88));
+    shopBtn.on('pointerover', () => shopBtn.setFillStyle(UI.secondaryHover, 0.95));
+    shopBtn.on('pointerout', () => shopBtn.setFillStyle(UI.secondary, 0.88));
 
     // 开始：主按钮，宽度撑开
-    const btn = this.add.rectangle(width / 2, startY, 220, startH, 0x449ddf)
-      .setStrokeStyle(2, 0x63b4ef).setInteractive({ useHandCursor: true }).setDepth(20);
+    const btn = this.add.rectangle(width / 2, startY, 220, startH, UI.primary)
+      .setStrokeStyle(2, UI.primaryStroke).setInteractive({ useHandCursor: true }).setDepth(20);
     this.add.text(width / 2, startY, '开 始', {
       fontFamily: 'sans-serif', fontSize: '19px', color: '#041018', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(21);
     btn.on('pointerdown', () => { Sfx.init(); Sfx.click(); goTo(this, 'TraitSelect'); });
-    btn.on('pointerover', () => btn.setFillStyle(0x63b4ef));
-    btn.on('pointerout', () => btn.setFillStyle(0x449ddf));
+    btn.on('pointerover', () => btn.setFillStyle(UI.primaryLight));
+    btn.on('pointerout', () => btn.setFillStyle(UI.primary));
 
     // 底部提示 + 构建标记
     this.add.text(width / 2, height - 52, '拖动屏幕平移 · 升级时按 1/2/3 选择', {
       fontFamily: 'sans-serif', fontSize: '10px', color: '#a8c4d8',
     }).setOrigin(0.5).setDepth(20).setShadow(0, 1, '#041018', 3);
 
-    // 构建标识：迭代数 + 日期 + 时间戳 + tag
+    // 构建标识：纯白、短。只显示「标签 + 迭代数」，例如 v0.4·64
+    // 完整时间戳仍注入在 __BUILD_STAMP__ 里，需要排查时在控制台可查。
     const S = __BUILD_STAMP__;
-    const stamp = this.add.text(
-      width / 2, height - 12,
-      `r${S.iter} · ${S.date} ${S.time} · ${S.iso} · ${S.tag} · #${S.epoch}`,
-      { fontFamily: 'monospace', fontSize: '8px', color: '#4e6778' },
-    ).setOrigin(0.5).setDepth(20).setShadow(0, 1, '#041018', 3);
-    // 小屏兜底：超宽时按比例缩，绝不允许超出屏幕
-    const maxW = width - 24;
-    if (stamp.width > maxW) stamp.setScale(maxW / stamp.width);
+    // 草地纹理会把细字冲淡 → 加一圈黑描边 + 更实的阴影，保证纯白可读
+    this.add.text(width / 2, height - 12, `${S.tag}·${S.iter}`, {
+      fontFamily: 'monospace', fontSize: '11px', color: '#ffffff',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(20);
 
     makeDevButton(this, () => openDevPanel(this));
   }

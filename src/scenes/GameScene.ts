@@ -13,6 +13,7 @@ import type { TraitId } from '../data/stats';
 import { EVOLUTIONS, canEvolve, type EvolutionDef } from '../data/evolutions';
 import { applyPerm } from '../data/stats';
 import { POKEMON_PLAYABLE } from '../data/pokedex';
+import { UI } from '../ui/Theme';
 
 export interface UpgradeOption {
   kind: 'newmove' | 'upgrade' | 'stat' | 'evolve';
@@ -325,7 +326,7 @@ export class GameScene extends Phaser.Scene {
       fontSize: '13px', color: '#9fc4dd',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(300).setAlpha(0);
 
-    const line = this.add.rectangle(w / 2, cy + 52, 0, 2, 0x449ddf, 0.9)
+    const line = this.add.rectangle(w / 2, cy + 52, 0, 2, UI.primary, 0.9)
       .setScrollFactor(0).setDepth(300);
 
     this.tweens.add({ targets: name, alpha: 1, y: cy - 6, duration: 320, ease: 'Cubic.easeOut' });

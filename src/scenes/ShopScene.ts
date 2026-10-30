@@ -3,6 +3,7 @@ import { PERM_UPGRADES, permCost, loadSave, writeSave, PERM_EMPTY, type PermKey 
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { makeCoinIcon, makePermIcon } from '../ui/Icons';
+import { UI, TEXT } from '../ui/Theme';
 
 /**
  * 强化页：用金币购买局外永久升级（每级仅 1-2%）。
@@ -39,7 +40,7 @@ export class ShopScene extends Phaser.Scene {
 
     // 标题 + 余额（右上角，与主菜单一致的硬币样式）
     this.add.text(width / 2, 34, '强 化', {
-      fontFamily: 'sans-serif', fontSize: '22px', color: '#449ddf', fontStyle: 'bold',
+      fontFamily: 'sans-serif', fontSize: '22px', color: TEXT.gold, fontStyle: 'bold',
     }).setOrigin(0.5);
 
     const coinX = width / 2;
@@ -101,8 +102,8 @@ export class ShopScene extends Phaser.Scene {
       }).setOrigin(0, 0.5);
 
       // 购买按钮：单行内容「价格 + 硬币图标」，整体作为一个可点区域
-      const btn = this.add.rectangle(btnX, cy, btnW, 40, 0x449ddf)
-        .setStrokeStyle(1.5, 0x63b4ef).setInteractive({ useHandCursor: true });
+      const btn = this.add.rectangle(btnX, cy, btnW, 40, UI.primary)
+        .setStrokeStyle(1.5, UI.primaryStroke).setInteractive({ useHandCursor: true });
       // btnText 用作「已满」等状态文字，位于硬币块上方同步显示
       const btnText = this.add.text(btnX, cy, '', {
         fontFamily: 'sans-serif', fontSize: '13px', color: '#041018', fontStyle: 'bold',
@@ -197,7 +198,7 @@ export class ShopScene extends Phaser.Scene {
         r.btnText.setText('已满').setVisible(true);
         r.cost.setText('');
         r.costIcon.setVisible(false);
-        r.btn.setFillStyle(0x1b2f3d).disableInteractive();
+        r.btn.setFillStyle(UI.disabled).disableInteractive();
       } else {
         const price = permCost(r.key, lv);
         const afford = this.save.coins >= price;
@@ -212,7 +213,7 @@ export class ShopScene extends Phaser.Scene {
         const startX = r.btn.x - blockW / 2;
         r.costIcon.setX(startX + iconW / 2);
         r.cost.setX(startX + iconW + gap);
-        r.btn.setFillStyle(afford ? 0x449ddf : 0x2a4052);
+        r.btn.setFillStyle(afford ? UI.primary : UI.disabled);
         // 买不起时数字与图标一起变暗，避免看着像能点
         r.cost.setColor(afford ? '#041018' : '#7a8fa0');
         r.costIcon.setAlpha(afford ? 1 : 0.45);
