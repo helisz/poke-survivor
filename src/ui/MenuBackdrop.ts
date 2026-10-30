@@ -233,21 +233,34 @@ export class MenuBackdrop {
 
   private buildFlyers() {
     const { width, height } = this.scene.scale;
-    const rnd = mulberry32(4242);
+    // 真随机：每次进主菜单的宝可梦种类、位置、方向、大小都不同
+    const rnd = Math.random;
     const count = 9;
 
+    // 打乱野生池后顺序取，保证这一屏 9 只互不重复
+    const pool = [...ENEMY_POOL];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+
     for (let i = 0; i < count; i++) {
-      // 从野生池随机挑一只
-      const id = ENEMY_POOL[Math.floor(rnd() * ENEMY_POOL.length)];
+      const id = pool[i % pool.length];
       const key = `pk_${id}`;
       if (!this.scene.textures.exists(key)) continue;
 
-      // 大尺寸：96px 原图画到 110~210px
-      const size = 110 + rnd() * 100;
-      // 初始直接铺在屏幕内（略微外扩），保证一进菜单就能看到
-      const x = -size * 0.4 + rnd() * (width + size * 0.8);
-      const y = -size * 0.4 + rnd() * (height + size * 0.8);
-      const speed = 16 + rnd() * 22;
+      // 大尺寸：原图放大到 90~230px，尺寸差异让画面更活
+      const size = 90 + rnd() * 140;
+      // 初始位置避开中央主角所在区域，不要压住主角
+      let x = 0, y = 0;
+      for (let t = 0; t < 8; t++) {
+        x = -size * 0.4 + rnd() * (width + size * 0.8);
+        y = -size * 0.4 + rnd() * (height + size * 0.8);
+        const dx = x - width / 2, dy = y - height * 0.52;
+        if (Math.hypot(dx, dy) > size * 0.5 + 70) break;
+      }
+      // 速度随尺寸走：大的慢、小的快，视觉上更像远景/近景
+      const speed = Phaser.Math.Linear(34, 12, (size - 90) / 140);
       const dir = rnd() * Math.PI * 2;
       const vx = Math.cos(dir) * speed;
       const vy = Math.sin(dir) * speed;
@@ -270,7 +283,7 @@ export class MenuBackdrop {
 
   private spawnSparks(n: number) {
     const { width, height } = this.scene.scale;
-    const rnd = mulberry32(999);
+    const rnd = Math.random;
     // 技能配色：电黄 / 火橙 / 冰蓝 / 草绿
     const palette = [0xffe066, 0xff9a3c, 0x7fd8ff, 0x8ce87a, 0xd79bff];
 
