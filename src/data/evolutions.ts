@@ -136,6 +136,137 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
       note: '水流尾 → 破坏光线：伤害 +75%，冷却 -18%',
     },
   ],
+  // ── 自身觉醒（不新增图鉴 id）─────────────────────────────────
+  // 初代 151 个位置已被「24 伙伴 + 8 进化目标 + 6 BOSS + 20 精英 + 108 小怪」
+  // 正好占满，没有空位再挂新的进化形态。这些伙伴于是走 448 路卡利欧 /
+  // 130 暴鲤龙 同款做法：进化形态就是自己，名字标「觉醒形态」，靠倍率成长。
+
+  // 一般：卡比兽 → 觉醒（重压型，AOE 双给）
+  bodyslam: [
+    {
+      toId: 143, name: '卡比兽 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'time', value: 190 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.55, cdMul: 0.88,
+      note: '泰山压顶 → 超重压：伤害 +55%，冷却 -12%，范围扩大',
+    },
+  ],
+  // 电：电击魔兽 → 觉醒（近战高频，偏冷却）
+  thunderpunch: [
+    {
+      toId: 466, name: '电击魔兽 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'time', value: 170 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.45, cdMul: 0.80,
+      note: '雷光拳 → 狂雷电拳：伤害 +45%，冷却 -20%',
+    },
+  ],
+  // 火：烈焰马 → 觉醒（冲锋近战，偏伤害）
+  flareblitz: [
+    {
+      toId: 78, name: '烈焰马 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'time', value: 170 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.60, cdMul: 0.88,
+      note: '闪焰冲锋 → 烈焰突进：伤害 +60%，冷却 -12%',
+    },
+  ],
+  // 地面：穿山王 → 觉醒（大 AOE，双给）
+  earthquake: [
+    {
+      toId: 28, name: '穿山王 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 24 }, { kind: 'time', value: 210 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.60, cdMul: 0.88,
+      note: '地震 → 地裂：伤害 +60%，冷却 -12%，爆破范围扩大',
+    },
+  ],
+  // 火：九尾 → 觉醒（光环持续，偏冷却）
+  firespin: [
+    {
+      toId: 38, name: '九尾 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'time', value: 170 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.50, cdMul: 0.85,
+      note: '火焰旋涡 → 炼狱之环：伤害 +50%，冷却 -15%',
+    },
+  ],
+  // 钢：大钢蛇 → 觉醒（近战横扫，偏伤害）
+  ironhead: [
+    {
+      toId: 208, name: '大钢蛇 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'time', value: 170 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.55, cdMul: 0.90,
+      note: '铁头 → 钢牙铁壁：伤害 +55%，冷却 -10%',
+    },
+  ],
+  // 超能：太阳伊布 → 觉醒（治疗招式，伤害无意义 → 纯冷却，回得更勤）
+  morningsun: [
+    {
+      toId: 196, name: '太阳伊布 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 18 }, { kind: 'time', value: 150 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.00, cdMul: 0.72,
+      note: '晨光 → 大晴空：冷却 -28%，治疗频率大幅提升',
+    },
+  ],
+  // 毒：尼多王 → 觉醒（投掷，偏伤害）
+  sludgebomb: [
+    {
+      toId: 34, name: '尼多王 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'time', value: 190 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.60, cdMul: 0.90,
+      note: '污泥炸弹 → 剧毒爆弹：伤害 +60%，冷却 -10%',
+    },
+  ],
+  // 火：火焰鸡 → 觉醒（近战，双给）
+  blazekick: [
+    {
+      toId: 257, name: '火焰鸡 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'time', value: 190 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.55, cdMul: 0.86,
+      note: '火焰踢 → 烈焰连踢：伤害 +55%，冷却 -14%',
+    },
+  ],
+  // 地面：巨沼怪 → 觉醒（快速投掷，偏伤害）
+  mudslap: [
+    {
+      toId: 260, name: '巨沼怪 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'time', value: 190 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.55, cdMul: 0.90,
+      note: '泥巴射击 → 泥沼重击：伤害 +55%，冷却 -10%',
+    },
+  ],
+  // 草：蜥蜴王 → 觉醒（近战穿透，偏伤害）
+  leafblade: [
+    {
+      toId: 254, name: '蜥蜴王 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'time', value: 190 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.60, cdMul: 0.88,
+      note: '叶刃 → 圣剑叶刃：伤害 +60%，冷却 -12%',
+    },
+  ],
+  // 超能：胡地 → 觉醒（高穿透，偏伤害）
+  confusion: [
+    {
+      toId: 65, name: '胡地 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'time', value: 190 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.60, cdMul: 0.88,
+      note: '念力 → 超念动力：伤害 +60%，冷却 -12%，穿透 +1',
+    },
+  ],
+  // 一般：袋兽 → 觉醒（超快连拳，强偏冷却）
+  cometpunch: [
+    {
+      toId: 115, name: '袋兽 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'time', value: 170 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.40, cdMul: 0.78,
+      note: '连续拳 → 亲子连打：伤害 +40%，冷却 -22%',
+    },
+  ],
+  // 龙：烈咬陆鲨 → 觉醒（高速穿透，偏伤害）
+  dragonrush: [
+    {
+      toId: 445, name: '烈咬陆鲨 · 觉醒形态',
+      requireOneOf: [{ kind: 'level', value: 24 }, { kind: 'time', value: 210 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
+      dmgMul: 1.65, cdMul: 0.86,
+      note: '龙之俯冲 → 神速龙击：伤害 +65%，冷却 -14%',
+    },
+  ],
 };
 
 /**

@@ -1,13 +1,14 @@
 import Phaser from 'phaser';
 import { UI, TEXT } from '../ui/Theme';
+import { spriteIds } from '../data/sprites';
 
-const POKEMON_IDS = [
-  25, 6, 9, 3, 143, 94, 149, 448, 282, 130, 248, 466, 78, 28, 38, 208,
-  196, 34, 257, 260, 254, 65, 115, 445, 19, 20, 41, 42, 109, 110, 92, 93,
-  29, 60, 63, 66, 72, 80, 100, 81, 43, 69, 120, 138, 22, 150,
-  // 进化形态
-  26, 142, 146, 154, 160, 373, 429, 475,
-];
+/**
+ * 预加载的贴图编号。
+ *
+ * 从数据推导而不是手写死名单 —— 池子一改就得同步手改列表，漏一个就是
+ * 「贴图缺失」黑框。推导逻辑放在 data/sprites.ts，测试导同一份。
+ */
+const POKEMON_IDS = spriteIds();
 
 export class BootScene extends Phaser.Scene {
   constructor() { super('Boot'); }

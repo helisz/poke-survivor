@@ -47,7 +47,12 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x25452a,
     ambient: 0x8ecf7a,
     ambientAlpha: 0.05,
-    enemyPool: [19, 20, 43, 69, 63, 29, 120, 138],
+    enemyPool: [
+    1, 11, 14, 19, 20, 35, 43, 53,
+    69, 108, 113, 127, 128, 132, 133, 137,
+    16, 17,
+    ],
+    elitePool: [45, 103, 89, 110],
     spawnMul: 1,
     expMul: 1,
     decorations: [
@@ -65,8 +70,12 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x142818,
     ambient: 0x3f9b5c,
     ambientAlpha: 0.1,
-    enemyPool: [43, 69, 63, 29, 66, 72, 120, 138],
-    elitePool: [142, 146],
+    enemyPool: [
+    10, 12, 23, 29, 31, 36, 39, 40,
+    72, 88, 109, 114, 121, 123, 124, 46,
+    47, 22,
+    ],
+    elitePool: [73, 80, 97, 119],
     spawnMul: 1.15,
     expMul: 1.05,
     decorations: [
@@ -85,8 +94,12 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x1a1a20,
     ambient: 0x6f7bd6,
     ambientAlpha: 0.12,
-    enemyPool: [41, 42, 92, 93, 109, 110, 66, 80],
-    elitePool: [94, 429],
+    enemyPool: [
+    2, 13, 15, 27, 32, 41, 44, 49,
+    50, 51, 70, 104, 138, 139, 141, 83,
+    52, 48,
+    ],
+    elitePool: [71, 82, 105],
     spawnMul: 0.85,
     expMul: 1.2,
     decorations: [
@@ -104,8 +117,12 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x1a221a,
     ambient: 0x7fb04a,
     ambientAlpha: 0.11,
-    enemyPool: [60, 72, 80, 81, 100, 120, 109, 110],
-    elitePool: [160, 154],
+    enemyPool: [
+    7, 8, 24, 30, 33, 42, 54, 60,
+    61, 86, 90, 98, 116, 117, 118, 120,
+    129, 134,
+    ],
+    elitePool: [55, 62, 91],
     spawnMul: 1.35,
     expMul: 1.1,
     decorations: [
@@ -124,8 +141,12 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x1e0f0b,
     ambient: 0xff6a33,
     ambientAlpha: 0.13,
-    enemyPool: [19, 20, 29, 41, 42, 81, 100, 110],
-    elitePool: [142, 146],
+    enemyPool: [
+    4, 5, 37, 56, 57, 58, 66, 67,
+    77, 100, 101, 106, 125, 126, 135, 136,
+    18, 84,
+    ],
+    elitePool: [59, 68, 107],
     spawnMul: 1.1,
     expMul: 1.3,
     decorations: [
@@ -144,8 +165,12 @@ export const MAP_THEMES: MapTheme[] = [
     patch: 0x1a1824,
     ambient: 0xb08cff,
     ambientAlpha: 0.14,
-    enemyPool: [92, 93, 109, 110, 120, 138, 66, 80],
-    elitePool: [373, 475],
+    enemyPool: [
+    63, 64, 74, 75, 79, 81, 92, 93,
+    102, 111, 122, 140, 147, 148, 21, 85,
+    87, 99,
+    ],
+    elitePool: [76, 95, 96],
     spawnMul: 1.2,
     expMul: 1.45,
     decorations: [

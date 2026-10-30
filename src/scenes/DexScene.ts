@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { POKEMON_PLAYABLE, POKEDEX_NAME } from '../data/pokedex';
+import {
+  POKEMON_PLAYABLE, POKEDEX_NAME, ENEMY_POOL, ELITE_POOL, BOSS_POOL, POKEMON_TYPE, POKEMON_GENUS,
+} from '../data/pokedex';
 import { MOVES } from '../data/moves';
 import { EVOLUTIONS } from '../data/evolutions';
 import { loadSave } from '../data/stats';
@@ -17,6 +19,9 @@ const TYPE_COLOR: Record<string, number> = {
 };
 
 const RARITY_LABEL: Record<string, string> = { common: '普通', rare: '稀有', epic: '史诗' };
+
+/** 每页格子数上限（4~5 列 × 若干行，按屏幕算出来是 20~30） */
+const PER_PAGE = 24;
 
 type Tab = 'partner' | 'enemy';
 
@@ -41,6 +46,7 @@ export class DexScene extends Phaser.Scene {
   constructor() { super('Dex'); }
 
   private tab: Tab = 'partner';
+  private page = 0;
   private seenPartners = new Set<number>();
   private seenEnemies = new Set<number>();
   private grid?: Phaser.GameObjects.Container;
@@ -55,6 +61,7 @@ export class DexScene extends Phaser.Scene {
     this.detail = undefined;
     this.tabBtns = [];
     this.tab = 'partner';
+    this.page = 0;
 
     const sv = loadSave();
     this.seenPartners = new Set(sv.seenPartners ?? []);
@@ -96,6 +103,7 @@ export class DexScene extends Phaser.Scene {
         if (this.tab === key) return;
         Sfx.click();
         this.tab = key;
+        this.page = 0;
         this.paintTabs();
         this.buildGrid();
       });
@@ -124,13 +132,25 @@ export class DexScene extends Phaser.Scene {
         id: p.id, name: p.name, type: p.type, move: p.move,
       }));
     }
-    const playables = POKEMON_PLAYABLE as readonly { id: number; name: string; type: string; move: string }[];
-    return ENEMY_IDS.map((id) => {
-      const p = playables.find((x) => x.id === id);
-      return { id, name: POKEDEX_NAME[id] ?? `No.${id}`, type: p?.type };
-    });
+    // 敌人页：BOSS 排最前，然后精英，最后小怪 —— 越稀有的越靠前
+    const order = [...BOSS_POOL, ...ELITE_POOL, ...ENEMY_POOL];
+    const seen = new Set<number>();
+    const out: Entry[] = [];
+    for (const id of order) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push({ id, name: POKEDEX_NAME[id] ?? `No.${id}`, type: POKEMON_TYPE[id] });
+    }
+    return out;
   }
 
+  /**
+   * 画当前页的格子。
+   *
+   * 伙伴 34 只、敌人 134 只，一屏放不下 —— 固定每页 24 格（4 列 × 6 行），
+   * 底下翻页。格子尺寸按「一页 24 格」算，不随条目总数变化，
+   * 这样翻页时格子大小不会跳。
+   */
   private buildGrid() {
     this.grid?.destroy(true);
     const { width, height } = this.scale;
@@ -139,10 +159,14 @@ export class DexScene extends Phaser.Scene {
 
     const list = this.entries();
     const cols = width < 420 ? 4 : 5;
+    const rows = Math.ceil(PER_PAGE / cols);
+    const perPage = cols * rows;
+    const totalPages = Math.max(1, Math.ceil(list.length / perPage));
+    this.page = Math.min(this.page, totalPages - 1);
+
     const padX = 14;
     const topY = 94;
-    const bottomReserved = 70;
-    const rows = Math.ceil(list.length / cols);
+    const bottomReserved = 74;
 
     const availW = width - padX * 2;
     const availH = height - topY - bottomReserved;
@@ -157,20 +181,58 @@ export class DexScene extends Phaser.Scene {
     const startX = (width - totalW) / 2 + cell / 2;
     const startY = topY + Math.max(0, (availH - totalH) / 2) + cell / 2;
 
-    list.forEach((e, i) => {
+    const begin = this.page * perPage;
+    const slice = list.slice(begin, begin + perPage);
+    slice.forEach((e, i) => {
       const cx = startX + (i % cols) * (cell + gapX);
       const cy = startY + Math.floor(i / cols) * (cell + gapY);
       this.makeCell(c, cx, cy, cell, e);
     });
 
-    const seen = this.tab === 'partner'
-      ? list.filter((e) => this.seenPartners.has(e.id)).length
-      : list.filter((e) => this.seenEnemies.has(e.id)).length;
-    const stat = this.add.text(width / 2, height - 34, `已解锁 ${seen} / ${list.length}`, {
+    const seenSet = this.tab === 'partner' ? this.seenPartners : this.seenEnemies;
+    const seen = list.filter((e) => seenSet.has(e.id)).length;
+    // 统计放翻页器上方；同高会跟页码叠在一起
+    const statY = totalPages > 1 ? height - 52 : height - 30;
+    const stat = this.add.text(width / 2, statY, `已解锁 ${seen} / ${list.length}`, {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
       fontSize: '12px', color: TEXT.dim,
     }).setOrigin(0.5);
     c.add(stat);
+
+    if (totalPages > 1) this.buildPager(c, totalPages);
+  }
+
+  /** 底部左右翻页：‹ 页码 › */
+  private buildPager(parent: Phaser.GameObjects.Container, totalPages: number) {
+    const { width, height } = this.scale;
+    const y = height - 26;
+
+    const mk = (x: number, label: string, enabled: boolean, onClick: () => void) => {
+      const btn = new RoundedPanel(this, x, y, 34, 30,
+        enabled ? UI.secondary : 0x0d1116, enabled ? 0.95 : 1, { radius: 8 })
+        .setStrokeStyle(1.5, enabled ? UI.secondaryStroke : UI.cardStroke)
+        .setInteractive({ useHandCursor: enabled });
+      attachPressFeedback(btn, { scale: 0.94 });
+      const t = this.add.text(x, y, label, {
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
+        fontSize: '15px', color: enabled ? TEXT.gold : TEXT.off, fontStyle: 'bold',
+      }).setOrigin(0.5);
+      if (enabled) {
+        btn.on('pointerup', () => { Sfx.click(); onClick(); });
+      }
+      parent.add([btn, t]);
+    };
+
+    // 靠右排：返回按钮占左侧约 110px，翻页器别压上去
+    const cx = width / 2 + 52;
+    mk(cx - 46, '‹', this.page > 0, () => { this.page--; this.buildGrid(); });
+    mk(cx + 46, '›', this.page < totalPages - 1,
+      () => { this.page++; this.buildGrid(); });
+
+    const p = this.add.text(cx, y, `${this.page + 1}/${totalPages}`, {
+      fontFamily: 'monospace', fontSize: '12px', color: TEXT.dim,
+    }).setOrigin(0.5);
+    parent.add(p);
   }
 
   private makeCell(
@@ -282,9 +344,11 @@ export class DexScene extends Phaser.Scene {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
       fontSize: '21px', color: TEXT.main, fontStyle: 'bold',
     }).setOrigin(0.5);
-    const noText = this.add.text(0, top + 186, `No.${String(e.id).padStart(3, '0')}`, {
-      fontFamily: 'monospace', fontSize: '11px', color: TEXT.dim,
-    }).setOrigin(0.5);
+    const genus = POKEMON_GENUS[e.id];
+    const noText = this.add.text(0, top + 186,
+      genus ? `No.${String(e.id).padStart(3, '0')} · ${genus}` : `No.${String(e.id).padStart(3, '0')}`, {
+        fontFamily: 'monospace', fontSize: '11px', color: TEXT.dim,
+      }).setOrigin(0.5);
     c.add([nameText, noText]);
 
     if (e.type) {
@@ -334,10 +398,16 @@ export class DexScene extends Phaser.Scene {
       c.add(label);
 
       const first = evo[0];
-      const steps = [
-        { id: e.id, name: e.name },
-        { id: first.toId, name: first.name ?? POKEDEX_NAME[first.toId] ?? '' },
-      ];
+      // 448 路卡利欧、130 暴鲤龙的进化形态是自身 Mega，贴图还是同一张。
+      // 这种情况不画第二个图标（两个一样的图会让人以为没进化），
+      // 只在名字后面标「强化形态」。
+      const sameId = first.toId === e.id;
+      const steps = sameId
+        ? [{ id: e.id, name: `${e.name} · ${first.name}` }]
+        : [
+          { id: e.id, name: e.name },
+          { id: first.toId, name: first.name ?? POKEDEX_NAME[first.toId] ?? '' },
+        ];
       const stepGap = Math.min(96, panelW * 0.34);
       steps.forEach((s, i) => {
         const sx = (i - (steps.length - 1) / 2) * stepGap;
@@ -379,12 +449,14 @@ export class DexScene extends Phaser.Scene {
 
   private buildBack() {
     const { height } = this.scale;
-    const back = new RoundedPanel(this, 68, height - 34, 108, 40, UI.secondary, 0.95, { radius: 10 })
+    // 翻页器占了底部一条，返回按钮抬高一点，跟箭头别撞
+    const y = height - 26;
+    const back = new RoundedPanel(this, 62, y, 96, 34, UI.secondary, 0.95, { radius: 10 })
       .setStrokeStyle(1.5, UI.secondaryStroke)
       .setInteractive({ useHandCursor: true })
       .setDepth(20);
     attachPressFeedback(back);
-    this.add.text(68, height - 34, '← 返回', {
+    this.add.text(62, height - 26, '← 返回', {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
       fontSize: '13px', color: TEXT.gold, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(21);
@@ -392,14 +464,3 @@ export class DexScene extends Phaser.Scene {
   }
 }
 
-/**
- * 敌人图鉴的 id 全集：图鉴名表里排除可玩池之后剩下的，
- * 就是小怪池 / 精英池 / BOSS 池（含进化目标，它们也会作为敌人出现）。
- */
-const ENEMY_IDS: number[] = (() => {
-  const playable = new Set<number>(POKEMON_PLAYABLE.map((p) => p.id as number));
-  return Object.keys(POKEDEX_NAME)
-    .map(Number)
-    .filter((id) => !playable.has(id))
-    .sort((a, b) => a - b);
-})();

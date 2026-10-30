@@ -834,7 +834,10 @@ export class GameScene extends Phaser.Scene {
     this.pendingEvolutions().forEach(({ moveId, evo }) => {
       pool.push({
         kind: 'evolve', id: `evo_${moveId}_${evo.toId}`,
-        title: `进化 · ${evo.name}`,
+        // 标题只写「进化」：名字可能长到 11 个字（电击魔兽 · 觉醒形态），
+        // 塞进标题会压住卡片中间的图标。名字本来就会显示在大图下方，
+        // desc 不再重复，否则换行后顶到卡片底沿。
+        title: '进化',
         desc: evo.note,
         color: MOVES[moveId].color,
         portraitId: evo.toId,

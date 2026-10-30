@@ -1,15 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { MAP_THEMES } from '../src/data/maps';
-import { ENEMY_POOL, ELITE_POOL, BOSS_POOL } from '../src/data/pokedex';
+import {
+  ENEMY_POOL, ELITE_POOL, BOSS_POOL, POKEMON_PLAYABLE, POKEDEX_NAME,
+} from '../src/data/pokedex';
+import { spriteIds } from '../src/data/sprites';
 
 /**
  * 回归测试：怪物变成黑框。
- * 根因：地图专属怪物池引用了 BootScene 未加载、assets 里也没有的图鉴编号，
- * 贴图缺失时 Phaser 会渲染成一个空白/黑框。
+ * 根因：怪物池引用了 BootScene 未加载、assets 里也没有的图鉴编号，
+ * 贴图缺失时 Phaser 会渲染成空白/黑框。
  *
- * 这里直接核对磁盘上的图片文件，确保所有怪物池引用的编号都有贴图。
+ * 预加载列表由 data/sprites.ts 推导，BootScene 与这里用同一份逻辑，
+ * 不再解析源码字符串。
  */
 
 const ASSET_DIR = resolve(__dirname, '../public/assets/pokemon');
@@ -20,14 +24,7 @@ const available = new Set(
     .filter((n) => !Number.isNaN(n)),
 );
 
-/** BootScene 里声明要加载的编号 */
-const bootSrc = readFileSync(resolve(__dirname, '../src/scenes/BootScene.ts'), 'utf8');
-const bootIds = new Set(
-  (bootSrc.split('const POKEMON_IDS = [')[1] ?? '')
-    .split('];')[0]
-    .match(/\d{1,3}/g)!
-    .map(Number),
-);
+const bootIds = new Set(spriteIds());
 
 describe('怪物贴图完整性', () => {
   it('全局野怪池全部有贴图文件', () => {
@@ -59,13 +56,25 @@ describe('怪物贴图完整性', () => {
     }
   });
 
-  it('所有被引用的编号都在 BootScene 预加载列表里', () => {
+  it('所有被引用的编号都在预加载列表里', () => {
     const referenced = new Set<number>([
       ...ENEMY_POOL, ...ELITE_POOL, ...BOSS_POOL,
       ...MAP_THEMES.flatMap((t) => [...(t.enemyPool ?? []), ...(t.elitePool ?? [])]),
     ]);
     for (const id of referenced) {
-      expect(bootIds.has(id), `编号 ${id} 未在 BootScene 加载`).toBe(true);
+      expect(bootIds.has(id), `编号 ${id} 未预加载`).toBe(true);
+    }
+  });
+
+  it('图鉴名表与可玩/怪物池一致：每个名字都有贴图', () => {
+    for (const id of Object.keys(POKEDEX_NAME).map(Number)) {
+      expect(available.has(id), `图鉴 ${id} 有名字但缺贴图`).toBe(true);
+    }
+  });
+
+  it('可玩池每只都有贴图', () => {
+    for (const p of POKEMON_PLAYABLE) {
+      expect(available.has(p.id), `可玩 ${p.id} ${p.name} 缺贴图`).toBe(true);
     }
   });
 });

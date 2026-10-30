@@ -172,7 +172,9 @@ export class LevelUpScene extends Phaser.Scene {
         const maxImgH = this.vertical ? h * 0.62 : h * 0.42;
         const scale = maxImgH / 64;
         const px = this.vertical ? w / 2 - 42 : 0;
-        const py = this.vertical ? 4 : -h * 0.08;
+        // 横排卡标题在 -h/2+60 处，图往上顶会压住标题行。
+        // 图心放在标题下方，留出半个图高 + 6px 的间距。
+        const py = this.vertical ? 4 : (-h / 2 + 60 + 16 + maxImgH / 2 + 6);
         const glow = this.add.circle(px, py, (64 * scale) / 2 + 4, 0xffd75e, 0.16);
         const portrait = this.add.image(px, py, key).setScale(scale);
         c.add([glow, portrait]);
