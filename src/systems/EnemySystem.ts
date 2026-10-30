@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BOSS_POOL, ELITE_POOL, ENEMY_POOL, isFloating } from '../data/pokedex';
+import { BOSS_POOL, ELITE_POOL, ENEMY_POOL, isFloating, isFloatingMon } from '../data/pokedex';
 import { GLOBAL_SCALE } from '../data/stats';
 
 export type EnemyKind = 'normal' | 'elite' | 'boss';
@@ -110,6 +110,35 @@ export class EnemySystem {
   private seenThisRun = new Set<number>();
 
   /**
+   * 跳跃/浮空时的阴影同步。
+   *
+   * 和 ensureShadow 的差别：这个每帧调用，允许缩放和透明度变化。
+   * 精灵本体用视觉偏移上移，影子必须留在「地面高度」（body.y），
+   * 否则影子会跟着飞起来，离地感全没了。
+   *
+   * @param scaleMul 阴影缩放倍率（跳起时变小 = 离地更高）
+   * @param alphaMul 阴影透明度倍率（跳起时变淡）
+   */
+  private syncShadow(e: Phaser.Physics.Arcade.Sprite, scaleMul: number, alphaMul: number) {
+    const sh = this.shadows.get(e);
+    if (!sh) { this.ensureShadow(e); return; }
+    const body = e.body as Phaser.Physics.Arcade.Body;
+    const kind = e.getData('kind') as EnemyKind;
+    const floating = e.getData('floating') as boolean;
+    const baseW = e.displayWidth * (kind === 'boss' ? 0.62 : kind === 'elite' ? 0.7 : 0.78);
+    const baseH = Math.max(4, baseW * 0.32);
+    const baseAlpha = floating ? 0.2 : kind === 'boss' ? 0.3 : 0.26;
+    // 影子固定在物理体位置（地面），不跟随视觉偏移
+    const dy = kind === 'boss' ? 30 : floating ? 20 : 14;
+
+    sh.setSize(baseW * scaleMul, baseH * scaleMul)
+      .setFillStyle(0x000000, baseAlpha * alphaMul)
+      .setPosition(body.center.x, body.center.y + dy)
+      .setDepth(5)
+      .setVisible(e.active);
+  }
+
+  /**
    * 图鉴：记录这只怪见过。
    * 只在内存里按 key 去重，真正落盘交给 GameScene 结束时统一写一次。
    */
@@ -151,6 +180,18 @@ export class EnemySystem {
     e.setData('flashUntil', 0);
     e.setData('isBlackened', kind !== 'normal');
 
+    // 移动表现：浮空 / 蹦跳。数据层按属性判定，BOSS 一律浮空。
+    const pkId = Number(key.replace('pk_', ''));
+    e.setData('floating', isFloatingMon(pkId, kind === 'boss'));
+    // 相位随机错开，否则一屏怪同步跳动像集体做操
+    e.setData('hopPhase', Math.random() * Math.PI * 2);
+    // 跳跃频率由速度反推：跑得快的跳得急，慢的跳得缓。
+    // clamp 到 0.9~2.0 Hz，避免极慢怪一秒跳半下、极快怪抖成噪点。
+    const spd0 = e.getData('speed') as number;
+    e.setData('hopHz', Phaser.Math.Clamp(0.9 + (spd0 - 62) / 90, 0.9, 2.0));
+    // 精英/BOSS 幅度小：体型太大跳起来会飞出画面
+    e.setData('hopAmp', kind === 'boss' ? 2.0 : kind === 'elite' ? 3.0 : 4.5 + Math.random() * 1.5);
+
     if (kind !== 'normal') this.applyBlacken(e);
     else e.clearTint();
 
@@ -161,9 +202,37 @@ export class EnemySystem {
     body.setCircle(r, e.width / 2 - r, e.height / 2 - r);
     body.setEnable(true);
     body.reset(x, y);
+    // 记住原始 offset：跳跃时每帧改写 offset.y，回收复用时必须还原
+    e.setData('origOffsetY', body.offset.y);
     // 立刻摆好阴影，避免第一帧出现「没影子」的闪烁
     this.ensureShadow(e);
     return e;
+  }
+
+  /**
+   * 每帧物理跑完后，把跳跃偏移应用到渲染位置。
+   *
+   * 时机很关键：postupdate 时 body 已经算完并写回 sprite.y，
+   * 此时我们再加偏移，既不影响本帧判定，也不会被下一帧的
+   * updateFromGameObject 当成新位置读回去。
+   */
+  installLiftHook(scene: Phaser.Scene) {
+    // ① 物理 step 之前：把上一帧加的偏移还原掉，让 body 读到真实地面位置
+    scene.events.on('preupdate', () => {
+      for (const e of this.group.getChildren() as Phaser.Physics.Arcade.Sprite[]) {
+        if (!e.active) continue;
+        const applied = e.getData('appliedLift') as number | undefined;
+        if (applied) { e.y += applied; e.setData('appliedLift', 0); }
+      }
+    });
+    // ② 物理 step 之后：再加上本帧的新偏移，只影响渲染
+    scene.events.on('postupdate', () => {
+      for (const e of this.group.getChildren() as Phaser.Physics.Arcade.Sprite[]) {
+        if (!e.active) continue;
+        const lift = e.getData('pendingLift') as number | undefined;
+        if (lift) { e.y -= lift; e.setData('appliedLift', lift); }
+      }
+    });
   }
 
   /** 场景关闭时把阴影一起清掉，防止重开一局残留 */
@@ -183,11 +252,42 @@ export class EnemySystem {
     for (const e of kids) {
       if (!e.active) continue;
       const body = e.body as Phaser.Physics.Arcade.Body;
+
       const ang = Math.atan2(playerY - e.y, playerX - e.x);
       const spd = e.getData('speed') as number;
       body.setVelocity(Math.cos(ang) * spd, Math.sin(ang) * spd);
+
+      // ── 移动表现：只动视觉，不动物理体 ──
+      // 关键：body 决定碰撞/命中/寻路。setY 会带着 body 一起走，
+      // 怪跳起来就真的飞走了，命中判定全乱。
+      // 所以要「先让物理跑完，再把 sprite 抬起来」：
+      //   sprite.y = body 对应的正常显示位置 - lift
+      // Physics 只在 step 里改 body，我们每帧在 update 末尾覆盖 sprite.y，
+      // body 位置始终代表真实碰撞点，渲染却是跳着的。
+      const phase = (e.getData('hopPhase') as number) ?? 0;
+      const amp = (e.getData('hopAmp') as number) ?? 4;
+      let lift = 0;
+      if (e.getData('floating')) {
+        // 浮空：缓慢上下浮动，周期 ~2.6 秒，与速度无关
+        const tt = time / 1000;
+        const bob = Math.sin(tt * 2.42 + phase);
+        lift = amp * 0.55 - bob * amp * 0.55;
+        this.syncShadow(e, 0.9, 0.75);
+      } else {
+        // 蹦跳：|sin| 给出抛物线感 —— 落地快、顶点慢
+        const hz = (e.getData('hopHz') as number) ?? 1.4;
+        const tt = time / 1000;
+        const jump = Math.abs(Math.sin(tt * Math.PI * hz + phase));
+        lift = jump * amp;
+        this.syncShadow(e, 1 - jump * 0.3, 1 - jump * 0.45);
+      }
+      // 记录本帧要抬多少，真正应用在 postupdate（物理算完之后）。
+      // 物理流程：preUpdate(从 sprite.y 读位置) → step → postUpdate(y += dy)
+      // 我们在 update 里只能算数值，改动必须在 postUpdate 之后再落到 e.y，
+      // 否则会被 body 的增量位移覆盖或叠加，产生漂移。
+      e.setData('pendingLift', lift);
+
       e.setDepth(6 + e.y / 100000);
-      this.ensureShadow(e);
       // 命中闪白结束
       const fu = e.getData('flashUntil') as number;
       if (fu && time > fu) {
@@ -216,6 +316,10 @@ export class EnemySystem {
 
   recycle(e: Phaser.Physics.Arcade.Sprite) {
     const body = e.body as Phaser.Physics.Arcade.Body;
+    // 还原跳跃偏移，否则对象池复用后新怪一出生就是「抬着」的
+    const applied = e.getData('appliedLift') as number | undefined;
+    if (applied) { e.y += applied; e.setData('appliedLift', 0); }
+    e.setData('pendingLift', 0);
     body.setEnable(false);
     e.setActive(false).setVisible(false);
     e.clearTint();

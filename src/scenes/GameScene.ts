@@ -177,6 +177,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
     this.enemies = new EnemySystem(this);
+    this.enemies.installLiftHook(this);
 
     // 经验球组
     this.orbGroup = this.physics.add.group({ allowGravity: false });

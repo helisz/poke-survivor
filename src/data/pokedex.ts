@@ -93,11 +93,25 @@ export const FLOATING_IDS: ReadonlySet<number> = new Set([
   6, 12, 16, 17, 18, 21, 22, 41, 42, 81, 83, 84, 85, 92,
   93, 94, 109, 110, 123, 130, 142, 144, 145, 146, 149, 150, 151, 208,
   282, 373, 429,
+  // 毒气 / 污泥：悬浮的毒团，天生飘着
+  88, 89, 23, 24, 29, 30, 31, 32, 33,
+  // 超能：念力悬空
+  63, 64, 96, 97, 122,
 ]);
 
 /** 该图鉴 id 是否属于「浮空」类，阴影要下偏 */
 export function isFloating(id: number): boolean {
   return FLOATING_IDS.has(id);
+}
+
+/**
+ * 移动表现用的是浮空还是蹦跳。
+ *
+ * 和 isFloating 的区别只有一条：BOSS 一律浮空。
+ * BOSS 体型 2.1 倍、有压迫感，蹦跳会显得滑稽，所以强制飘。
+ */
+export function isFloatingMon(id: number, isBoss = false): boolean {
+  return isBoss || FLOATING_IDS.has(id);
 }
 
 /** 小怪池 */
@@ -185,3 +199,4 @@ export const TYPE_COLORS: Record<string, number> = {
   地面: 0xd0a848, 钢: 0x9aa8b8, 毒: 0xa040a0, 飞行: 0x9cb4f0, 虫: 0xa8b820,
   冰: 0x74c8c8, 恶: 0x5a5366, 妖精: 0xe898c8,
 };
+
