@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PERM_UPGRADES, permCost, permTotal, permStep, loadSave, writeSave, PERM_EMPTY, type PermKey } from '../data/stats';
+import { PERM_UPGRADES, PERM_DESC, permCost, permTotal, permStep, loadSave, writeSave, PERM_EMPTY, type PermKey } from '../data/stats';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { makeCoinIcon, makePermIcon } from '../ui/Icons';
@@ -77,7 +77,8 @@ export class ShopScene extends Phaser.Scene {
     const gridW = Math.min(width - 28, 520);
     const left = width / 2 - gridW / 2;
     const cardW = (gridW - gapX * (COLS - 1)) / COLS;
-    const cardH = Math.min(cardW * 1.3, (bottom - top - gapY * (rowCount - 1)) / rowCount);
+    // 卡片比例放宽一点：等级行和购买按钮之间原来只隔 4px，挤在一起看不清
+    const cardH = Math.min(cardW * 1.46, (bottom - top - gapY * (rowCount - 1)) / rowCount);
 
     PERM_UPGRADES.forEach((u, i) => {
       const col = i % COLS;
@@ -94,14 +95,14 @@ export class ShopScene extends Phaser.Scene {
       // 图标：卡片上方约 40% 的位置
       const iconKey = makePermIcon(this, u.key);
       const iconSize = Math.min(cardW * 0.42, 46);
-      const icon = this.add.image(cx, cy - cardH * 0.24, iconKey ?? 'ui_coin')
+      const icon = this.add.image(cx, cy - cardH * 0.27, iconKey ?? 'ui_coin')
         .setDisplaySize(iconSize, iconSize);
 
-      const nameText = this.add.text(cx, cy + cardH * 0.03, u.name, {
+      const nameText = this.add.text(cx, cy - cardH * 0.01, u.name, {
         fontFamily: 'sans-serif', fontSize: '14px', color: '#cfe4f5', fontStyle: 'bold',
       }).setOrigin(0.5);
 
-      const lvText = this.add.text(cx, cy + cardH * 0.2, '', {
+      const lvText = this.add.text(cx, cy + cardH * 0.15, '', {
         fontFamily: 'sans-serif', fontSize: '11px', color: '#8fb3cc',
       }).setOrigin(0.5);
 
@@ -170,7 +171,7 @@ export class ShopScene extends Phaser.Scene {
     c.add(dim);
 
     const sheetW = Math.min(width - 44, 330);
-    const sheetH = 300;
+    const sheetH = 344;
     const sy = height / 2;
 
     const panel = new RoundedPanel(this, width / 2, sy, sheetW, sheetH, 0x0f1f2c, 1, { radius: 16 })
@@ -194,6 +195,12 @@ export class ShopScene extends Phaser.Scene {
       fontFamily: 'sans-serif', fontSize: '13px', color: '#8fb3cc',
     }).setOrigin(0.5));
 
+    // 作用说明：写清这一项到底加的是什么，光看「锐眼」「怒击」猜不出来
+    c.add(this.add.text(width / 2, top + 132, PERM_DESC[key] ?? '', {
+      fontFamily: 'sans-serif', fontSize: '12px', color: '#7fa8c4',
+      align: 'center', wordWrap: { width: sheetW - 48 },
+    }).setOrigin(0.5, 0));
+
     // 数值区
     const lines: [string, string][] = [];
     if (key === 'gamble') {
@@ -209,7 +216,7 @@ export class ShopScene extends Phaser.Scene {
     }
 
     lines.forEach(([label, value], i) => {
-      const ly = top + 142 + i * 26;
+      const ly = top + 178 + i * 26;
       c.add(this.add.text(width / 2 - sheetW / 2 + 24, ly, label, {
         fontFamily: 'sans-serif', fontSize: '13px', color: '#6f8ea6',
       }).setOrigin(0, 0.5));

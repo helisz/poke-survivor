@@ -142,6 +142,19 @@ function ramp(from: number, to: number) {
 }
 const flat = (v: number) => () => v;
 
+/** 每项强化的一句话作用说明，详情页会显示。必须写清「提升的是什么」。 */
+export const PERM_DESC: Record<string, string> = {
+  hp: '提高最大生命值上限',
+  damage: '提高所有招式的伤害',
+  speed: '提高移动速度，走得更快',
+  critRate: '提高暴击概率，更容易打出暴击',
+  critDmg: '提高暴击伤害，暴击时打得更疼',
+  pickup: '扩大经验球和回血球的拾取范围',
+  exp: '提高经验获取速度，升级更快',
+  cd: '缩短招式冷却，出招更频繁',
+  gamble: '每局升级时多一次重掷机会',
+};
+
 export const PERM_UPGRADES = [
   { key: 'hp',     name: '体魄', max: PERM_MAX_LEVEL, gainAt: ramp(0.01, 0.03) },
   { key: 'damage', name: '威力', max: PERM_MAX_LEVEL, gainAt: ramp(0.01, 0.10) },
