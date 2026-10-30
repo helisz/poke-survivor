@@ -98,6 +98,12 @@ export class GameScene extends Phaser.Scene {
   private bossBarW = 300;
   private orbGroup!: Phaser.Physics.Arcade.Group;
   private healGroup!: Phaser.Physics.Arcade.Group;
+  private chestGroup!: Phaser.Physics.Arcade.Group;
+  /** 宝箱生成计时（每 45 秒一个） */
+  private chestTimer = 0;
+  private static readonly CHEST_INTERVAL = 45;
+  /** 拾取时撞上未弹完的升级，挂起等升级结束再弹 */
+  private pendingChest = false;
   /** UI 有需要读场上道具的剩余时间，放 public */
   pickups!: PickupSystem;
   /** 护盾剩余秒数（>0 无敌）。UI 左下角读它显示倒计时 */
@@ -176,6 +182,8 @@ export class GameScene extends Phaser.Scene {
     this.orbGroup = this.physics.add.group({ allowGravity: false });
     // 回血球组
     this.healGroup = this.physics.add.group({ allowGravity: false });
+    this.chestGroup = this.physics.add.group({ allowGravity: false });
+    this.makeChestTexture();
     this.pickups = new PickupSystem(this);
     this.makeHealOrbTexture();
 
@@ -315,6 +323,8 @@ export class GameScene extends Phaser.Scene {
     // 经验球吸附
     this.updateOrbs(dt);
     this.updatePickups(dt);
+    this.updateChests(dt);
+    this.updateChestsPickup(dt);
 
     if (this.player.isDead) { this.endRun(false); return; }
     // 时间到不再直接过关 —— 必须击杀终局 BOSS
@@ -713,6 +723,134 @@ export class GameScene extends Phaser.Scene {
     (orb.body as Phaser.Physics.Arcade.Body).reset(x, y);
   }
 
+  // ---------- 宝箱 ----------
+
+  /**
+   * 宝箱纹理：金色木箱 + 锁扣。
+   * 和经验球/回血球一样用代码画，不走图片资源。
+   */
+  private makeChestTexture() {
+    if (this.textures.exists('chest')) return;
+    const S = 26, w = 20, h = 15, x = (S - w) / 2, y = (S - h) / 2 + 2;
+    const g = this.make.graphics({ x: 0, y: 0 }, false);
+
+    // 箱体：棕木色
+    g.fillStyle(0x8a5a2b, 1); g.fillRoundedRect(x, y, w, h, 2);
+    // 箱盖：略亮，上方一条
+    g.fillStyle(0xa9713a, 1); g.fillRoundedRect(x, y, w, h * 0.42, 2);
+    // 金色描边
+    g.lineStyle(1.6, 0xf0c14a, 1); g.strokeRoundedRect(x, y, w, h, 2);
+    // 金色竖条（包角）
+    g.fillStyle(0xf0c14a, 1);
+    g.fillRect(x + 3, y, 2, h);
+    g.fillRect(x + w - 5, y, 2, h);
+    // 锁扣
+    g.fillStyle(0xffe27a, 1);
+    g.fillRoundedRect(x + w / 2 - 2.5, y + h * 0.42 - 2.5, 5, 6, 1);
+
+    g.generateTexture('chest', S, S);
+    g.destroy();
+  }
+
+  /**
+   * 每隔 CHEST_INTERVAL 秒在玩家周围刷一个宝箱。
+   * 位置取玩家视线外一圈，避免直接刷在脚下「白送」。
+   */
+  private updateChests(dt: number) {
+    // 终局 BOSS 阶段不再刷宝箱：此时玩家在决战，多一张卡反而打断节奏
+    if (this.finalBossSpawned || this.runEnded) return;
+
+    this.chestTimer += dt;
+    if (this.chestTimer < GameScene.CHEST_INTERVAL) return;
+    this.chestTimer -= GameScene.CHEST_INTERVAL;
+    this.spawnChest();
+  }
+
+  private spawnChest() {
+    // 场景外一圈随机位置，玩家要走过去拿
+    const p = this.ringPosition(this.offscreenRadius() * 0.85, 40);
+    const chest = this.chestGroup.get(p.x, p.y, 'chest') as Phaser.Physics.Arcade.Image | null;
+    if (!chest) return;
+
+    // 1.35 倍：26px 纹理在手机上只有指甲盖大，放大到明显能看见
+    chest.setActive(true).setVisible(true).setDepth(5).setScale(1.35);
+    chest.setAlpha(1);
+    (chest.body as Phaser.Physics.Arcade.Body).setEnable(true);
+    (chest.body as Phaser.Physics.Arcade.Body).reset(p.x, p.y);
+
+    // 出场：放大弹一下 + 金色光晕，提醒玩家「这里有东西」
+    this.tweens.add({
+      targets: chest, scale: { from: 0.5, to: 1.55 }, duration: 320, ease: 'Back.Out',
+      onComplete: () => chest.setScale(1.35),
+    });
+    const glow = this.add.circle(p.x, p.y, 20, 0xffd75e, 0.35).setDepth(4);
+    this.tweens.add({
+      targets: glow, scale: 2.0, alpha: 0, duration: 800, repeat: 2,
+      onComplete: () => glow.destroy(),
+    });
+    // 常驻光晕：纯描边缩到低透明度后肉眼几乎不可见，
+    // 改成「实心金圆底 + 描边」，脉冲时始终保持可辨认的亮度。
+    const halo = this.add.circle(p.x, p.y, 18, 0xffd75e, 0.28)
+      .setStrokeStyle(2.5, 0xffe9a0, 0.95)
+      .setDepth(4);
+    this.tweens.add({
+      targets: halo,
+      scale: { from: 0.9, to: 1.28 }, alpha: { from: 0.95, to: 0.45 },
+      duration: 820, yoyo: true, repeat: -1, ease: 'Sine.InOut',
+    });
+    chest.setData('halo', halo);
+    // 上下浮动，一眼看出是「可拾取物」而不是地形
+    this.tweens.add({
+      targets: chest, y: p.y - 4, duration: 780, yoyo: true, repeat: -1, ease: 'Sine.InOut',
+    });
+
+    this.events.emit('chest-spawned');
+  }
+
+  private updateChestsPickup(dt: number) {
+    const px = this.player.x, py = this.player.y;
+    const pickup = this.player.stats.pickup;
+    for (const c of this.chestGroup.getChildren() as Phaser.Physics.Arcade.Image[]) {
+      if (!c.active) continue;
+      const halo = c.getData('halo') as Phaser.GameObjects.Arc | null;
+      if (halo) halo.setPosition(c.x, c.y);
+
+      // 用 sprite 坐标算距离：浮动补间只改 sprite.y，不动 physics body
+      const d = Phaser.Math.Distance.Between(px, py, c.x, c.y);
+      // 宝箱不吸附，必须走过去踩到，避免「满屏自动捡」
+      if (d < 26) {
+        this.openChestBox(c);
+      }
+    }
+  }
+
+  /** 打开宝箱：销毁宝箱，弹三选一 */
+  private openChestBox(chest: Phaser.Physics.Arcade.Image) {
+    const halo = chest.getData('halo') as Phaser.GameObjects.Arc | null;
+    if (halo) { this.tweens.killTweensOf(halo); halo.destroy(); }
+    // 停掉浮动补间，否则对象池复用时新宝箱会继承旧的 y 动画
+    this.tweens.killTweensOf(chest);
+
+    this.combat.fx.burst(chest.x, chest.y, 0xffd75e, 20, 240, 3.2, 400);
+    Sfx.levelUp();
+    chest.setActive(false).setVisible(false);
+    (chest.body as Phaser.Physics.Arcade.Body).setEnable(false);
+
+    // 和升级共用同一套三选一界面。
+    // 若此刻还有没弹完的升级，先把升级弹完，宝箱留到下一次
+    // （否则两个三选一会互相覆盖）。
+    if (this.pendingLevelUps > 0) {
+      this.chestTimer = 0;
+      this.pendingChest = true;
+      return;
+    }
+    this.paused = true;
+    this.scene.pause();
+    this.scene.launch('LevelUp', { game: this, fromChest: true });
+  }
+
+  // ---------- 宝箱挑选结束 ----------
+
   private updateOrbs(dt: number) {
     const px = this.player.x, py = this.player.y;
     const pickup = this.player.stats.pickup;
@@ -790,11 +928,25 @@ export class GameScene extends Phaser.Scene {
 
   pendingLevelUps = 0;
 
+  /** 宝箱三选一选完：不消耗升级次数，直接恢复 */
+  resumeFromChest() {
+    if (this.pendingLevelUps > 0) {
+      this.scene.launch('LevelUp', { game: this });
+    } else {
+      this.paused = false;
+      this.scene.resume();
+    }
+  }
+
   /** UI 层调用：卡牌选择完成 */
   resumeFromLevelUp() {
     this.pendingLevelUps--;
     if (this.pendingLevelUps > 0) {
       this.scene.launch('LevelUp', { game: this });
+    } else if (this.pendingChest) {
+      // 升级弹完，轮到挂起的宝箱
+      this.pendingChest = false;
+      this.scene.launch('LevelUp', { game: this, fromChest: true });
     } else {
       this.paused = false;
       this.scene.resume();

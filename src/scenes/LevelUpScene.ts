@@ -16,12 +16,16 @@ export class LevelUpScene extends Phaser.Scene {
   /** 重掷按钮的容器（重掷/改布局时整体重排） */
   private rerollBox?: Phaser.GameObjects.Container;
 
+  /** 本次三选一是否由宝箱触发（宝箱不消耗升级次数） */
+  private fromChest = false;
+
   constructor() { super('LevelUp'); }
 
-  create(data: { game: GameScene }) {
+  create(data: { game: GameScene; fromChest?: boolean }) {
     // 场景 shutdown 时清理本场景 Text 的 canvas 纹理，防止重建时命中已销毁帧
     installTextTextureCleanup(this);
     this.gs = data.game;
+    this.fromChest = !!data.fromChest;
     const { width, height } = this.scale;
     this.vertical = width < 640;
 
@@ -303,6 +307,7 @@ export class LevelUpScene extends Phaser.Scene {
     if (i >= this.options.length) return;
     this.options[i].apply();
     this.scene.stop();
-    this.gs.resumeFromLevelUp();
+    if (this.fromChest) this.gs.resumeFromChest();
+    else this.gs.resumeFromLevelUp();
   }
 }
