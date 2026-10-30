@@ -1,5 +1,5 @@
 import { loadSave, writeSave, setSaveHook, type SaveData } from './stats';
-import { pushSave, type CloudSession } from './cloud';
+import { pushSave, saveToken, resumeSession, logout, type CloudSession } from './cloud';
 import { STAGE_COUNT } from './maps';
 
 /**
@@ -60,18 +60,35 @@ export function applyCloudToLocal(s: CloudSession): SaveData {
   return merged;
 }
 
-/** 登录成功后接管：云端覆盖本地，之后每次写存档自动上云 */
+/** 登录成功后接管：与本地合并，之后每次写存档自动上云 */
 export function startSession(s: CloudSession) {
   session = s;
+  // 持久化 token，刷新页面后能自动恢复登录
+  if (s.token) saveToken(s.token);
   setSaveHook(scheduleSync);
   applyCloudToLocal(s);
 }
 
 export function endSession() {
+  const tok = session?.token ?? '';
   session = null;
   setSaveHook(null);
   window.clearTimeout(timer);
   timer = undefined;
+  // 吊销服务端 token 并清本地，下次不会自动登录
+  void logout(tok);
+}
+
+/**
+ * 启动时尝试恢复上次的登录状态。返回是否恢复成功。
+ * token 无效（过期/被吊销）时静默失败，玩家看到的就是未登录。
+ */
+export async function tryResumeSession(): Promise<boolean> {
+  if (session) return true;
+  const r = await resumeSession();
+  if (!r.ok) return false;
+  startSession(r.data);
+  return true;
 }
 
 /** 存档后调用：2 秒防抖推云端，失败静默（离线也能玩） */

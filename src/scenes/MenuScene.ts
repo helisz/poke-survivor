@@ -7,7 +7,7 @@ import { openHelpPanel } from '../ui/HelpPanel';
 import { confirmOverwrite, openProfileCard } from '../ui/AccountRow';
 import { openAuthPanel } from '../ui/AuthPanel';
 import { openBenchmarkPanel } from '../ui/BenchmarkPanel';
-import { currentSession, startSession } from '../data/session';
+import { currentSession, startSession, tryResumeSession } from '../data/session';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { makeCoinIcon } from '../ui/Icons';
@@ -84,7 +84,17 @@ export class MenuScene extends Phaser.Scene {
     const rightX = width / 2 + subGap / 2 + subW / 2;
 
     // 账号行：全宽，放在强化/图鉴那排上方
-    this.drawAccountRow(width / 2, subY - startH - 10, startW, 40);
+    const accY = subY - startH - 10;
+    const accW = startW;
+    this.drawAccountRow(width / 2, accY, accW, 40);
+
+    // 刷新页面后自动恢复登录：token 有效就静默变成已登录状态。
+    // 异步做，不阻塞菜单首屏；失败静默（登出状态继续用）。
+    void tryResumeSession().then((ok) => {
+      if (ok && this.scene.isActive()) {
+        this.drawAccountRow(this.scale.width / 2, accY, accW, 40);
+      }
+    });
 
     // 强化：左半
     const shopBtn = new RoundedPanel(this, leftX, subY, subW, startH, UI.secondary, 0.88)

@@ -23,8 +23,15 @@ export interface CloudProfile {
 
 export interface CloudSession {
   username: string;
-  /** bcrypt 哈希，保存时回传给服务器验身，不落 localStorage */
-  hash: string;
+  /**
+   * 服务端签发的会话 token。刷新页面后从 localStorage 读回来恢复登录。
+   * 不是密码也不是 bcrypt 哈希 —— 泄露只能读一个人自己的存档，
+   * 而且能随时吊销（ps_logout）。哈希只在登录那一次用于本地比对密码，
+   * 不进内存之外的任何地方。
+   */
+  token: string;
+  /** 仅登录/注册当次使用，用于本地 bcrypt 比对；不持久化 */
+  hash?: string;
   profile: CloudProfile;
 }
 
@@ -33,6 +40,21 @@ export type CloudResult<T> =
   | { ok: false; reason: 'exists' | 'not_found' | 'bad_password' | 'bad_username' | 'network' | 'disabled' };
 
 const LOCAL_SESSION_KEY = 'ps-session-v1';
+
+/** 持久化的会话 token 键 */
+const TOKEN_KEY = 'ps-token-v1';
+
+/** 读回上次会话的 token（刷新页面恢复登录用） */
+export function loadToken(): string {
+  try { return localStorage.getItem(TOKEN_KEY) ?? ''; } catch { return ''; }
+}
+
+export function saveToken(token: string) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch { /* 隐私模式下忽略 */ }
+}
 
 /** 记住上次登录的用户名（为了下次省得重打），但哈希只在内存里 */
 export function rememberedUsername(): string {
@@ -69,13 +91,19 @@ export async function register(username: string, password: string): Promise<Clou
   try {
     const r = await callRpc('ps_register', {
       p_username: normalize(username), p_hash: hash,
-    }) as { ok: boolean; reason?: string; profile?: CloudProfile };
+    }) as { ok: boolean; reason?: string; profile?: CloudProfile; token?: string };
     if (!r?.ok) {
       const reason = r?.reason === 'exists' ? 'exists'
         : r?.reason === 'bad_username' ? 'bad_username' : 'network';
       return { ok: false, reason };
     }
-    return { ok: true, data: { username: r.profile!.username, hash, profile: r.profile! } };
+    return {
+      ok: true,
+      data: {
+        username: r.profile!.username, hash, token: r.token ?? '',
+        profile: r.profile!,
+      },
+    };
   } catch {
     return { ok: false, reason: 'network' };
   }
@@ -87,10 +115,16 @@ export async function login(username: string, password: string): Promise<CloudRe
   try {
     const r = await callRpc('ps_login', {
       p_username: normalize(username),
-    }) as { ok: boolean; pass_hash?: string; profile?: CloudProfile };
+    }) as { ok: boolean; pass_hash?: string; profile?: CloudProfile; token?: string };
     if (!r?.ok || !r.pass_hash) return { ok: false, reason: 'not_found' };
     if (!bcrypt.compareSync(password, r.pass_hash)) return { ok: false, reason: 'bad_password' };
-    return { ok: true, data: { username: r.profile!.username, hash: r.pass_hash, profile: r.profile! } };
+    return {
+      ok: true,
+      data: {
+        username: r.profile!.username, hash: r.pass_hash, token: r.token ?? '',
+        profile: r.profile!,
+      },
+    };
   } catch {
     return { ok: false, reason: 'network' };
   }
@@ -121,16 +155,48 @@ export async function fetchTopScores(): Promise<RankRow[]> {
   } catch { return []; }
 }
 
+/** 用已保存的 token 恢复会话（刷新页面后调用） */
+export async function resumeSession(): Promise<CloudResult<CloudSession>> {
+  if (!sb) return { ok: false, reason: 'disabled' };
+  const token = loadToken();
+  if (!token) return { ok: false, reason: 'not_found' };
+  try {
+    const r = await callRpc('ps_session_profile', { p_token: token }) as {
+      ok: boolean; username?: string; profile?: CloudProfile; reason?: string;
+    };
+    if (!r?.ok || !r.profile) {
+      // token 失效（过期/被吊销/换库）：清掉，别让玩家一直看到「登录中」卡住
+      saveToken('');
+      return { ok: false, reason: r?.reason === 'expired' ? 'not_found' : 'not_found' };
+    }
+    return {
+      ok: true,
+      data: { username: r.profile.username, token, profile: r.profile },
+    };
+  } catch {
+    // 网络问题不清 token，下次刷新还有机会
+    return { ok: false, reason: 'network' };
+  }
+}
+
+/** 登出：吊销服务端 token 并清掉本地保存 */
+export async function logout(token: string): Promise<void> {
+  saveToken('');
+  if (!sb || !token) return;
+  try { await callRpc('ps_logout', { p_token: token }); } catch { /* 离线也无所谓 */ }
+}
+
 /** 存档上云。失败静默（离线也能玩，下次有机会再传） */
 export async function pushSave(session: CloudSession, data: {
   coins: number; stageBest: number[]; stageProgress: number;
   perm: Record<string, number>; seenPartners: number[]; seenEnemies: number[]; bestTime: number;
 }): Promise<boolean> {
   if (!sb) return false;
+  // token 为空说明是旧会话（没有可用的持久凭证），不上云，避免静默失败
+  if (!session.token) return false;
   try {
-    const r = await callRpc('ps_save', {
-      p_username: session.username,
-      p_hash: session.hash,
+    const r = await callRpc('ps_save_by_token', {
+      p_token: session.token,
       p_data: {
         coins: data.coins,
         stage_best: data.stageBest,
