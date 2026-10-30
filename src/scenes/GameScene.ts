@@ -144,8 +144,12 @@ export class GameScene extends Phaser.Scene {
       this.dropOrb(x, y, Math.max(1, Math.round(base * timeMul * mapExp)), isElite, isBoss);
       if (isBoss) this.cameras.main.shake(300, 0.01);
 
-      // 回血球：1% 概率掉落（BOSS 必掉 2 颗，精英 20%）
-      const healChance = isBoss ? 1 : isElite ? 0.25 : 0.03;
+      // 回血球掉率：随时间递减，开局 5%，到 5 分钟降到 1%。
+      // 前期给足容错，后期压缩补给，逼玩家靠走位而不是靠回血硬扛。
+      // BOSS 必掉、精英走 3 倍于当下的普通掉率。
+      const prog = Math.min(this.elapsed / RUN_SECONDS, 1);
+      const healBase = 0.05 - 0.04 * prog;
+      const healChance = isBoss ? 1 : isElite ? Math.min(healBase * 3, 0.2) : healBase;
       if (Math.random() < healChance) {
         this.dropHealOrb(x, y);
         if (isBoss) this.dropHealOrb(x + 18, y + 10);
