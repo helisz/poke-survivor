@@ -41,8 +41,8 @@ export class RoundedPanel extends Phaser.GameObjects.Container {
   private shadowY: number;
   private shadowDX: number;
   /** 给外部读尺寸用（原 Rectangle 有 width/height） */
-  readonly rw: number;
-  readonly rh: number;
+  rw: number;
+  rh: number;
 
   constructor(
     scene: Phaser.Scene,
@@ -109,6 +109,22 @@ export class RoundedPanel extends Phaser.GameObjects.Container {
       this.face.lineStyle(this.strokeWidth, this.strokeColor, this.strokeAlpha);
       this.face.strokeRoundedRect(x0, y0, w, h, radius);
     }
+  }
+
+  /**
+   * 覆写 setSize：外部（技能栏）会在 narrow/宽屏切换时按新尺寸重设，
+   * 内部分辨率必须跟着重画，否则 rw/rh 还是旧值，绘制出来的块比布局大，
+   * 相邻格子就会视觉重叠。
+   */
+  setSize(w: number, h?: number) {
+    this.pw = w;
+    this.ph = h ?? w;
+    this.rw = this.pw;
+    this.rh = this.ph;
+    super.setSize(this.pw, this.ph);
+    this.fixHitArea();
+    this.redraw();
+    return this;
   }
 
   setFillStyle(color: number, alpha = 1) {
@@ -185,6 +201,9 @@ export class RoundedPanel extends Phaser.GameObjects.Container {
    */
   popScale(s = 1) {
     this.face.setScale(s);
+    // 硬阴影在按下时一起收，按下态才看得出来
+    this.shadowG.setScale(s);
+    this.face.setAlpha(s < 1 ? 0.82 : 1);
     return this;
   }
 

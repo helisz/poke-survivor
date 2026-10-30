@@ -27,7 +27,7 @@ export function attachPressFeedback(
     maybeInput.setInteractive({ useHandCursor: true });
   }
 
-  const pressScale = opts.scale ?? 0.96;
+  const pressScale = opts.scale ?? 0.93;
   const baseAlpha = opts.alpha ?? 1;
 
   // 圆角面板是 Container：直接缩容器会把 hitArea 一起缩小，

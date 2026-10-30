@@ -71,7 +71,10 @@ export class MenuScene extends Phaser.Scene {
     this.add.text(width / 2, shopY, '强 化', {
       fontFamily: 'sans-serif', fontSize: '14px', color: TEXT.gold, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(21);
-    shopBtn.on('pointerdown', () => { Sfx.init(); Sfx.click(); goTo(this, 'Shop'); });
+    shopBtn.on('pointerup', () => {
+      Sfx.init(); Sfx.click();
+      this.time.delayedCall(90, () => goTo(this, 'Shop'));
+    });
     shopBtn.on('pointerover', () => shopBtn.setFillStyle(UI.secondaryHover, 0.95));
     shopBtn.on('pointerout', () => shopBtn.setFillStyle(UI.secondary, 0.88));
 
@@ -82,7 +85,12 @@ export class MenuScene extends Phaser.Scene {
     this.add.text(width / 2, startY, '开 始', {
       fontFamily: 'sans-serif', fontSize: '19px', color: '#041018', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(21);
-    btn.on('pointerdown', () => { Sfx.init(); Sfx.click(); goTo(this, 'MapSelect'); });
+    // 跳转放在 pointerup：pointerdown 立刻切场景会让按钮来不及显示按下态，
+    // 看起来像「点了没反应」。留一小段让缩放动画走完。
+    btn.on('pointerup', () => {
+      Sfx.init(); Sfx.click();
+      this.time.delayedCall(90, () => goTo(this, 'MapSelect'));
+    });
     btn.on('pointerover', () => btn.setFillStyle(UI.primaryLight));
     btn.on('pointerout', () => btn.setFillStyle(UI.primary));
 
