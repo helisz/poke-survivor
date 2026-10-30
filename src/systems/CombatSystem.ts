@@ -730,9 +730,11 @@ export class CombatSystem {
       this.kills++;
       Sfx.kill(kind === 'elite' || kind === 'boss');
       this.onKill?.(e.x, e.y, kind === 'elite', kind === 'boss');
-      // 击杀爆点：精英/BOSS 炸得更狠
+      // 击杀爆炸：一个柔和外扩的光环 + 少量碎片。
+      // 不用强闪光和大冲击环 —— 一屏几十只怪同时死时会晃眼，
+      // 这里靠「半透明环缓慢外扩 + 粒子飘散」表达消散感。
       const big = kind === 'boss' ? 3 : kind === 'elite' ? 2 : 1;
-      this.fx.burst(e.x, e.y, 0xfff2c4, 8 * big, 180 * big, 2.6 * big, 300);
+      this.killPuff(e.x, e.y, big, kind === 'boss' || kind === 'elite');
     }
   }
 
@@ -755,6 +757,28 @@ export class CombatSystem {
         this.scene.cameras.main.shake(70, 0.0035);
       }
     }
+  }
+
+  /**
+   * 怪物死亡的小爆炸：柔和、不突兀。
+   * 用一圈快速淡出的半透明光环 + 十几颗慢速碎片，
+   * 强度随体型放大，精英/BOSS 额外多一点。
+   */
+  private killPuff(x: number, y: number, big: number, loud: boolean) {
+    const ring = this.scene.add.circle(x, y, 6 * big, 0xffffff, 0.55).setDepth(7);
+    ring.setStrokeStyle(2 * big, 0xfff2c4, 0.9);
+    ring.setFillStyle(0xffffff, 0);
+    this.scene.tweens.add({
+      targets: ring,
+      radius: 22 * big,
+      alpha: 0,
+      duration: 260 + 60 * big,
+      ease: 'Cubic.Out',
+      onComplete: () => ring.destroy(),
+    });
+    // 碎片：数量克制，速度低，寿命短
+    this.fx.burst(x, y, 0xfff2c4, Math.round(6 * big), 90 * big, 2.2 * big, 260);
+    if (loud) this.fx.burst(x, y, 0xffffff, 4, 60, 1.6, 260);
   }
 
   /** 上次因进化招式震屏的时刻，用于节流 */

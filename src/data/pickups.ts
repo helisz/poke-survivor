@@ -5,6 +5,16 @@
 
 export type PickupKind = 'magnet' | 'shield' | 'sword';
 
+/** 吃到后的效果持续时间（秒）。磁铁是瞬发，不参与倒计时。 */
+export const PICKUP_BUFF_SECONDS: Record<PickupKind, number> = {
+  magnet: 0,   // 瞬发：瞬间吸取全场经验，没有持续时间
+  shield: 15,  // 无敌 15 秒
+  sword: 15,   // 伤害翻倍 15 秒
+};
+
+/** 需要倒计时显示的道具（磁铁瞬发，不显示） */
+export const TIMED_PICKUPS: PickupKind[] = ['shield', 'sword'];
+
 export interface PickupDef {
   kind: PickupKind;
   name: string;

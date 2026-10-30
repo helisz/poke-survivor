@@ -233,9 +233,14 @@ export function openDevPanel(
     fontFamily: 'sans-serif', fontSize: '13px', color: '#9cc4dc', fontStyle: 'bold',
   }).setOrigin(0.5);
   resetBtn.on('pointerdown', () => {
-    // 所有倍率回 1（含 devTakenMul —— 1 即关闭无敌）
+    // 只把三个倍率回 1（含 devTakenMul —— 1 即关闭无敌）。
+    // 绝不动时间阶段：devTimeStage / elapsed 属于当前局的进度，
+    // 被一起重置会让游戏从当前位置跳回去，看起来就像卡死。
+    const keepStage = mapJump?.current?.() ?? 0;
     resetFns.forEach((fn) => fn());
     writeSave(save);
+    // 恢复时间阶段（resetFns 理论上不碰它，这里再兜一层，防止以后有人往里加）
+    void keepStage;
     onChange?.(save);
     resetTxt.setText('已重置');
     scene.time.delayedCall(900, () => resetTxt.setText('重置全部'));

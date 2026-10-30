@@ -111,7 +111,8 @@ export class LevelUpScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const n = this.options.length;
     const cardW = this.vertical ? Math.min(width - 48, 360) : Math.min(180, (width - 80) / n);
-    const cardH = this.vertical ? 96 : 190;
+    // 竖排卡高 118：新招式卡要放 20px 的 New!，正文要留够空间
+    const cardH = this.vertical ? 118 : 200;
     const gap = this.vertical ? 14 : 18;
 
     this.options.forEach((opt, i) => {
@@ -176,21 +177,21 @@ export class LevelUpScene extends Phaser.Scene {
 
     // 新招式卡：左上角打一个醒目的 New!（金色斜体、黑色阴影）
     if (opt.kind === 'newmove') {
-      // 卡片内左上角，塞在「上沿」和「序号」之间的 14px 窄条里（y 上沿+3）。
-      // 序号在 +14 起，New! 只有 8px 高，不会碰到它，也完全不动正文。
-      const newTag = this.add.text(-w / 2 + 14, -h / 2 + 14, 'New!', {
+      // 卡片左上角内侧（上沿 +6）。20px 字高约 26px，正好吃掉原来
+      // 「序号 + 类型标签」那一行，新招式卡的正文整体下移 24px 让位。
+      const newTag = this.add.text(-w / 2 + 12, -h / 2 + 6, 'New!', {
         fontFamily: '"Trebuchet MS", "Arial Black", sans-serif',
-        fontSize: '10px',
+        fontSize: '20px',
         color: '#ffd75e',
         fontStyle: 'bold italic',
         stroke: '#000000',
-        strokeThickness: 2,
+        strokeThickness: 3,
       }).setOrigin(0, 0).setDepth(6);
       // Phaser 的 Text 需要显式开 setShadow 才生效，样式里的 shadow 字段会被忽略
       newTag.setShadow(2, 2, '#000000', 3, true, true);
       // 轻微跳动，让眼睛容易抓到
       this.tweens.add({
-        targets: newTag, scale: 1.12, duration: 620, yoyo: true, repeat: -1, ease: 'Sine.InOut',
+        targets: newTag, scale: 1.08, duration: 620, yoyo: true, repeat: -1, ease: 'Sine.InOut',
       });
       c.add(newTag);
     }
@@ -205,16 +206,18 @@ export class LevelUpScene extends Phaser.Scene {
       // 新招式卡用 New! 顶掉「序号 + 类型标签」这一行（标题里已写明「新招式」），
       // 其余卡片序号位置不变，三张卡正文全部对齐。
       const isNew = opt.kind === 'newmove';
-      const numX = isNew ? -w / 2 + 60 : -w / 2 + 14;
-      const num = this.add.text(numX, -h / 2 + 14, isNew ? '' : `${index + 1}`, {
+      // 新招式卡的 New!（20px）占了最上一行，正文整体下移 24px
+      const dy = isNew ? 24 : 0;
+      const numX = -w / 2 + 14;
+      const num = this.add.text(numX, -h / 2 + 14 + dy, isNew ? '' : `${index + 1}`, {
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '16px', color: TEXT.gold, fontStyle: 'bold',
       });
-      const tag = this.add.text(isNew ? -w / 2 + 60 : numX + 22, -h / 2 + 16, isNew ? '' : badge, { fontFamily: 'sans-serif', fontSize: '11px', color: badgeColor, fontStyle: isEvo ? 'bold' : 'normal' });
-      const title = this.add.text(-w / 2 + 14, -h / 2 + 40, opt.title, {
+      const tag = this.add.text(numX + (isNew ? 0 : 22), -h / 2 + 16 + dy, isNew ? '' : badge, { fontFamily: 'sans-serif', fontSize: '11px', color: badgeColor, fontStyle: isEvo ? 'bold' : 'normal' });
+      const title = this.add.text(-w / 2 + 14, -h / 2 + 40 + dy, opt.title, {
         fontFamily: 'sans-serif', fontSize: '15px', color: isEvo ? '#ffd75e' : '#ffffff', fontStyle: 'bold',
         wordWrap: { width: textW },
       });
-      const desc = this.add.text(-w / 2 + 14, -h / 2 + 64, opt.desc, {
+      const desc = this.add.text(-w / 2 + 14, -h / 2 + 64 + dy, opt.desc, {
         fontFamily: 'sans-serif', fontSize: '11px', color: '#8fa8b8',
         wordWrap: { width: textW },
       });

@@ -72,6 +72,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  /**
+   * 限时 buff：吃到「护盾 / 利剑」后开始计时，到点自动撤销。
+   * key → 剩余秒数。UI 直接读这张表显示倒计时。
+   */
+  buffs: Partial<Record<'shield' | 'sword', number>> = {};
+  /** 到期时要撤销的加成，到点执行一次 */
+  private buffReverts: Partial<Record<'shield' | 'sword', () => void>> = {};
+
   addFollower(key: string) {
     const fx = this.x + 0;
     const img = this.scene.add.image(fx, this.y, key).setScale(0.375 * GLOBAL_SCALE).setDepth(9);

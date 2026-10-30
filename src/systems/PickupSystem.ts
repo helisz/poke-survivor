@@ -108,6 +108,8 @@ export class PickupSystem {
   }
 
   spawnAt(kind: PickupKind, x: number, y: number) {
+    // 场上只允许存在一个道具：新的一出现，没被捡走的那个立即消失
+    this.clearAll();
     const p = this.group.get(x, y, this.keyOf(kind)) as Phaser.Physics.Arcade.Image | null;
     if (!p) return null;
     p.setActive(true).setVisible(true);

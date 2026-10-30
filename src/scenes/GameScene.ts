@@ -96,10 +96,10 @@ export class GameScene extends Phaser.Scene {
   private healGroup!: Phaser.Physics.Arcade.Group;
   /** UI 有需要读场上道具的剩余时间，放 public */
   pickups!: PickupSystem;
-  /** 护盾剩余秒数（>0 无敌） */
-  private shieldTimer = 0;
-  /** 利剑剩余秒数（>0 双倍伤害） */
-  private swordTimer = 0;
+  /** 护盾剩余秒数（>0 无敌）。UI 左下角读它显示倒计时 */
+  shieldTimer = 0;
+  /** 利剑剩余秒数（>0 双倍伤害）。UI 左下角读它显示倒计时 */
+  swordTimer = 0;
   private pickupArrowGfx?: Phaser.GameObjects.Graphics;
 
   onLevelUp?: () => void;
@@ -459,7 +459,8 @@ export class GameScene extends Phaser.Scene {
       this.shieldTimer = 15;
       this.cameras.main.flash(220, 60, 130, 200);
     } else {
-      this.baseDamageMul = this.player.stats.damageMul;
+      // 不要在这里重设 baseDamageMul —— 那是「本局基础伤害」，
+      // 被改成当前值（含双倍）后，利剑到期还原就会一路翻倍上去。
       this.swordTimer = 15;
       this.cameras.main.flash(220, 200, 170, 50);
     }
@@ -1143,6 +1144,14 @@ export class GameScene extends Phaser.Scene {
   private endRun(survived: boolean) {
     if (this.runEnded) return;
     this.runEnded = true;
+    // 开发者面板是「暂停 Game + 在 UI 上叠面板」。
+    // 如果暂停期间玩家死了（比如重置把无敌关掉），GameOver 会挂在一个
+    // 停住的场景上，玩家看到的就是画面冻结、点哪儿都没反应的「卡死」。
+    // 所以结束前必须先把暂停解开。
+    if (this.paused) {
+      this.paused = false;
+      this.scene.resume();
+    }
     if (survived) Sfx.win(); else Sfx.lose();
 
     // 通关：解锁下一关（只在真实进度上前进，不受开发者全解锁影响）
@@ -1154,6 +1163,8 @@ export class GameScene extends Phaser.Scene {
         writeSave(sv);
       }
     }
+    // 通知 UI 收掉可能还开着的开发者面板，否则它会盖在结算页上
+    this.events.emit('run-ended');
     this.scene.launch('GameOver', {
       game: this,
       survived,

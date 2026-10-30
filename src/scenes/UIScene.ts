@@ -98,7 +98,7 @@ export class UIScene extends Phaser.Scene {
     makeDevButton(this, () => {
       this.gs.paused = true;
       this.gs.scene.pause();
-      openDevPanel(this, (save) => {
+      this.devPanel = openDevPanel(this, (save) => {
         const st = this.gs.player.stats;
         // 改了倍率立即重算（先还原再应用，避免连乘）
         st.damageMul = this.gs.baseDamageMul * (save.devDmgMul ?? 1);
@@ -120,9 +120,12 @@ export class UIScene extends Phaser.Scene {
     this.scale.on('resize', this.onResize, this);
     // 进化仪式：GameScene 广播，这里负责让对应技能格闪一下
     this.gs.events.on('evolve-ceremony', this.onEvolveCeremony, this);
+    // 本局结束：收掉可能还开着的开发者面板，避免盖住结算页
+    this.gs.events.on('run-ended', this.closeDevPanel, this);
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.onResize, this);
       this.gs.events.off('evolve-ceremony', this.onEvolveCeremony, this);
+      this.gs.events.off('run-ended', this.closeDevPanel, this);
     });
 
     this.relayout();
@@ -538,6 +541,18 @@ export class UIScene extends Phaser.Scene {
     this.layoutBuffs();
   }
 
+  /** 面板对象引用：本局结束时需要能主动收掉 */
+  private devPanel?: Phaser.GameObjects.Container;
+
+  /** 本局结束（死亡/过关）时收掉开发者面板 */
+  private closeDevPanel() {
+    if (this.devPanel) {
+      this.devPanel.destroy(true);
+      this.devPanel = undefined;
+    }
+    this.gs.paused = false;
+  }
+
   /**
    * 同步左下角的「道具倒计时」小条。
    *
@@ -547,15 +562,13 @@ export class UIScene extends Phaser.Scene {
    */
   private layoutPickupChips() {
     const { width, height } = this.scale;
-    const list = this.gs.pickups?.arrows ?? [];
-
-    // 同种道具只留剩余时间最短的那个（最紧急）
+    // 显示的是「吃到之后效果的剩余时间」，不是地上道具还能躺多久。
+    // 磁铁是瞬发效果（吸取全场经验），不参与倒计时显示。
     const byKind = new Map<string, number>();
-    for (const a of list) {
-      const cur = byKind.get(a.kind);
-      if (cur === undefined || a.life < cur) byKind.set(a.kind, a.life);
-    }
-    const entries = [...byKind.entries()];
+    if (this.gs.shieldTimer > 0) byKind.set('shield', this.gs.shieldTimer);
+    if (this.gs.swordTimer > 0) byKind.set('sword', this.gs.swordTimer);
+    // 剩余时间短的排前面，让最紧急的贴在最下面
+    const entries = [...byKind.entries()].sort((a, b) => a[1] - b[1]);
 
     const size = Math.max(20, Math.round(this.L.slotSize * 0.5));
     const gap = 6;
