@@ -7,6 +7,7 @@ import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { makeCoinIcon } from '../ui/Icons';
 import { MenuBackdrop } from '../ui/MenuBackdrop';
 import { UI, TEXT } from '../ui/Theme';
+import { attachPressFeedback } from '../ui/Feedback';
 
 /** 登录页：动态背景 + 顶部 logo + 底部操作区 */
 export class MenuScene extends Phaser.Scene {
@@ -62,6 +63,7 @@ export class MenuScene extends Phaser.Scene {
     // 强化：小一号的次级按钮
     const shopBtn = this.add.rectangle(width / 2, shopY, 132, shopH, UI.secondary, 0.88)
       .setStrokeStyle(1.5, UI.secondaryStroke).setInteractive({ useHandCursor: true }).setDepth(20);
+      attachPressFeedback(shopBtn);
     this.add.text(width / 2, shopY, '强 化', {
       fontFamily: 'sans-serif', fontSize: '14px', color: TEXT.gold, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(21);
@@ -72,6 +74,7 @@ export class MenuScene extends Phaser.Scene {
     // 开始：主按钮，宽度撑开
     const btn = this.add.rectangle(width / 2, startY, 220, startH, UI.primary)
       .setStrokeStyle(2, UI.primaryStroke).setInteractive({ useHandCursor: true }).setDepth(20);
+      attachPressFeedback(btn);
     this.add.text(width / 2, startY, '开 始', {
       fontFamily: 'sans-serif', fontSize: '19px', color: '#041018', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(21);

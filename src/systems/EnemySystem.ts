@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { ENEMY_POOL, ELITE_POOL, BOSS_POOL } from '../data/pokedex';
+import { BOSS_POOL, ELITE_POOL, ENEMY_POOL, isFloating } from '../data/pokedex';
 import { GLOBAL_SCALE } from '../data/stats';
 
 export type EnemyKind = 'normal' | 'elite' | 'boss';
@@ -75,6 +75,33 @@ export class EnemySystem {
     return `pk_${id}`;
   }
 
+  /** 每个敌人脚下一片阴影，浮空怪向下偏移 */
+  private shadows = new Map<Phaser.Physics.Arcade.Sprite, Phaser.GameObjects.Ellipse>();
+
+  /** 保证该敌人有一片阴影，并按大小/是否浮空摆好 */
+  private ensureShadow(e: Phaser.Physics.Arcade.Sprite) {
+    const kind = e.getData('kind') as EnemyKind;
+    const id = Number(e.texture.key.replace('pk_', ''));
+    const floating = isFloating(id);
+    // 阴影宽度跟本体视觉宽度走，BOSS/精英更大更淡
+    const w = e.displayWidth * (kind === 'boss' ? 0.62 : kind === 'elite' ? 0.7 : 0.78);
+    const h = Math.max(4, w * 0.32);
+    // 浮空怪：影子比脚底更低，并且更小更淡（离地越高越虚）
+    const dy = kind === 'boss' ? 30 : floating ? 20 : 14;
+    const alpha = floating ? 0.2 : kind === 'boss' ? 0.3 : 0.26;
+
+    let sh = this.shadows.get(e);
+    if (!sh) {
+      sh = this.scene.add.ellipse(e.x, e.y + dy, w, h, 0x000000, alpha).setDepth(5);
+      this.shadows.set(e, sh);
+    } else {
+      sh.setSize(w, h).setFillStyle(0x000000, alpha);
+    }
+    sh.setVisible(e.active);
+    sh.setPosition(e.x, e.y + dy);
+    sh.setDepth(5);
+  }
+
   spawn(kind: EnemyKind, x: number, y: number, hpMul = 1, speedMul = 1, dmg = 8) {
     const key = this.pickKey(kind);
     let e = this.group.get(x, y, key) as Phaser.Physics.Arcade.Sprite | null;
@@ -107,7 +134,15 @@ export class EnemySystem {
     body.setCircle(r, e.width / 2 - r, e.height / 2 - r);
     body.setEnable(true);
     body.reset(x, y);
+    // 立刻摆好阴影，避免第一帧出现「没影子」的闪烁
+    this.ensureShadow(e);
     return e;
+  }
+
+  /** 场景关闭时把阴影一起清掉，防止重开一局残留 */
+  destroy() {
+    this.shadows.forEach((sh) => sh.destroy());
+    this.shadows.clear();
   }
 
   /** 黑化：暗色 + 红色描边感（用 tint + alpha） */
@@ -125,6 +160,7 @@ export class EnemySystem {
       const spd = e.getData('speed') as number;
       body.setVelocity(Math.cos(ang) * spd, Math.sin(ang) * spd);
       e.setDepth(6 + e.y / 100000);
+      this.ensureShadow(e);
       // 命中闪白结束
       const fu = e.getData('flashUntil') as number;
       if (fu && time > fu) {
@@ -156,6 +192,8 @@ export class EnemySystem {
     body.setEnable(false);
     e.setActive(false).setVisible(false);
     e.clearTint();
+    // 阴影跟着一起收起来，不然地上会留下一个黑点
+    this.shadows.get(e)?.setVisible(false);
   }
 
   // 供外部判定：遍历存活敌人

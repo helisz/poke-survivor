@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { UI, TEXT } from './Theme';
+import { attachPressFeedback } from './Feedback';
 
 /**
  * 操作说明弹层（主菜单右上角 ? 按钮打开）。
@@ -41,6 +42,7 @@ export function openHelpPanel(scene: Phaser.Scene) {
   const close = scene.add.text(cx + pw / 2 - 24, top + 24, '✕', {
     fontFamily: 'sans-serif', fontSize: '18px', color: TEXT.dim,
   }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+  attachPressFeedback(close);
   close.on('pointerdown', () => { panel.destroy(); });
   close.on('pointerover', () => close.setColor('#ffffff'));
   close.on('pointerout', () => close.setColor(TEXT.dim));

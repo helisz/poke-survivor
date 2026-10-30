@@ -4,6 +4,7 @@ import { loadSave, writeSave } from '../data/stats';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
+import { attachPressFeedback } from '../ui/Feedback';
 
 /** 每张地图在列表里的图标符号 */
 const THEME_GLYPH: Record<string, string> = {
@@ -96,6 +97,7 @@ export class MapSelectScene extends Phaser.Scene {
       const box = this.add.rectangle(x, y, cardW, cardH, UI.card)
         .setStrokeStyle(2, UI.cardStroke)
         .setInteractive({ useHandCursor: true });
+        attachPressFeedback(box);
 
       // 方形图标块：地图配色打底 + 装饰符号，作为关卡识别锚点
       const left = x - cardW / 2;
@@ -145,6 +147,7 @@ export class MapSelectScene extends Phaser.Scene {
     const back = this.add.text(24, 30, '← 返回', {
       fontFamily: 'sans-serif', fontSize: '13px', color: TEXT.dim,
     }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+    attachPressFeedback(back);
     back.on('pointerdown', () => { Sfx.click(); goTo(this, 'Menu'); });
   }
 
@@ -158,6 +161,7 @@ export class MapSelectScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.startBtn.setInteractive({ useHandCursor: true });
+    attachPressFeedback(this.startBtn);
     this.startBtn.on('pointerdown', () => {
       if (this.selected === null) return;
       Sfx.click();
@@ -173,6 +177,7 @@ export class MapSelectScene extends Phaser.Scene {
 
     const bg = this.add.circle(0, 0, 16, UI.secondary, 0.92)
       .setStrokeStyle(1.5, UI.primaryStroke, 0.75).setInteractive({ useHandCursor: true });
+      attachPressFeedback(bg);
     this.lockIcon = this.add.text(0, 0, '🔒', {
       fontFamily: '"Apple Symbols", sans-serif', fontSize: '14px', color: TEXT.gold,
     }).setOrigin(0.5);

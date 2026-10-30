@@ -110,7 +110,9 @@ export class UIScene extends Phaser.Scene {
       }, {
         // 地图快捷跳转：调试时直接看各张图
         themes: MAP_THEMES.map((t) => ({ name: t.name, nameJp: t.nameJp })),
-        current: () => this.gs.mapThemeIndex,
+        // 关卡制下地图不再随时间轮换，高亮要跟「刚点的阶段」走，
+        // 不能用 mapThemeIndex（它恒定不变，导致点了没任何视觉反馈）
+        current: () => this.gs.devTimeStage,
         jump: (i: number) => this.gs.jumpToMap(i),
       }, () => this.quitToMenu());
     }, 1900);

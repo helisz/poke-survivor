@@ -352,8 +352,12 @@ export class GameScene extends Phaser.Scene {
    * 让时间成长（血量、速度、刷怪密度、精英波次）跳到对应阶段，
    * 地图和怪物池保持不变。
    */
+  /** 当前时间阶段（开发者跳转用；0~5，仅影响显示，不影响地图） */
+  devTimeStage = 0;
+
   jumpToMap(index: number) {
     const i = Math.max(0, Math.min(5, index));
+    this.devTimeStage = i;
     this.mapIndex = Math.max(0, Math.min(STAGE_COUNT - 1, this.mapIndex));
     // 对齐到该时间段的开头
     this.elapsed = (i / 6) * RUN_SECONDS + 0.5;

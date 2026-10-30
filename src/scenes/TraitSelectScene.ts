@@ -4,6 +4,7 @@ import { Sfx } from '../systems/Sfx';
 import { makeTraitIconTexture, type TraitIcon } from '../ui/TraitIcons';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
+import { attachPressFeedback } from '../ui/Feedback';
 
 /** 从数组里随机抽 n 个不重复 */
 function pickN<T>(arr: readonly T[], n: number): T[] {
@@ -99,6 +100,7 @@ export class TraitSelectScene extends Phaser.Scene {
 
       const box = this.add.rectangle(x, y, cardW, cardH, UI.card)
         .setStrokeStyle(2, UI.cardStroke).setInteractive({ useHandCursor: true });
+        attachPressFeedback(box);
       // 左侧强调色竖条
       const bar = this.add.rectangle(x - cardW / 2 + 3, y, 4, cardH - 14, accent)
         .setAlpha(0.55);
@@ -178,6 +180,7 @@ export class TraitSelectScene extends Phaser.Scene {
     const back = this.add.text(24, 30, '← 返回', {
       fontFamily: 'sans-serif', fontSize: '13px', color: TEXT.dim,
     }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+    attachPressFeedback(back);
     back.on('pointerdown', () => { Sfx.click(); goTo(this, 'MapSelect'); });
   }
 
@@ -186,6 +189,7 @@ export class TraitSelectScene extends Phaser.Scene {
 
     this.nextBtn = this.add.rectangle(width / 2, y, 220, 50, UI.disabled)
       .setStrokeStyle(2, UI.disabledStroke).setInteractive({ useHandCursor: true });
+    attachPressFeedback(this.nextBtn);
     // 文字固定为最终态：选中前后都显示"下一步：选伙伴"，
     // 只用按钮底色/透明度表达"是否可选"，避免运行期改文本触发纹理重建。
     this.nextTxt = this.add.text(width / 2, y, '下一步：选伙伴', {

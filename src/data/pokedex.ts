@@ -49,6 +49,35 @@ export const POKEDEX_NAME: Record<number, string> = {
   22: '大嘴雀',
 };
 
+/**
+ * 会飞 / 浮在空中的宝可梦：它们的阴影要往下偏一点，
+ * 才能看出「本体在地上方飘着」。
+ *
+ * 覆盖三类：飞行系、以及虽然是幽灵/超能但明显悬空的（鬼斯、超梦等）。
+ * 普通怪/精英/BOSS 池里的飞行成员都收进来了。
+ */
+export const FLOATING_IDS: ReadonlySet<number> = new Set([
+  // 飞行系
+  41, 42,      // 超音蝠、大嘴蝠
+  22,          // 大嘴雀
+  142,         // 化石翼龙
+  146,         // 火焰鸟
+  373,         // 暴飞龙
+  // 悬浮型（幽灵 / 超能 / 飘浮特性）
+  92, 93,      // 鬼斯、鬼斯通
+  94,          // 耿鬼
+  109, 110,    // 瓦斯弹、双弹瓦斯（漂浮）
+  81,          // 小磁怪
+  150,         // 超梦（悬空）
+  429,         // 梦妖魔（悬浮）
+  282,         // 沙奈朵（轻飘）
+]);
+
+/** 该图鉴 id 是否属于「浮空」类，阴影要下偏 */
+export function isFloating(id: number): boolean {
+  return FLOATING_IDS.has(id);
+}
+
 export const ENEMY_POOL = [19, 20, 41, 42, 109, 110, 92, 93, 29, 60, 63, 66, 72, 80, 100, 81, 43, 69, 120, 138];
 export const ELITE_POOL = [22, 143, 94];
 export const BOSS_POOL = [150, 248];

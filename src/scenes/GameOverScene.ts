@@ -5,6 +5,7 @@ import type { GameScene } from './GameScene';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
+import { attachPressFeedback } from '../ui/Feedback';
 
 export class GameOverScene extends Phaser.Scene {
   constructor() { super('GameOver'); }
@@ -126,6 +127,7 @@ export class GameOverScene extends Phaser.Scene {
     const btnY = height - 96;
     const btn = this.add.rectangle(width / 2, btnY, 200, 48, UI.primary)
       .setStrokeStyle(2, UI.primaryStroke).setInteractive({ useHandCursor: true });
+      attachPressFeedback(btn);
     this.add.text(width / 2, btnY, '返 回 主 页', {
       fontFamily: 'sans-serif', fontSize: '16px', color: '#041018', fontStyle: 'bold',
     }).setOrigin(0.5);

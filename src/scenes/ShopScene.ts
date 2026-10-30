@@ -4,6 +4,7 @@ import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { makeCoinIcon, makePermIcon } from '../ui/Icons';
 import { UI, TEXT } from '../ui/Theme';
+import { attachPressFeedback } from '../ui/Feedback';
 
 /**
  * 强化页：用金币购买局外永久升级（每级仅 1-2%）。
@@ -106,6 +107,7 @@ export class ShopScene extends Phaser.Scene {
       // 购买按钮：单行内容「价格 + 硬币图标」，整体作为一个可点区域
       const btn = this.add.rectangle(btnX, cy, btnW, 40, UI.primary)
         .setStrokeStyle(1.5, UI.primaryStroke).setInteractive({ useHandCursor: true });
+        attachPressFeedback(btn);
       // btnText 用作「已满」等状态文字，位于硬币块上方同步显示
       const btnText = this.add.text(btnX, cy, '', {
         fontFamily: 'sans-serif', fontSize: '13px', color: '#041018', fontStyle: 'bold',
@@ -126,6 +128,7 @@ export class ShopScene extends Phaser.Scene {
     const by = height - 44;
     const reset = this.add.rectangle(width / 2 - 78, by, 150, 40, 0x3a1f22)
       .setStrokeStyle(1.5, 0x6f3a3f).setInteractive({ useHandCursor: true });
+      attachPressFeedback(reset);
     this.add.text(width / 2 - 78, by, '重置强化', {
       fontFamily: 'sans-serif', fontSize: '13px', color: '#e08a90', fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -133,6 +136,7 @@ export class ShopScene extends Phaser.Scene {
 
     const back = this.add.rectangle(width / 2 + 78, by, 130, 40, 0x1c3344)
       .setStrokeStyle(1.5, 0x2f4b60).setInteractive({ useHandCursor: true });
+      attachPressFeedback(back);
     this.add.text(width / 2 + 78, by, '返 回', {
       fontFamily: 'sans-serif', fontSize: '14px', color: '#9cc4dc', fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -231,6 +235,7 @@ export class ShopScene extends Phaser.Scene {
         r.cost.setColor(afford ? '#041018' : '#7a8fa0');
         r.costIcon.setAlpha(afford ? 1 : 0.45);
         r.btn.setInteractive({ useHandCursor: true });
+        attachPressFeedback(r.btn);
       }
     }
   }

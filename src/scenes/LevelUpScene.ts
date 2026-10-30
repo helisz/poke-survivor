@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { GameScene, UpgradeOption } from './GameScene';
+import { attachPressFeedback } from '../ui/Feedback';
 import { installTextTextureCleanup } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
 
@@ -78,6 +79,7 @@ export class LevelUpScene extends Phaser.Scene {
     this.repositionReroll();
 
     bg.setInteractive({ useHandCursor: true });
+    attachPressFeedback(bg, { scale: 0.94 });
     bg.on('pointerdown', () => this.reroll());
     bg.on('pointerover', () => { if (this.gs.rerollsLeft > 0) bg.setStrokeStyle(2, UI.primary); });
     bg.on('pointerout', () => { if (this.gs.rerollsLeft > 0) bg.setStrokeStyle(2, UI.primaryStroke); });
@@ -174,14 +176,15 @@ export class LevelUpScene extends Phaser.Scene {
 
     // 新招式卡：左上角打一个醒目的 New!（金色斜体、黑色阴影）
     if (opt.kind === 'newmove') {
-      // 卡片最左上角独占一行；竖排卡的序号/标签会为它整体下移（见下方 shiftY）
-      const newTag = this.add.text(-w / 2 + 6, -h / 2 + 2, 'New!', {
+      // 卡片内左上角，塞在「上沿」和「序号」之间的 14px 窄条里（y 上沿+3）。
+      // 序号在 +14 起，New! 只有 8px 高，不会碰到它，也完全不动正文。
+      const newTag = this.add.text(-w / 2 + 14, -h / 2 + 14, 'New!', {
         fontFamily: '"Trebuchet MS", "Arial Black", sans-serif',
-        fontSize: '15px',
+        fontSize: '10px',
         color: '#ffd75e',
         fontStyle: 'bold italic',
         stroke: '#000000',
-        strokeThickness: 4,
+        strokeThickness: 2,
       }).setOrigin(0, 0).setDepth(6);
       // Phaser 的 Text 需要显式开 setShadow 才生效，样式里的 shadow 字段会被忽略
       newTag.setShadow(2, 2, '#000000', 3, true, true);
@@ -197,18 +200,21 @@ export class LevelUpScene extends Phaser.Scene {
       const hasPoke = !!opt.pokeId && this.textures.exists(`pk_${opt.pokeId}`);
       const slotW = hasPoke ? 54 : 0;
       const textW = w - 40 - slotW;
-      // 新招式卡需要给左上角的 New! 腾一行，其余卡片不动
-      const shiftY = opt.kind === 'newmove' ? 20 : 0;
-
-      const num = this.add.text(-w / 2 + 14, -h / 2 + 14 + shiftY, `${index + 1}`, {
+      // 不用 shiftY：New! 改为绝对定位浮在角上，不占布局空间，
+      // 卡片里的序号/标签/标题/描述全部回到原来的位置
+      // 新招式卡用 New! 顶掉「序号 + 类型标签」这一行（标题里已写明「新招式」），
+      // 其余卡片序号位置不变，三张卡正文全部对齐。
+      const isNew = opt.kind === 'newmove';
+      const numX = isNew ? -w / 2 + 60 : -w / 2 + 14;
+      const num = this.add.text(numX, -h / 2 + 14, isNew ? '' : `${index + 1}`, {
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '16px', color: TEXT.gold, fontStyle: 'bold',
       });
-      const tag = this.add.text(-w / 2 + 34, -h / 2 + 16 + shiftY, badge, { fontFamily: 'sans-serif', fontSize: '11px', color: badgeColor, fontStyle: isEvo ? 'bold' : 'normal' });
-      const title = this.add.text(-w / 2 + 14, -h / 2 + 40 + shiftY, opt.title, {
+      const tag = this.add.text(isNew ? -w / 2 + 60 : numX + 22, -h / 2 + 16, isNew ? '' : badge, { fontFamily: 'sans-serif', fontSize: '11px', color: badgeColor, fontStyle: isEvo ? 'bold' : 'normal' });
+      const title = this.add.text(-w / 2 + 14, -h / 2 + 40, opt.title, {
         fontFamily: 'sans-serif', fontSize: '15px', color: isEvo ? '#ffd75e' : '#ffffff', fontStyle: 'bold',
         wordWrap: { width: textW },
       });
-      const desc = this.add.text(-w / 2 + 14, -h / 2 + 64 + shiftY, opt.desc, {
+      const desc = this.add.text(-w / 2 + 14, -h / 2 + 64, opt.desc, {
         fontFamily: 'sans-serif', fontSize: '11px', color: '#8fa8b8',
         wordWrap: { width: textW },
       });
@@ -243,7 +249,12 @@ export class LevelUpScene extends Phaser.Scene {
     bg.setInteractive({ useHandCursor: true })
       .on('pointerover', () => bg.setStrokeStyle(2, opt.color))
       .on('pointerout', () => bg.setStrokeStyle(2, UI.cardStroke))
-      .on('pointerdown', () => this.choose(index));
+      .on('pointerdown', () => {
+        // 按下整张卡轻微缩一下 + 压下描边，然后才真正选中
+        c.setScale(0.97);
+        bg.setStrokeStyle(3, opt.color);
+        this.time.delayedCall(110, () => this.choose(index));
+      });
 
     this.cardGroup.add(c);
   }

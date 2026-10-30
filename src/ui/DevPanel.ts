@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { loadSave, writeSave, type SaveData } from '../data/stats';
 import { UI, TEXT } from './Theme';
+import { attachPressFeedback } from './Feedback';
 
 /**
  * 开发者模式面板（菜单 / 游戏内共用）
@@ -86,10 +87,17 @@ export function openDevPanel(
     const mk = (dx: number, dir: -1 | 1, sym: string) => {
       const b = scene.add.rectangle(cx + dx, ry + 16, 34, 28, UI.cardOn)
         .setStrokeStyle(1.5, UI.cardStroke).setInteractive({ useHandCursor: true });
+        attachPressFeedback(b);
       const t = scene.add.text(cx + dx, ry + 16, sym, {
         fontFamily: 'sans-serif', fontSize: '16px', color: '#ffffff',
       }).setOrigin(0.5);
       b.on('pointerdown', () => {
+        // 按下反馈：底色一亮一暗，让玩家确认点到了
+        b.setFillStyle(UI.primary, 1);
+        scene.tweens.add({
+          targets: b, alpha: { from: 1, to: 0.55 }, duration: 110, yoyo: true,
+          onComplete: () => { b.setAlpha(1); b.setFillStyle(UI.cardOn); },
+        });
         const arr = row.steps;
         let idx = arr.findIndex((v) => Math.abs(v - save[row.key]) < 1e-6);
         if (idx < 0) idx = Math.max(0, arr.findIndex((v) => v >= save[row.key]));
@@ -109,6 +117,7 @@ export function openDevPanel(
       const checkbox = scene.add.rectangle(cbX, cbY, 16, 16, UI.cardOn)
         .setStrokeStyle(1.5, row.key === 'devTakenMul' && save.devTakenMul === 0 ? 0x63c256 : UI.cardStroke)
         .setInteractive({ useHandCursor: true });
+        attachPressFeedback(checkbox);
       const tick = scene.add.text(cbX, cbY, '✓', {
         fontFamily: 'sans-serif', fontSize: '12px', color: '#63c256', fontStyle: 'bold',
       }).setOrigin(0.5);
@@ -164,10 +173,17 @@ export function openDevPanel(
       const by = my + 22 + row * (bh + gap);
       const bg = scene.add.rectangle(bx, by, bw, bh, UI.cardOn)
         .setStrokeStyle(1.5, UI.cardStroke).setInteractive({ useHandCursor: true });
+        attachPressFeedback(bg);
       const txt = scene.add.text(bx, by, String(i + 1), {
         fontFamily: 'sans-serif', fontSize: '13px', color: '#9cc4dc', fontStyle: 'bold',
       }).setOrigin(0.5);
       bg.on('pointerdown', () => {
+        // 按下瞬间先给一个亮闪，即使后面游戏逻辑没变化也有明确反馈
+        bg.setFillStyle(UI.primary, 1);
+        scene.tweens.add({
+          targets: bg, alpha: { from: 1, to: 0.55 }, duration: 120, yoyo: true,
+          onComplete: () => { bg.setAlpha(1); refreshBtns(); },
+        });
         mapJump.jump(i);
         refreshBtns();
       });
@@ -183,6 +199,7 @@ export function openDevPanel(
     const qy = cy + ph / 2 - 64;
     const quitBtn = scene.add.rectangle(cx, qy, 200, 32, 0x3a1f22)
       .setStrokeStyle(1.5, 0x6f3a3f).setInteractive({ useHandCursor: true });
+      attachPressFeedback(quitBtn);
     const quitTxt = scene.add.text(cx, qy, '放弃本局', {
       fontFamily: 'sans-serif', fontSize: '13px', color: '#e08a90', fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -211,6 +228,7 @@ export function openDevPanel(
   // 重置全部：所有倍率回到 1，并取消无敌
   const resetBtn = scene.add.rectangle(cx - 62, cy + ph / 2 - 26, 100, 30, 0x1c3344)
     .setStrokeStyle(1.5, 0x2f4b60).setInteractive({ useHandCursor: true });
+    attachPressFeedback(resetBtn);
   const resetTxt = scene.add.text(cx - 62, cy + ph / 2 - 26, '重置全部', {
     fontFamily: 'sans-serif', fontSize: '13px', color: '#9cc4dc', fontStyle: 'bold',
   }).setOrigin(0.5);
@@ -226,6 +244,7 @@ export function openDevPanel(
 
   const closeBtn = scene.add.rectangle(cx + 62, cy + ph / 2 - 26, 100, 30, UI.primary)
     .setInteractive({ useHandCursor: true });
+    attachPressFeedback(closeBtn);
   const closeTxt = scene.add.text(cx + 62, cy + ph / 2 - 26, '关闭', {
     fontFamily: 'sans-serif', fontSize: '13px', color: '#041018', fontStyle: 'bold',
   }).setOrigin(0.5);
@@ -247,6 +266,7 @@ export function makeDevButton(scene: Phaser.Scene, onClick: () => void, depth = 
   const btn = scene.add.container(width - 34, TOP_Y).setDepth(depth);
   const bg = scene.add.circle(0, 0, 17, UI.secondary, 0.92)
     .setStrokeStyle(1.5, UI.primaryStroke, 0.75).setInteractive({ useHandCursor: true });
+    attachPressFeedback(bg);
   const gear = scene.add.text(0, 0, '⚙', {
     fontFamily: '"Apple Symbols", "Segoe UI Symbol", sans-serif', fontSize: '20px', color: TEXT.gold,
   }).setOrigin(0.5);

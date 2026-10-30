@@ -4,6 +4,7 @@ import { MOVES } from '../data/moves';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
+import { attachPressFeedback } from '../ui/Feedback';
 
 /** 从数组里随机抽 n 个不重复 */
 function pickN<T>(arr: readonly T[], n: number): T[] {
@@ -77,6 +78,7 @@ export class PartnerSelectScene extends Phaser.Scene {
 
       const box = this.add.rectangle(cx, y, cardW, cardH, UI.card)
         .setStrokeStyle(2, UI.cardStroke).setInteractive({ useHandCursor: true });
+        attachPressFeedback(box);
 
       // 左侧：宝可梦头像
       const iconX = cx - cardW / 2 + cardH * 0.56;
@@ -151,6 +153,7 @@ export class PartnerSelectScene extends Phaser.Scene {
     const y = height - 70;
     this.startBtn = this.add.rectangle(width / 2, y, 220, 50, UI.disabled)
       .setStrokeStyle(2, UI.disabledStroke).setInteractive({ useHandCursor: true });
+    attachPressFeedback(this.startBtn);
     this.startTxt = this.add.text(width / 2, y, '请选择伙伴', {
       fontFamily: 'sans-serif', fontSize: '15px', color: '#7d96a8', fontStyle: 'bold',
     }).setOrigin(0.5);
@@ -163,6 +166,7 @@ export class PartnerSelectScene extends Phaser.Scene {
     const back = this.add.text(24, 30, '← 返回', {
       fontFamily: 'sans-serif', fontSize: '13px', color: TEXT.dim,
     }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+    attachPressFeedback(back);
     back.on('pointerdown', () => goTo(this, 'TraitSelect', { stage: this.stage }));
   }
 
