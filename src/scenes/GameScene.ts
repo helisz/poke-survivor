@@ -91,7 +91,8 @@ export class GameScene extends Phaser.Scene {
   private bossBarW = 300;
   private orbGroup!: Phaser.Physics.Arcade.Group;
   private healGroup!: Phaser.Physics.Arcade.Group;
-  private pickups!: PickupSystem;
+  /** UI 有需要读场上道具的剩余时间，放 public */
+  pickups!: PickupSystem;
   /** 护盾剩余秒数（>0 无敌） */
   private shieldTimer = 0;
   /** 利剑剩余秒数（>0 双倍伤害） */
@@ -777,7 +778,9 @@ export class GameScene extends Phaser.Scene {
       if (stage >= 1) continue;
       const next = chain[stage];
       if (!next) continue;
-      if (canEvolve(next, ctx)) out.push({ moveId, evo: next });
+      // 招式自身等级也参与判定：练到 Lv.8 就能进化，不必等玩家总等级
+      const moveCtx = { ...ctx, moveLevel: this.combat.getMoveLevel(moveId) };
+      if (canEvolve(next, moveCtx)) out.push({ moveId, evo: next });
     }
     return out;
   }

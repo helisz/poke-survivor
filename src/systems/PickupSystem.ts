@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PICKUP_DEFS, PICKUP_LIST, type PickupKind } from '../data/pickups';
+import { PICKUP_DEFS, PICKUP_LIST, PICKUP_LIFETIME, type PickupKind } from '../data/pickups';
 
 /**
  * 拾取道具系统：每分钟在玩家附近刷一个道具，屏幕外时由 GameScene 画箭头。
@@ -9,7 +9,11 @@ export class PickupSystem {
   private group: Phaser.Physics.Arcade.Group;
   private timer = 0;
   /** 每帧刷新一次：供 UIScene / GameScene 画屏幕外箭头 */
-  arrows: { kind: PickupKind; x: number; y: number; onScreen: boolean; ang: number }[] = [];
+  arrows: {
+    kind: PickupKind; x: number; y: number; onScreen: boolean; ang: number;
+    /** 剩余存活秒数，给左下角倒计时用 */
+    life: number;
+  }[] = [];
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -110,6 +114,8 @@ export class PickupSystem {
     p.setTexture(this.keyOf(kind));
     p.setData('kind', kind);
     p.setData('t', 0);
+    // 存活倒计时：过期就消失，UI 左下角会显示剩余秒数
+    p.setData('life', PICKUP_LIFETIME);
     p.setScale(1);
     p.setDepth(60);
     // 呼吸浮动
@@ -138,11 +144,24 @@ export class PickupSystem {
     const pad = 30;
     for (const obj of this.group.getChildren() as Phaser.Physics.Arcade.Image[]) {
       if (!obj.active) continue;
+
+      // 存活倒计时：到点自动消失，不占场上位置
+      const life = (obj.getData('life') as number) - dtSec;
+      obj.setData('life', life);
+      if (life <= 0) {
+        const glow = obj.getData('glow') as Phaser.GameObjects.Arc | undefined;
+        if (glow) { this.scene.tweens.killTweensOf(glow); glow.destroy(); }
+        this.scene.tweens.killTweensOf(obj);
+        obj.setActive(false).setVisible(false);
+        obj.setData('glow', undefined);
+        continue;
+      }
+
       const kind = obj.getData('kind') as PickupKind;
       const onScreen = obj.x > view.x - pad && obj.x < view.right + pad
         && obj.y > view.y - pad && obj.y < view.bottom + pad;
       const ang = Math.atan2(obj.y - py, obj.x - px);
-      this.arrows.push({ kind, x: obj.x, y: obj.y, onScreen, ang });
+      this.arrows.push({ kind, x: obj.x, y: obj.y, onScreen, ang, life });
       // 光晕跟随
       const glow = obj.getData('glow') as Phaser.GameObjects.Arc | undefined;
       if (glow && glow.active) { glow.x = obj.x; glow.y = obj.y; }

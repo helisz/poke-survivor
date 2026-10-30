@@ -7,6 +7,7 @@ import { Sfx } from '../systems/Sfx';
 import { MAP_THEMES } from '../data/maps';
 import type { GameScene } from './GameScene';
 import { installTextTextureCleanup, abandonRun } from '../systems/SceneFlow';
+import { PICKUP_DEFS } from '../data/pickups';
 import { UI, TEXT } from '../ui/Theme';
 
 /** 招式类别中文名 */
@@ -37,10 +38,22 @@ export class UIScene extends Phaser.Scene {
     lv: Phaser.GameObjects.Text;
     hit: Phaser.GameObjects.Rectangle;
     cd: Phaser.GameObjects.Graphics;
+    /** 左上角进化星级（1~3 颗五角星） */
+    stars: Phaser.GameObjects.Text;
   }[] = [];
   private moveTip?: Phaser.GameObjects.Container;
   /** 底部小图标：属性强化叠加层 */
   private buffIcons: { bg: Phaser.GameObjects.Rectangle; icon: Phaser.GameObjects.Image; txt: Phaser.GameObjects.Text }[] = [];
+  /**
+   * 场上未拾取道具的倒计时条（左下角，技能栏上方）。
+   * 每个道具一个「小图标 + 剩余秒数」，过期消失。
+   */
+  private pickupChips: {
+    bg: Phaser.GameObjects.Rectangle;
+    icon: Phaser.GameObjects.Image;
+    txt: Phaser.GameObjects.Text;
+    key: string;
+  }[] = [];
   /** 扣血飘字：只在 damageSeq 变化时生成 */
   private lastDmgSeq = -1;
   private dmgFlash?: Phaser.GameObjects.Text;
@@ -239,6 +252,7 @@ export class UIScene extends Phaser.Scene {
 
     this.syncSlots();
     this.drawCooldowns();
+    this.layoutPickupChips();
   }
 
   /** 冷却矩形遮罩：从上往下退，越少越快放完 */
@@ -330,7 +344,14 @@ export class UIScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       hit.on('pointerdown', () => this.showMoveTip(i));
 
-      this.slotIcons.push({ box, icon, lv, hit, cd });
+      // 进化星级：图标左上角，金色带描边，未进化时不显示
+      const stars = this.add.text(0, 0, '', {
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
+        fontSize: '10px', color: '#ffd75e', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 3,
+      }).setOrigin(0, 0).setDepth(505).setVisible(false);
+
+      this.slotIcons.push({ box, icon, lv, hit, cd, stars });
     }
 
     for (let i = 0; i < MAX_SLOTS; i++) {
@@ -357,12 +378,24 @@ export class UIScene extends Phaser.Scene {
         lv.setVisible(true).setOrigin(1, 1)
           .setFontSize(Math.max(9, Math.round(size * 0.28)))
           .setText(String(this.gs.combat.getMoveLevel(id)));
+
+        // 进化等级 → 星数。icon 定位在 relayout 里统一处理，这里只写内容
+        const evoStage = this.gs.combat.getEvoStage(id);
+        if (evoStage > 0) {
+          const n = Math.min(3, evoStage);
+          slot.stars.setVisible(true)
+            .setFontSize(Math.max(9, Math.round(size * 0.26)))
+            .setText('★'.repeat(n));
+        } else {
+          slot.stars.setVisible(false);
+        }
       } else {
         // 空槽：暗底 + 虚线感（低透明度描边）+ 小加号
         box.setFillStyle(0x0a1219, 0.55);
         box.setStrokeStyle(1, 0x2b4051, 0.9);
         icon.setVisible(false);
         lv.setVisible(false);
+        slot.stars.setVisible(false);
       }
     }
 
@@ -495,10 +528,79 @@ export class UIScene extends Phaser.Scene {
       s.icon.setPosition(sx, this.L.slotY);
       s.hit.setPosition(sx, this.L.slotY);
       s.lv.setPosition(sx + size / 2 - 2, this.L.slotY + size / 2 - 1);
+      // 星标贴图标左上角，稍微压进格子一点，视觉上像挂在角上
+      s.stars.setPosition(sx - size / 2 + 2, this.L.slotY - size / 2 + 1);
       s.cd.setPosition(sx, this.L.slotY);
     }
 
     this.layoutBuffs();
+  }
+
+  /**
+   * 同步左下角的「道具倒计时」小条。
+   *
+   * 只显示还躺在地上的道具（pickups.arrows 是每帧重建的），
+   * 按种类聚合：同种道具只留最靠前的那个，避免 3 块磁铁刷出 3 个条。
+   * 位置固定在屏幕左下角、技能栏上方，不随相机移动。
+   */
+  private layoutPickupChips() {
+    const { width, height } = this.scale;
+    const list = this.gs.pickups?.arrows ?? [];
+
+    // 同种道具只留剩余时间最短的那个（最紧急）
+    const byKind = new Map<string, number>();
+    for (const a of list) {
+      const cur = byKind.get(a.kind);
+      if (cur === undefined || a.life < cur) byKind.set(a.kind, a.life);
+    }
+    const entries = [...byKind.entries()];
+
+    const size = Math.max(20, Math.round(this.L.slotSize * 0.5));
+    const gap = 6;
+    const pad = width < 480 ? 12 : 16;
+    // 技能栏上沿再往上一点，避开 buff 行
+    const baseY = this.L.slotY - this.L.slotSize / 2 - size - 26;
+
+    // 补足对象池
+    while (this.pickupChips.length < entries.length) {
+      const bg = this.add.rectangle(0, 0, size + 34, size, UI.card, 0.92)
+        .setStrokeStyle(1.5, UI.cardStroke).setDepth(40);
+      const icon = this.add.image(0, 0, 'pk_magnet')
+        .setDisplaySize(size - 6, size - 6).setDepth(41);
+      const txt = this.add.text(0, 0, '', {
+        fontFamily: 'sans-serif', fontSize: '12px', fontStyle: 'bold', color: '#ffd75e',
+      }).setOrigin(0, 0.5).setDepth(42);
+      this.pickupChips.push({ bg, icon, txt, key: '' });
+    }
+
+    this.pickupChips.forEach((c, i) => {
+      const e = entries[i];
+      if (!e) {
+        c.bg.setVisible(false); c.icon.setVisible(false); c.txt.setVisible(false);
+        return;
+      }
+      const [kind, life] = e;
+      const def = PICKUP_DEFS[kind as keyof typeof PICKUP_DEFS];
+      const y = baseY - i * (size + gap);
+      // 从下往上排：第一个贴最下面
+      const left = pad;
+      c.bg.setVisible(true).setPosition(left + (size + 34) / 2, y);
+      c.icon.setVisible(true).setTexture(this.pickupIconKey(kind as string))
+        .setPosition(left + size / 2 + 3, y);
+      const secs = Math.max(0, Math.ceil(life));
+      c.txt.setVisible(true).setPosition(left + size + 10, y).setText(`${secs}s`);
+      // 快过期时转红，给一点紧迫感
+      c.txt.setColor(secs <= 5 ? '#ff6b6b' : '#ffd75e');
+      c.bg.setStrokeStyle(1.5, secs <= 5 ? 0xd94f4f : UI.cardStroke);
+      void def;
+    });
+  }
+
+  /** 道具种类 → 图标纹理 key */
+  private pickupIconKey(kind: string): string {
+    return kind === 'magnet' ? 'pk_magnet'
+      : kind === 'shield' ? 'pk_shield_pickup'
+        : 'pk_sword_pickup';
   }
 
   /** 底部属性强化小图标：居中一行，放在技能槽正下方 */

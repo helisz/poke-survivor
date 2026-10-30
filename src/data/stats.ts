@@ -143,9 +143,15 @@ export const PERM_UPGRADES = [
  */
 export const GAMBLE_COSTS = [50000, 150000, 500000] as const;
 
-/** 赌神等级 → 每局额外的重掷次数 */
+/** 每局保底重掷次数（不依赖任何强化，人人都有） */
+export const BASE_REROLLS = 3;
+
+/**
+ * 每局总共的重掷次数 = 保底 3 次 + 赌神等级（0~3）。
+ * 赌神满级合计 6 次。每开新一局都从这次数重新开始。
+ */
 export function rerollsPerRun(gambleLevel: number): number {
-  return Math.max(0, Math.min(3, Math.floor(gambleLevel)));
+  return BASE_REROLLS + Math.max(0, Math.min(3, Math.floor(gambleLevel)));
 }
 
 export type PermKey = keyof PermLevels;

@@ -40,3 +40,10 @@ export const PICKUP_DEFS: Record<PickupKind, PickupDef> = {
 };
 
 export const PICKUP_LIST: PickupKind[] = ['magnet', 'shield', 'sword'];
+
+/**
+ * 地面掉落物的存活时间（秒）。
+ * 60 秒刷一个，只留 20 秒 —— 过期消失，逼玩家当场做取舍，
+ * 而不是「等攒一堆再一起捡」。
+ */
+export const PICKUP_LIFETIME = 20;

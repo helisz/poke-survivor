@@ -146,21 +146,43 @@ export class LevelUpScene extends Phaser.Scene {
       }
     }
 
+    // 新招式卡：左上角打一个醒目的 New!（金色斜体、黑色阴影）
+    if (opt.kind === 'newmove') {
+      // 卡片最左上角独占一行；竖排卡的序号/标签会为它整体下移（见下方 shiftY）
+      const newTag = this.add.text(-w / 2 + 6, -h / 2 + 2, 'New!', {
+        fontFamily: '"Trebuchet MS", "Arial Black", sans-serif',
+        fontSize: '15px',
+        color: '#ffd75e',
+        fontStyle: 'bold italic',
+        stroke: '#000000',
+        strokeThickness: 4,
+      }).setOrigin(0, 0).setDepth(6);
+      // Phaser 的 Text 需要显式开 setShadow 才生效，样式里的 shadow 字段会被忽略
+      newTag.setShadow(2, 2, '#000000', 3, true, true);
+      // 轻微跳动，让眼睛容易抓到
+      this.tweens.add({
+        targets: newTag, scale: 1.12, duration: 620, yoyo: true, repeat: -1, ease: 'Sine.InOut',
+      });
+      c.add(newTag);
+    }
+
     if (this.vertical) {
       // 手机竖排卡：文字靠左，宝可梦头像放右边、名字在头像下面
       const hasPoke = !!opt.pokeId && this.textures.exists(`pk_${opt.pokeId}`);
       const slotW = hasPoke ? 54 : 0;
       const textW = w - 40 - slotW;
+      // 新招式卡需要给左上角的 New! 腾一行，其余卡片不动
+      const shiftY = opt.kind === 'newmove' ? 20 : 0;
 
-      const num = this.add.text(-w / 2 + 14, -h / 2 + 14, `${index + 1}`, {
+      const num = this.add.text(-w / 2 + 14, -h / 2 + 14 + shiftY, `${index + 1}`, {
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '16px', color: TEXT.gold, fontStyle: 'bold',
       });
-      const tag = this.add.text(-w / 2 + 34, -h / 2 + 16, badge, { fontFamily: 'sans-serif', fontSize: '11px', color: badgeColor, fontStyle: isEvo ? 'bold' : 'normal' });
-      const title = this.add.text(-w / 2 + 14, -h / 2 + 40, opt.title, {
+      const tag = this.add.text(-w / 2 + 34, -h / 2 + 16 + shiftY, badge, { fontFamily: 'sans-serif', fontSize: '11px', color: badgeColor, fontStyle: isEvo ? 'bold' : 'normal' });
+      const title = this.add.text(-w / 2 + 14, -h / 2 + 40 + shiftY, opt.title, {
         fontFamily: 'sans-serif', fontSize: '15px', color: isEvo ? '#ffd75e' : '#ffffff', fontStyle: 'bold',
         wordWrap: { width: textW },
       });
-      const desc = this.add.text(-w / 2 + 14, -h / 2 + 64, opt.desc, {
+      const desc = this.add.text(-w / 2 + 14, -h / 2 + 64 + shiftY, opt.desc, {
         fontFamily: 'sans-serif', fontSize: '11px', color: '#8fa8b8',
         wordWrap: { width: textW },
       });
