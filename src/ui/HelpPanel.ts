@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { UI, TEXT } from './Theme';
 import { attachPressFeedback } from './Feedback';
+import { RoundedPanel } from './RoundedPanel';
 
 /**
  * 操作说明弹层（主菜单右上角 ? 按钮打开）。
@@ -25,7 +26,7 @@ export function openHelpPanel(scene: Phaser.Scene) {
   const cx = width / 2;
   const cy = height / 2;
 
-  const card = scene.add.rectangle(cx, cy, pw, ph, UI.card, 0.98)
+  const card = new RoundedPanel(scene, cx, cy, pw, ph, UI.card, 0.98, { radius: 16 })
     .setStrokeStyle(2, UI.primaryStroke);
   panel.add(card);
 
@@ -120,7 +121,7 @@ function drawKeyCluster(
     // 键帽：深底 + 金色描边，底部加一道暗边做出厚度
     panel.add(scene.add.rectangle(x, y + 2, K, K, UI.secondaryHover, 1)
       .setStrokeStyle(1, UI.secondaryStroke));
-    panel.add(scene.add.rectangle(x, y, K, K, UI.secondary, 1)
+    panel.add(new RoundedPanel(scene, x, y, K, K, UI.secondary, 1, { radius: 4 })
       .setStrokeStyle(1.5, UI.primaryStroke));
     panel.add(scene.add.text(x, y, k.label, {
       fontFamily: 'monospace', fontSize: '14px', color: TEXT.gold, fontStyle: 'bold',

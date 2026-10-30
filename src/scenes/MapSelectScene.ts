@@ -5,6 +5,7 @@ import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
 import { attachPressFeedback } from '../ui/Feedback';
+import { RoundedPanel } from '../ui/RoundedPanel';
 
 /** 每张地图在列表里的图标符号 */
 const THEME_GLYPH: Record<string, string> = {
@@ -30,7 +31,7 @@ export class MapSelectScene extends Phaser.Scene {
   private selected: number | null = null;
   private cards: {
     index: number;
-    box: Phaser.GameObjects.Rectangle;
+    box: Phaser.GameObjects.Rectangle | RoundedPanel;
     name: Phaser.GameObjects.Text;
     sub: Phaser.GameObjects.Text;
     lock: Phaser.GameObjects.Text;
@@ -39,7 +40,7 @@ export class MapSelectScene extends Phaser.Scene {
     base: number;
     locked: boolean;
   }[] = [];
-  private startBtn!: Phaser.GameObjects.Rectangle;
+  private startBtn!: RoundedPanel;
   private startTxt!: Phaser.GameObjects.Text;
   private lockBtn!: Phaser.GameObjects.Container;
   private lockIcon!: Phaser.GameObjects.Text;
@@ -94,7 +95,7 @@ export class MapSelectScene extends Phaser.Scene {
       const x = width / 2;
       const y = topLimit + i * (cardH + gap) + cardH / 2;
 
-      const box = this.add.rectangle(x, y, cardW, cardH, UI.card)
+      const box = new RoundedPanel(this, x, y, cardW, cardH, UI.card, 1, { radius: 12 })
         .setStrokeStyle(2, UI.cardStroke)
         .setInteractive({ useHandCursor: true });
         attachPressFeedback(box);
@@ -153,7 +154,7 @@ export class MapSelectScene extends Phaser.Scene {
 
   private buildStartButton(width: number, height: number) {
     const y = height - 68;
-    this.startBtn = this.add.rectangle(width / 2, y, 220, 50, UI.disabled)
+    this.startBtn = new RoundedPanel(this, width / 2, y, 220, 50, UI.disabled)
       .setStrokeStyle(2, UI.disabledStroke);
     this.startTxt = this.add.text(width / 2, y, '请选择关卡', {
       fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',

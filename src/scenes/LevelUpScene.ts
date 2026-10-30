@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { GameScene, UpgradeOption } from './GameScene';
 import { attachPressFeedback } from '../ui/Feedback';
+import { RoundedPanel } from '../ui/RoundedPanel';
 import { installTextTextureCleanup } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
 
@@ -57,7 +58,7 @@ export class LevelUpScene extends Phaser.Scene {
     const w = 116, h = 30;
     const y = Math.min(this.lastCardBottom + 18 + h / 2, height - 24);
     const box = this.add.container(width / 2, y);
-    const bg = this.add.rectangle(0, 0, w, h, UI.secondary)
+    const bg = new RoundedPanel(this, 0, 0, w, h, UI.secondary, 1, { radius: 8 })
       .setStrokeStyle(2, UI.primaryStroke);
     const label = this.add.text(0, 0, '', {
       fontFamily: 'sans-serif', fontSize: '12px', fontStyle: 'bold', color: TEXT.gold,
@@ -141,8 +142,18 @@ export class LevelUpScene extends Phaser.Scene {
 
   private makeCard(opt: UpgradeOption, index: number, x: number, y: number, w: number, h: number) {
     const c = this.add.container(x, y);
-    const bg = this.add.rectangle(0, 0, w, h, 0x0e1a24).setStrokeStyle(2, UI.cardStroke);
-    const accent = this.add.rectangle(0, -h / 2 + 4, w - 8, 5, opt.color).setOrigin(0.5, 0);
+    const bg = new RoundedPanel(this, 0, 0, w, h, 0x0e1a24, 1, { radius: 14 })
+      .setStrokeStyle(2, UI.cardStroke);
+    // 彩色装饰条：也做成圆角并收进卡片内沿，避免直角顶在圆角卡片上
+    const accentW = w - 28;
+    const accent = this.add.graphics();
+    const drawAccent = (color: number) => {
+      accent.clear();
+      accent.fillStyle(color, 1);
+      accent.fillRoundedRect(-accentW / 2, -h / 2 + 8, accentW, 5, 2.5);
+    };
+    drawAccent(opt.color);
+    accent.setData('redraw', drawAccent);
     c.add([bg, accent]);
 
     const badge = opt.kind === 'evolve' ? '★ 进化' : opt.kind === 'newmove' ? '新招式' : opt.kind === 'upgrade' ? '强化' : '属性';
@@ -152,7 +163,7 @@ export class LevelUpScene extends Phaser.Scene {
     // 进化卡：金色描边 + 进化后宝可梦大图
     if (isEvo) {
       bg.setStrokeStyle(2.5, 0xffd75e);
-      accent.setFillStyle(0xffd75e);
+      (accent.getData('redraw') as (c: number) => void)(0xffd75e);
     }
     if (isEvo && opt.portraitId) {
       const key = `pk_${opt.portraitId}`;

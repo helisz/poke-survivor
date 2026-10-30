@@ -5,6 +5,7 @@ import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
 import { attachPressFeedback } from '../ui/Feedback';
+import { RoundedPanel } from '../ui/RoundedPanel';
 
 /** 从数组里随机抽 n 个不重复 */
 function pickN<T>(arr: readonly T[], n: number): T[] {
@@ -19,8 +20,8 @@ export class PartnerSelectScene extends Phaser.Scene {
   private stage = 0;
   private choices: typeof POKEMON_PLAYABLE[number][] = [];
   private selected: string | null = null;
-  private cardRefs: { box: Phaser.GameObjects.Rectangle; mark: Phaser.GameObjects.Text }[] = [];
-  private startBtn!: Phaser.GameObjects.Rectangle;
+  private cardRefs: { box: Phaser.GameObjects.Rectangle | RoundedPanel; mark: Phaser.GameObjects.Text }[] = [];
+  private startBtn!: RoundedPanel;
   private startTxt!: Phaser.GameObjects.Text;
 
   constructor() { super('PartnerSelect'); }
@@ -76,7 +77,7 @@ export class PartnerSelectScene extends Phaser.Scene {
       const color = TYPE_COLORS[p.type] ?? 0x449ddf;
       const move = MOVES[p.move];
 
-      const box = this.add.rectangle(cx, y, cardW, cardH, UI.card)
+      const box = new RoundedPanel(this, cx, y, cardW, cardH, UI.card, 1, { radius: 12 })
         .setStrokeStyle(2, UI.cardStroke).setInteractive({ useHandCursor: true });
         attachPressFeedback(box);
 
@@ -151,7 +152,7 @@ export class PartnerSelectScene extends Phaser.Scene {
 
   private buildStartButton(width: number, height: number) {
     const y = height - 70;
-    this.startBtn = this.add.rectangle(width / 2, y, 220, 50, UI.disabled)
+    this.startBtn = new RoundedPanel(this, width / 2, y, 220, 50, UI.disabled)
       .setStrokeStyle(2, UI.disabledStroke).setInteractive({ useHandCursor: true });
     attachPressFeedback(this.startBtn);
     this.startTxt = this.add.text(width / 2, y, '请选择伙伴', {

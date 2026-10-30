@@ -9,6 +9,7 @@ import type { GameScene } from './GameScene';
 import { installTextTextureCleanup, abandonRun } from '../systems/SceneFlow';
 import { PICKUP_DEFS } from '../data/pickups';
 import { UI, TEXT } from '../ui/Theme';
+import { RoundedPanel } from '../ui/RoundedPanel';
 
 /** 招式类别中文名 */
 const CAT_ZH: Record<string, string> = {
@@ -33,7 +34,7 @@ export class UIScene extends Phaser.Scene {
   private lvText!: Phaser.GameObjects.Text;
   private killText!: Phaser.GameObjects.Text;
   private slotIcons: {
-    box: Phaser.GameObjects.Rectangle;
+    box: Phaser.GameObjects.Rectangle | RoundedPanel;
     icon: Phaser.GameObjects.Image;
     lv: Phaser.GameObjects.Text;
     hit: Phaser.GameObjects.Rectangle;
@@ -49,7 +50,7 @@ export class UIScene extends Phaser.Scene {
    * 每个道具一个「小图标 + 剩余秒数」，过期消失。
    */
   private pickupChips: {
-    bg: Phaser.GameObjects.Rectangle;
+    bg: Phaser.GameObjects.Rectangle | RoundedPanel;
     icon: Phaser.GameObjects.Image;
     txt: Phaser.GameObjects.Text;
     key: string;
@@ -331,7 +332,7 @@ export class UIScene extends Phaser.Scene {
     // 改为场景顶层独立对象，统一由 layoutSlots() 摆放。
     while (this.slotIcons.length < MAX_SLOTS) {
       const i = this.slotIcons.length;
-      const box = this.add.rectangle(0, 0, 46, 46, 0x0e1a24)
+      const box = new RoundedPanel(this, 0, 0, 46, 46, 0x0e1a24, 1, { radius: 9 })
         .setStrokeStyle(2, UI.cardStroke)
         .setDepth(500);
       const icon = this.add.image(0, 0, 'pk_25').setScale(0.55).setDepth(501).setVisible(false);
@@ -578,7 +579,7 @@ export class UIScene extends Phaser.Scene {
 
     // 补足对象池
     while (this.pickupChips.length < entries.length) {
-      const bg = this.add.rectangle(0, 0, size + 34, size, UI.card, 0.92)
+      const bg = new RoundedPanel(this, 0, 0, size + 34, size, UI.card, 0.92, { radius: 8 })
         .setStrokeStyle(1.5, UI.cardStroke).setDepth(40);
       const icon = this.add.image(0, 0, 'pk_magnet')
         .setDisplaySize(size - 6, size - 6).setDepth(41);

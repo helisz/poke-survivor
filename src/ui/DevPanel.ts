@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { loadSave, writeSave, type SaveData } from '../data/stats';
 import { UI, TEXT } from './Theme';
 import { attachPressFeedback } from './Feedback';
+import { RoundedPanel } from './RoundedPanel';
 
 /**
  * 开发者模式面板（菜单 / 游戏内共用）
@@ -47,7 +48,7 @@ export function openDevPanel(
   const ph = 96 + rows.length * rowH + mapH + 52 + (onQuit ? 38 : 0);
   const cx = width / 2, cy = height / 2;
 
-  const bg = scene.add.rectangle(cx, cy, pw, ph, 0x140f08, 0.99)
+  const bg = new RoundedPanel(scene, cx, cy, pw, ph, 0x140f08, 0.99, { radius: 16 })
     .setStrokeStyle(2, UI.primary).setInteractive();
   panel.add(bg);
 
@@ -85,7 +86,7 @@ export function openDevPanel(
     resetFns.push(() => { save[row.key] = 1; valText.setText('1×'); });
 
     const mk = (dx: number, dir: -1 | 1, sym: string) => {
-      const b = scene.add.rectangle(cx + dx, ry + 16, 34, 28, UI.cardOn)
+      const b = new RoundedPanel(scene, cx + dx, ry + 16, 34, 28, UI.cardOn, 1, { radius: 7 })
         .setStrokeStyle(1.5, UI.cardStroke).setInteractive({ useHandCursor: true });
         attachPressFeedback(b);
       const t = scene.add.text(cx + dx, ry + 16, sym, {
@@ -114,7 +115,7 @@ export function openDevPanel(
     if (row.invincible) {
       const cbX = cx + pw / 2 - 44;
       const cbY = ry + 18;
-      const checkbox = scene.add.rectangle(cbX, cbY, 16, 16, UI.cardOn)
+      const checkbox = new RoundedPanel(scene, cbX, cbY, 16, 16, UI.cardOn, 1, { radius: 4 })
         .setStrokeStyle(1.5, row.key === 'devTakenMul' && save.devTakenMul === 0 ? 0x63c256 : UI.cardStroke)
         .setInteractive({ useHandCursor: true });
         attachPressFeedback(checkbox);
@@ -155,7 +156,7 @@ export function openDevPanel(
     const gap = 6;
     const bw = (pw - 32 - gap * (cols - 1)) / cols;
     const bh = 26;
-    const btns: { bg: Phaser.GameObjects.Rectangle; txt: Phaser.GameObjects.Text }[] = [];
+    const btns: { bg: Phaser.GameObjects.Rectangle | RoundedPanel; txt: Phaser.GameObjects.Text }[] = [];
 
     const refreshBtns = () => {
       const cur = mapJump.current();
@@ -171,7 +172,7 @@ export function openDevPanel(
       const col = i % cols, row = Math.floor(i / cols);
       const bx = cx - pw / 2 + 16 + col * (bw + gap) + bw / 2;
       const by = my + 22 + row * (bh + gap);
-      const bg = scene.add.rectangle(bx, by, bw, bh, UI.cardOn)
+      const bg = new RoundedPanel(scene, bx, by, bw, bh, UI.cardOn, 1, { radius: 8 })
         .setStrokeStyle(1.5, UI.cardStroke).setInteractive({ useHandCursor: true });
         attachPressFeedback(bg);
       const txt = scene.add.text(bx, by, String(i + 1), {
@@ -197,7 +198,7 @@ export function openDevPanel(
   // 放弃本局：需要点两次确认，避免误触（放在底部按钮行上方）
   if (onQuit) {
     const qy = cy + ph / 2 - 64;
-    const quitBtn = scene.add.rectangle(cx, qy, 200, 32, 0x3a1f22)
+    const quitBtn = new RoundedPanel(scene, cx, qy, 200, 32, 0x3a1f22, 1, { radius: 8 })
       .setStrokeStyle(1.5, 0x6f3a3f).setInteractive({ useHandCursor: true });
       attachPressFeedback(quitBtn);
     const quitTxt = scene.add.text(cx, qy, '放弃本局', {
@@ -226,7 +227,7 @@ export function openDevPanel(
   }
 
   // 重置全部：所有倍率回到 1，并取消无敌
-  const resetBtn = scene.add.rectangle(cx - 62, cy + ph / 2 - 26, 100, 30, 0x1c3344)
+  const resetBtn = new RoundedPanel(scene, cx - 62, cy + ph / 2 - 26, 100, 30, 0x1c3344, 1, { radius: 8 })
     .setStrokeStyle(1.5, 0x2f4b60).setInteractive({ useHandCursor: true });
     attachPressFeedback(resetBtn);
   const resetTxt = scene.add.text(cx - 62, cy + ph / 2 - 26, '重置全部', {
@@ -247,7 +248,7 @@ export function openDevPanel(
   });
   panel.add([resetBtn, resetTxt]);
 
-  const closeBtn = scene.add.rectangle(cx + 62, cy + ph / 2 - 26, 100, 30, UI.primary)
+  const closeBtn = new RoundedPanel(scene, cx + 62, cy + ph / 2 - 26, 100, 30, UI.primary, 1, { radius: 8 })
     .setInteractive({ useHandCursor: true });
     attachPressFeedback(closeBtn);
   const closeTxt = scene.add.text(cx + 62, cy + ph / 2 - 26, '关闭', {

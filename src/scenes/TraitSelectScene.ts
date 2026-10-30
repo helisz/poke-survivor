@@ -5,6 +5,7 @@ import { makeTraitIconTexture, type TraitIcon } from '../ui/TraitIcons';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
 import { attachPressFeedback } from '../ui/Feedback';
+import { RoundedPanel } from '../ui/RoundedPanel';
 
 /** 从数组里随机抽 n 个不重复 */
 function pickN<T>(arr: readonly T[], n: number): T[] {
@@ -31,14 +32,14 @@ export class TraitSelectScene extends Phaser.Scene {
   private choices: typeof TRAITS[number][] = [];
   private selected: TraitId | null = null;
   private cardRefs: {
-    box: Phaser.GameObjects.Rectangle;
+    box: Phaser.GameObjects.Rectangle | RoundedPanel;
     icon: Phaser.GameObjects.Image;
     name: Phaser.GameObjects.Text;
     desc: Phaser.GameObjects.Text;
     mark: Phaser.GameObjects.Text;
     accent: number;
   }[] = [];
-  private nextBtn!: Phaser.GameObjects.Rectangle;
+  private nextBtn!: RoundedPanel;
   private nextTxt!: Phaser.GameObjects.Text;
 
   constructor() { super('TraitSelect'); }
@@ -98,7 +99,7 @@ export class TraitSelectScene extends Phaser.Scene {
       const accent = ACCENT[t.id];
       const iconKey = makeTraitIconTexture(this, t.icon as TraitIcon, accent);
 
-      const box = this.add.rectangle(x, y, cardW, cardH, UI.card)
+      const box = new RoundedPanel(this, x, y, cardW, cardH, UI.card, 1, { radius: 12 })
         .setStrokeStyle(2, UI.cardStroke).setInteractive({ useHandCursor: true });
         attachPressFeedback(box);
       // 左侧强调色竖条
@@ -187,7 +188,7 @@ export class TraitSelectScene extends Phaser.Scene {
   private buildNextButton(width: number, height: number) {
     const y = height - 68;
 
-    this.nextBtn = this.add.rectangle(width / 2, y, 220, 50, UI.disabled)
+    this.nextBtn = new RoundedPanel(this, width / 2, y, 220, 50, UI.disabled)
       .setStrokeStyle(2, UI.disabledStroke).setInteractive({ useHandCursor: true });
     attachPressFeedback(this.nextBtn);
     // 文字固定为最终态：选中前后都显示"下一步：选伙伴"，

@@ -6,6 +6,7 @@ import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { UI, TEXT } from '../ui/Theme';
 import { attachPressFeedback } from '../ui/Feedback';
+import { RoundedPanel } from '../ui/RoundedPanel';
 
 export class GameOverScene extends Phaser.Scene {
   constructor() { super('GameOver'); }
@@ -125,7 +126,7 @@ export class GameOverScene extends Phaser.Scene {
 
     // 底部按钮
     const btnY = height - 96;
-    const btn = this.add.rectangle(width / 2, btnY, 200, 48, UI.primary)
+    const btn = new RoundedPanel(this, width / 2, btnY, 200, 48, UI.primary)
       .setStrokeStyle(2, UI.primaryStroke).setInteractive({ useHandCursor: true });
       attachPressFeedback(btn);
     this.add.text(width / 2, btnY, '返 回 主 页', {

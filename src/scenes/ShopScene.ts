@@ -5,6 +5,7 @@ import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
 import { makeCoinIcon, makePermIcon } from '../ui/Icons';
 import { UI, TEXT } from '../ui/Theme';
 import { attachPressFeedback } from '../ui/Feedback';
+import { RoundedPanel } from '../ui/RoundedPanel';
 
 /**
  * 强化页：用金币购买局外永久升级（每级仅 1-2%）。
@@ -21,7 +22,7 @@ export class ShopScene extends Phaser.Scene {
     lvText: Phaser.GameObjects.Text;
     totalText: Phaser.GameObjects.Text;
     stepText: Phaser.GameObjects.Text;
-    btn: Phaser.GameObjects.Rectangle;
+    btn: RoundedPanel;
     btnText: Phaser.GameObjects.Text;
     cost: Phaser.GameObjects.Text;
     costIcon: Phaser.GameObjects.Image;
@@ -75,7 +76,7 @@ export class ShopScene extends Phaser.Scene {
       const cy = top + i * rowH + rowH / 2;
       const cardH = rowH - 8;
 
-      this.add.rectangle(width / 2, cy, w, cardH, 0x0b1721)
+      new RoundedPanel(this, width / 2, cy, w, cardH, 0x0b1721, 1, { radius: 10 })
         .setStrokeStyle(1.5, 0x1e3444);
 
       // 大图标
@@ -105,7 +106,7 @@ export class ShopScene extends Phaser.Scene {
       }).setOrigin(0, 0.5);
 
       // 购买按钮：单行内容「价格 + 硬币图标」，整体作为一个可点区域
-      const btn = this.add.rectangle(btnX, cy, btnW, 40, UI.primary)
+      const btn = new RoundedPanel(this, btnX, cy, btnW, 40, UI.primary, 1, { radius: 10 })
         .setStrokeStyle(1.5, UI.primaryStroke).setInteractive({ useHandCursor: true });
         attachPressFeedback(btn);
       // btnText 用作「已满」等状态文字，位于硬币块上方同步显示
@@ -126,7 +127,7 @@ export class ShopScene extends Phaser.Scene {
 
     // 底部：重置 + 返回
     const by = height - 44;
-    const reset = this.add.rectangle(width / 2 - 78, by, 150, 40, 0x3a1f22)
+    const reset = new RoundedPanel(this, width / 2 - 78, by, 150, 40, 0x3a1f22, 1, { radius: 10 })
       .setStrokeStyle(1.5, 0x6f3a3f).setInteractive({ useHandCursor: true });
       attachPressFeedback(reset);
     this.add.text(width / 2 - 78, by, '重置强化', {
@@ -134,7 +135,7 @@ export class ShopScene extends Phaser.Scene {
     }).setOrigin(0.5);
     reset.on('pointerdown', () => this.resetAll());
 
-    const back = this.add.rectangle(width / 2 + 78, by, 130, 40, 0x1c3344)
+    const back = new RoundedPanel(this, width / 2 + 78, by, 130, 40, 0x1c3344, 1, { radius: 10 })
       .setStrokeStyle(1.5, 0x2f4b60).setInteractive({ useHandCursor: true });
       attachPressFeedback(back);
     this.add.text(width / 2 + 78, by, '返 回', {
