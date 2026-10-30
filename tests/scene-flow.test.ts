@@ -118,10 +118,27 @@ describe('SceneFlow 统一入口', () => {
     expect(goToBlock).toMatch(/\.filter\(\(key\)\s*=>\s*key\s*!==\s*target\)/);
   });
 
-  it('纹理清理挂在场景 SHUTDOWN 上', () => {
+  it('不再手动删 Text 纹理（Phaser 的 preDestroy 已自行回收）', () => {
     const src = readFileSync(flowPath, 'utf8');
-    expect(src).toContain('SHUTDOWN');
-    expect(src).toMatch(/textures\.remove\(/);
+    // 手动 textures.remove 会让 Text.preDestroy 里的 texture.destroy()
+    // 拿到已被拆空的纹理，抛 drawImage of null，导致重开一局卡死。
+    // 因此这条必须不存在。
+    expect(src).not.toMatch(/^\s*if \(textures\.exists/m);
+    expect(src).not.toContain('Phaser.Scenes.Events.SHUTDOWN');
+  });
+
+  it('goTo 先停其它场景、再 remove/add 目标（避免旧场景残留抢输入）', () => {
+    const src = readFileSync(flowPath, 'utf8');
+    const block = src.slice(src.indexOf('function performGoTo'));
+    const stopAt = block.indexOf('mgr.stop(key)');
+    const removeAt = block.indexOf('mgr.remove(target)');
+    const addAt = block.indexOf('mgr.add(target, factory()');
+    expect(stopAt).toBeGreaterThan(-1);
+    expect(removeAt).toBeGreaterThan(-1);
+    expect(addAt).toBeGreaterThan(-1);
+    // 先 stop，再 remove，再 add
+    expect(stopAt).toBeLessThan(removeAt);
+    expect(removeAt).toBeLessThan(addAt);
   });
 
   it('goTo 每次都用工厂重建目标场景实例（不复用脏 Scene）', () => {

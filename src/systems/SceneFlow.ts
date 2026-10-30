@@ -41,25 +41,29 @@ export function registerScene(key: string, factory: () => Phaser.Scene) {
   FACTORIES[key] = factory;
 }
 
-/** 场景 shutdown 时清理本场景所有 Text 的 canvas 纹理 */
-export function disposeTextTextures(scene: Phaser.Scene) {
-  const textures = scene.sys?.textures;
-  if (!textures) return;
-  const children = (scene.children?.list ?? []) as Phaser.GameObjects.GameObject[];
-  for (const obj of children) {
-    const t = obj as unknown as { type?: string; _textureKey?: string };
-    if (t.type !== 'Text' || !t._textureKey) continue;
-    try {
-      if (textures.exists(t._textureKey)) textures.remove(t._textureKey);
-    } catch {
-      /* 已回收则忽略 */
-    }
-  }
+/**
+ * 场景 shutdown 时清理本场景所有 Text 的 canvas 纹理。
+ *
+ * 【重要】Phaser 的 `Text.preDestroy` 已经调用 `texture.destroy()` +
+ * `CanvasPool.remove(canvas)`，自己会完整回收。这里手动再删一遍反而出事：
+ *  1. `textures.remove(key)` 先把纹理从管理器摘掉，
+ *     随后 GameObject 销毁时 `texture.destroy()` 拿到的是已被拆空的纹理，
+ *     内部 `drawImage` 的目标 canvas 为 null，抛
+ *     `Cannot read properties of null (reading 'drawImage')`；
+ *  2. `CanvasPool.remove` 会把 canvas 重置成 1×1 并放回池子复用，
+ *     被下一个 Text 拿走时尺寸对不上。
+ * 症状就是「重开一局、选完伙伴后卡死」——场景重建时 create() 里 setText
+ * 撞到已损坏的纹理。
+ *
+ * 所以这里保留函数仅为兼容既有调用点，实际不做任何事。
+ */
+export function disposeTextTextures(_scene: Phaser.Scene) {
+  /* 交给 Phaser 自己回收，见上方注释 */
 }
 
-/** 给场景挂 Text 纹理清理钩子 */
-export function installTextTextureCleanup(scene: Phaser.Scene) {
-  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => disposeTextTextures(scene));
+/** 给场景挂 Text 纹理清理钩子（现为空实现，保留以兼容既有调用） */
+export function installTextTextureCleanup(_scene: Phaser.Scene) {
+  /* no-op */
 }
 
 /**
@@ -107,16 +111,18 @@ export function goTo(
   // 【最关键的坑】Phaser 的 SceneManager 有个 isProcessing 标志。
   // 在 pointerdown 这类输入回调里调 mgr.remove() / mgr.add()，不会立即执行，
   // 而是压进 _queue 延后处理。此时紧跟着的 add() 会因为旧场景还没被移除
-  // 而"再加一个同 key 的场景"，同时 restoreSceneOrder 手动改的数组顺序
-  // 和被延迟的 remove 互相打架 —— 结果就是 Game/UI 的 sys 状态错乱：
-  // status 显示 RUNNING，但 getScenes(true) 里查不到，画面卡死不动。
+  // 而"再加一个同 key 的场景"，卡成 status RUNNING 但查不到的局面。
   //
-  // 解法：把整个切换扔到下一帧（scene.time.delayedCall(0) 走的是场景时钟，
-  // 场景停了就不跑；用 game.loop 的 once('poststep') 更稳）。
-  // 调用方（按钮回调）返回后再执行，isProcessing 已归 false，操作全部同步生效。
+  // 解法：挪到下一帧再执行。注意不能用 scene.time.delayedCall ——
+  // 那是场景时钟，场景停了就不走；用 rAF 最稳。
   if (mgr.isProcessing) {
-    // requestAnimationFrame 不依赖场景时钟，即使场景已暂停也会触发
-    requestAnimationFrame(() => performGoTo(mgr, target, data));
+    requestAnimationFrame(() => {
+      try {
+        performGoTo(mgr, target, data);
+      } catch (e) {
+        console.error('[SceneFlow] goTo failed:', e);
+      }
+    });
     return;
   }
 
@@ -129,6 +135,21 @@ function performGoTo(
   target: SceneKeyActivity,
   data?: Record<string, unknown>,
 ) {
+  // 顺序很关键：先把除目标外的场景全部停掉，再处理目标场景。
+  // 反过来（先 add 再 stop）会留下"新实例已挂上、旧实例还在跑"的窗口，
+  // 旧场景的输入层继续吃点击，表现为选完伙伴后点什么都没反应。
+  // 先收集 key 再停：mgr.stop() 会实时改动 getScenes(true) 的数组。
+  const others = mgr
+    .getScenes(true)
+    .map((s) => s.sys.settings.key)
+    .filter((key) => key !== target);
+  for (const key of others) {
+    try {
+      mgr.stop(key);
+    } catch {
+      /* 已停则忽略 */
+    }
+  }
 
   // 1. 彻底移除目标场景的旧实例，避免复用带脏状态的 Scene 对象
   //    （Text 纹理已失效、类字段残留旧引用、监听器还挂在旧对象上）
@@ -142,8 +163,7 @@ function performGoTo(
 
   // 2. 用工厂 new 一个干净实例重新挂载。
   //    签名是 add(key, sceneConfig, autoStart, data) —— 第 4 个参数才是传给
-  //    create(data) 的数据。漏传会让开局参数（trait / starterMove）丢失，
-  //    表现为"选了伙伴但开局技能是随机的"。
+  //    create(data) 的数据。漏传会让开局参数（trait / starterMove / stage）丢失。
   const factory = FACTORIES[target];
   if (factory) {
     try {
@@ -156,17 +176,17 @@ function performGoTo(
     mgr.start(target, data);
   }
 
-  // 2.5 把重建的场景挪回原始渲染位置。mgr.add 是追加到末尾的，不修正的话
-  //     Game 会盖在 UI 上面，进游戏后整个 HUD 消失。
+  // 3. 把重建的场景挪回原始渲染位置。mgr.add 是追加到末尾的，不修正的话
+  //    Game 会盖在 UI 上面，进游戏后整个 HUD 消失。
   restoreSceneOrder(mgr, target);
 
-  // 3. 停掉除目标外的所有活跃场景。先收集 key 再停：mgr.stop() 会实时改动
-  //    getScenes(true) 返回的数组，边遍历边停会漏停或把目标自己停掉。
-  const others = mgr
+  // 4. 兜底：再扫一遍活跃场景，确认只剩目标（上面的 stop 可能因
+  //    场景自己在这一帧又启动而漏停）。
+  const stragglers = mgr
     .getScenes(true)
     .map((s) => s.sys.settings.key)
     .filter((key) => key !== target);
-  for (const key of others) {
+  for (const key of stragglers) {
     try {
       mgr.stop(key);
     } catch {
