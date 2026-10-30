@@ -144,13 +144,29 @@ export class RoundedPanel extends Phaser.GameObjects.Container {
       self.input.cursor = 'pointer';
       return this;
     }
-    const area = new Phaser.Geom.Rectangle(-this.pw / 2, -this.ph / 2, this.pw, this.ph);
-    super.setInteractive(area, Phaser.Geom.Rectangle.Contains, dropZone ?? false);
+    // 不给 super 传几何体：Container 会忽略它，改用 setSize(w,h) 生成
+    // (0,0,w,h) —— 那是左上角坐标，而容器内容以中心为原点，
+    // 结果只有左下四分之一能点中。所以 setInteractive 之后直接改写 hitArea。
+    super.setInteractive({ useHandCursor: true });
+    this.fixHitArea();
     const cursor = hitArea && (hitArea as Phaser.Types.Input.InputConfiguration).useHandCursor === false
       ? 'default' : 'pointer';
     this.applyCursor(cursor);
     void callback;
     return this;
+  }
+
+  /** 命中矩形强制以容器中心为原点，尺寸 = 面板尺寸 */
+  private fixHitArea() {
+    const inp = (this as unknown as {
+      input: (Phaser.Types.Input.InteractiveObject & { hitArea: Phaser.Geom.Rectangle }) | null;
+    }).input;
+    if (!inp) return;
+    // Phaser 判定 Container 时会先把指针转成「相对 displayOrigin」的局部坐标，
+    // 也就是 x 已经落在 0..w 区间。所以 hitArea 必须从 (0,0) 起算，
+    // 写成 -w/2 反而只覆盖左半边。
+    inp.hitArea = new Phaser.Geom.Rectangle(0, 0, this.pw, this.ph);
+    inp.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
   }
 
   /** 单独抽出来，避免 TS 在 super.setInteractive 之后把 input 收窄成 never */
