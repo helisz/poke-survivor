@@ -29,20 +29,12 @@ export class MenuScene extends Phaser.Scene {
 
     // ① Logo —— 中心落在屏幕垂直方向 1/3 处
     //
-    // 白点修复的两个前提（缺一个都会在游戏里糊出白边）：
-    //  a) 纹理用 NEAREST 采样。pixelArt 本该给出 NEAREST，
-    //     但直接 setDisplaySize 非整数倍缩放时仍会线性插值，
-    //     把透明区旁边的白色像素糊成半透明白点。
-    //  b) 显示尺寸取纹理尺寸的整数分之一（资源 800 宽 → 显示 400），
-    //     整数比缩放时每个目标像素正好落在源像素中心，不会串色。
-    const logoW = Math.min(width - 68, 400);
-    // 新 logo 原图 1258×382，按原比例算高
-    const logoH = logoW * (382 / 1258);
+    // logo 资源已按 2x 显示尺寸预渲染成 644×193，这里固定 0.5 倍缩放：
+    // 显示 322 逻辑像素，DPR 2 下正好 1:1 落在物理像素上。
+    // 缩放比是整数，NEAREST 采样不会插值，边缘就不会翻出一圈白点。
+    // 换图时必须用同一尺寸重出资源，否则又会变成非整数缩放。
     const logo = this.add.image(width / 2, height / 3, 'logo')
-      .setDisplaySize(logoW, logoH).setDepth(20);
-    // 新 logo 是 1258×382 的精细像素画，缩放后要用 LINEAR，
-    // NEAREST 会让抗锯齿好的原图缩出硬台阶
-    logo.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
+      .setScale(0.5).setDepth(20);
 
     // ② 左上角：金币（带硬币图标）+ 下方最长生存
     const padX = 18;

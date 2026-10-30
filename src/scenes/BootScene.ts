@@ -19,7 +19,10 @@ export class BootScene extends Phaser.Scene {
     this.load.spritesheet('ash', 'trainer/ash_sheet.png', { frameWidth: 48, frameHeight: 48 });
 
     // 游戏 logo（透明底 PNG）
-    this.load.image('logo', 'logo.png');
+    // 显式指定 LINEAR：全局 pixelArt:true 会把新纹理设成 NEAREST，
+    // 而 logo 边缘是按 alpha 羽化的，NEAREST 硬采样会沿轮廓抖出一圈白点。
+    // 这里在加载时就定好采样方式，之后不再被覆盖。
+    this.load.image('logo', 'logo.png', { magFilter: 1, minFilter: 1 } as never);
 
     for (const id of POKEMON_IDS) {
       const key = `pk_${id}`;
@@ -33,11 +36,9 @@ export class BootScene extends Phaser.Scene {
     this.load.on('progress', (p: number) => { fill.width = 240 * p; });
     this.load.on('complete', () => { bar.destroy(); fill.destroy(); });
 
-    // logo 用 NEAREST 采样：资源 800x246，界面按 400 宽显示（正好 1/2），
-    // 若用默认 LINEAR，透明区旁的白色像素会被插值糊成半透明白点。
-    // 必须在纹理加载完成、上传 GPU 之前设置才有效，所以放在这里而不是场景里。
+    // 兜底：文件级别配置之后仍确保一次（部分版本会忽略 load config）
     this.load.once('filecomplete-image-logo', () => {
-      this.textures.get('logo').setFilter(Phaser.Textures.FilterMode.NEAREST);
+      this.textures.get('logo')?.setFilter(Phaser.Textures.FilterMode.LINEAR);
     });
   }
 
