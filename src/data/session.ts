@@ -39,7 +39,10 @@ export function applyCloudToLocal(s: CloudSession): SaveData {
 
   const merged: SaveData = {
     ...local,
-    coins: Math.max(Number(local.coins) || 0, Number(p.coins) || 0),
+    // 金币是「余额」不是「纪录」：必须在服务端为准，否则买完东西消费掉，
+    // 刷新时 Math.max 又把云端那个更大的旧值拉回来，余额永远减不下去。
+    // 其他字段（分数/进度/强化/图鉴）是累积纪录，取最大值才对。
+    coins: Number(p.coins) || 0,
     stageBest: mergedBest,
     stageProgress: Math.max(Number(local.stageProgress) || 0, Number(p.stage_progress) || 0),
     // 强化等级：云端更高才采用，避免云端的 0 把本地已买的冲掉

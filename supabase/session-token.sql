@@ -142,7 +142,9 @@ begin
     ) s;
 
   update public.profiles set
-    coins          = greatest(coins, coalesce((p_data->>'coins')::int, coins)),
+    -- 金币是余额，直接覆盖。用 greatest() 的话玩家花掉金币后同步不上去，
+    -- 刷新又被旧的大数值拉回来，永远减不下去。
+    coins          = coalesce((p_data->>'coins')::int, coins),
     stage_best     = case when jsonb_array_length(v_best) > 0 then v_best else stage_best end,
     stage_progress = greatest(stage_progress, coalesce((p_data->>'stage_progress')::int, stage_progress)),
     best_time      = greatest(best_time, coalesce((p_data->>'best_time')::int, best_time)),

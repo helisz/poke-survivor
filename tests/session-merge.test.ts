@@ -51,14 +51,27 @@ function cloudProfile(p: Partial<Record<string, unknown>>) {
 beforeEach(() => { for (const k of Object.keys(store)) delete store[k]; });
 
 describe('登录时云端与本地合并', () => {
-  it('云端是空号时不清空本地金币和记录', () => {
+  it('云端是空号时不清空本地记录（金币除外，金币是余额）', () => {
     seedLocal({ coins: 500, stageBest: [888, 0, 0, 0, 0, 0], stageProgress: 1, bestTime: 300 });
     applyCloudToLocal(cloudProfile({}));
     const r = readLocal();
-    expect(r.coins).toBe(500);
+    // 金币是余额不是纪录：云端为准。空号登录后余额就是 0，
+    // 否则花掉的 500 会在下次刷新时被 Math.max 拉回来。
+    expect(r.coins).toBe(0);
+    // 其余都是累积纪录，必须保住
     expect(r.stageBest[0]).toBe(888);
     expect(r.stageProgress).toBe(1);
     expect(r.bestTime).toBe(300);
+  });
+
+  it('消费后刷新不会把金币拉回旧值', () => {
+    // 曾经云端 500000，玩家花到 0，登录（或刷新恢复会话）后应保持 0
+    seedLocal({ coins: 0 });
+    applyCloudToLocal(cloudProfile({ coins: 500000 }));
+    expect(readLocal().coins).toBe(500000);  // 云端有余额时以云端为准
+    seedLocal({ coins: 0 });
+    applyCloudToLocal(cloudProfile({ coins: 0 }));
+    expect(readLocal().coins).toBe(0);       // 云端也是 0 时不被本地旧值顶上去
   });
 
   it('云端进度更高时采用云端的（换设备场景）', () => {

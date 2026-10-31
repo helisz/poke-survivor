@@ -1215,8 +1215,13 @@ export class GameScene extends Phaser.Scene {
     const z = this.cameras.main.zoom || 1;
     const barW = (Math.min(narrow ? w - 60 : 460, w - 60)) / z;
     const barH = 12 / z;
-    // 底部已有技能栏 + 属性图标 + 摇杆区，血条放在它们上方
-    const y = h - (narrow ? 170 : 120);
+    // 固定在属性强化行上方。UIScene 负责算底部布局（技能槽 → 属性行），
+    // 血条在 GameScene 里画，自己算不出来，只能读 UIScene 记下的 buffTopY。
+    // 拿不到时退回一个保守估计，别让血条跑到屏幕外。
+    const ui = this.scene.get('UI') as { buffTopY?: number } | undefined;
+    const buffTop = ui?.buffTopY || (h - (narrow ? 214 : 190));
+    // 名字 16px + 间隙，血条整块贴在属性行上方 8px
+    const y = buffTop - 8 - barH / 2 - 16 / z;
 
     // 名字
     const bossLabel = `${this.bossPokemonName ?? '终局'} · 终局`;
