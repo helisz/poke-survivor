@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { Bgm } from './Bgm';
 
 /**
  * 全流程场景切换总入口。
@@ -135,6 +136,10 @@ function performGoTo(
   target: SceneKeyActivity,
   data?: Record<string, unknown>,
 ) {
+  // 背景音乐：战斗放战斗曲，其余场景（菜单/选关/强化/图鉴/结算）放菜单曲。
+  // 放在这里统一处理，不用每个场景各写一遍，也不会漏掉某个入口。
+  Bgm.setTrack(target === 'Game' ? 'game' : 'menu');
+
   // 顺序很关键：先把除目标外的场景全部停掉，再处理目标场景。
   // 反过来（先 add 再 stop）会留下"新实例已挂上、旧实例还在跑"的窗口，
   // 旧场景的输入层继续吃点击，表现为选完伙伴后点什么都没反应。
