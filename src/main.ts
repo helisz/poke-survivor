@@ -79,16 +79,19 @@ const initAudio = () => {
   Bgm.init();
 };
 
-// 先乐观试一次：部分浏览器（用户之前与该站点交互过 / PWA 已安装）允许直接播。
-// Bgm.init() 内部 play() 被拒绝会静默失败，不会报错，所以这里试一次是安全的。
-// 如果被拦，下面任一手势真正到来时会再试一次。
+// 先乐观试一次：部分浏览器允许直接播 —— 桌面 Chrome 的站内互动分数够了、
+// 或者用户把站点加到了白名单/装成 PWA，页面一打开就能出声，这才是「打开就放」。
+// Bgm.init() 内部 play() 被拒会静默失败，不会报错，所以试一次没有副作用。
 Bgm.init();
 
-// 三个事件只用一个开关，否则同一次触摸会同时触发 touchstart 和 pointerdown，
-// initAudio 跑两遍（Sfx 会建两个 AudioContext）
-window.addEventListener('pointerdown', initAudio, { once: true });
-window.addEventListener('touchstart', initAudio, { once: true });
-window.addEventListener('keydown', initAudio, { once: true });
+// 被拦时挂到第一次真实用户激活上。
+// 浏览器只认激活型手势：pointerdown / touchstart / keydown / click。
+// pointermove、scroll 这类「被动事件」不算数，挂上去也不会解锁，别放进来。
+// 用 pointerdown 而不是 pointerup：按下就出声，不用等抬手。
+const gestureEvents = ['pointerdown', 'touchstart', 'touchend', 'keydown', 'click'] as const;
+for (const ev of gestureEvents) {
+  window.addEventListener(ev, initAudio, { once: true, passive: true });
+}
 
 // 调试句柄：控制台 __PS__.scene.getScene('Game') 可查状态
 (window as any).__PS__ = game;
