@@ -79,3 +79,43 @@ describe('每只伙伴都能进化', () => {
     expect(def.cdMul).toBeLessThan(1);
   });
 });
+
+/**
+ * 回归测试：进化不能靠「熬时间」白送。
+ *
+ * 曾经每条进化都带 `{ kind: 'time', value: N }`，写成 requireOneOf 的候选之一，
+ * 于是玩家什么都不用做，存活满 N 秒进化就自动送上门 —— 把「练招式」这个
+ * 唯一真正的成长目标架空了。现在 time 条件已从类型层面移除，这里锁死它不会回来。
+ */
+describe('进化不认存活时长', () => {
+  const collectConds = (def: (typeof EVOLUTIONS)[string][number]): unknown[] => [
+    ...(def.require ?? []),
+    ...(def.requireOneOf ?? []),
+  ];
+
+  it('没有任何一条进化带 time 条件', () => {
+    const offenders: string[] = [];
+    for (const [moveId, chain] of Object.entries(EVOLUTIONS)) {
+      for (const def of chain) {
+        for (const c of collectConds(def)) {
+          if ((c as { kind?: string }).kind === 'time') offenders.push(`${moveId} -> ${def.name}`);
+        }
+      }
+    }
+    expect(offenders, `这些进化还在用存活时长触发：${offenders.join(', ')}`).toEqual([]);
+  });
+
+  it('进化条件只允许 level / moveLevel / owned / any', () => {
+    const allowed = new Set(['level', 'moveLevel', 'owned', 'any']);
+    const bad: string[] = [];
+    for (const [moveId, chain] of Object.entries(EVOLUTIONS)) {
+      for (const def of chain) {
+        for (const c of collectConds(def)) {
+          const kind = (c as { kind?: string }).kind ?? '';
+          if (!allowed.has(kind)) bad.push(`${moveId}: ${kind}`);
+        }
+      }
+    }
+    expect(bad, `出现了不允许的条件类型：${bad.join(', ')}`).toEqual([]);
+  });
+});

@@ -120,6 +120,7 @@ Slot cap is `MAX_SLOTS = 6`. Rerolls start at 3; each shop level of "Gambler" ad
 
 **Evolution rules** (important):
 
+- **Evolutions ignore survival time.** Only two triggers exist: player level reaching a threshold, or the move itself reaching `MOVE_LEVEL_EVOLVE_AT = 8`. You cannot sit still and let the clock hand you an evolution
 - Evolving **never resets move level**. The level at the moment of evolution is stored as `evoBaseLevel`, and every later upgrade keeps stacking on that base
 - Damage = `baseDamage × (1 + (level-1) × 0.42) × evolution multiplier` — it only ever goes up
 - Evolved projectiles are **fully piercing** (`pierce = Infinity`) and are no longer eaten by a single target

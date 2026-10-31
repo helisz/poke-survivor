@@ -1009,15 +1009,16 @@ export class GameScene extends Phaser.Scene {
       const ladder = evoLadderFor(moveId, stage);
       if (!ladder) continue;
       const next = ladder.def;
+      // 第一次进化：玩家总等级 / 招式等级任一满足。
+      // 注意这里不再传 elapsed —— 进化不认「存活时长」，时间到点不会白送进化。
       const moveCtx = { ...ctx, moveLevel: this.combat.getMoveLevel(moveId) };
-      // 多级进化只看招式等级门槛（每 5 级一次），不再看玩家总等级/时长
+      // 多级进化只看招式等级门槛（每 5 级一次），不再看玩家总等级
       if (stage > 0) {
         if (this.combat.getMoveLevel(moveId) >= ladder.moveLevel) {
           out.push({ moveId, evo: next });
         }
         continue;
       }
-      // 第一次进化：老规则保留（玩家等级 / 存活时长 / 招式 8 级任一）
       if (canEvolve(next, moveCtx)) out.push({ moveId, evo: next });
     }
     return out;
