@@ -13,7 +13,7 @@ import { PICKUP_DEFS, type PickupKind } from '../data/pickups';
 import type { TraitId } from '../data/stats';
 import { EVOLUTIONS, canEvolve, evoLadderFor, type EvolutionDef } from '../data/evolutions';
 import { applyPerm, rerollsPerRun } from '../data/stats';
-import { POKEMON_PLAYABLE, POKEDEX_NAME, BOSS_POOL } from '../data/pokedex';
+import { POKEMON_PLAYABLE, POKEDEX_NAME, POKEDEX_TYPE, BOSS_POOL } from '../data/pokedex';
 import { ensureSprites } from '../data/lazySprites';
 import { killScore, clearBonus, type ScoreKind } from '../data/score';
 import { UI } from '../ui/Theme';
@@ -102,6 +102,12 @@ export class GameScene extends Phaser.Scene {
   private bossPokemonId?: number;
   /** 大 BOSS 三种技能变体轮转指针（参考伙伴招式的形态） */
   private finalBossSkillStep = 0;
+  /**
+   * 精英施法冷却表。key 是精英 sprite，值是剩余毫秒。
+   * 精英同一时刻可能有 3~6 只在场上，每只各自计时、各自出招，
+   * 所以不能用单一 bossSkillTimer。
+   */
+  private eliteSkillTimers = new Map<Phaser.Physics.Arcade.Sprite, number>();
   private bossBarW = 300;
   private orbGroup!: Phaser.Physics.Arcade.Group;
   private healGroup!: Phaser.Physics.Arcade.Group;
@@ -344,6 +350,7 @@ export class GameScene extends Phaser.Scene {
     if (this.elapsed >= RUN_SECONDS && !this.finalBossSpawned) this.spawnFinalBoss();
     this.updateBossBar();
     this.updateBossSkill(delta);
+    this.updateEliteSkills(delta);
   }
 
   /** 时间到：刷出终局 BOSS，杀掉才算过关 */
@@ -1343,7 +1350,64 @@ export class GameScene extends Phaser.Scene {
     v(boss, prof, enraged);
   }
 
-  /** 按属性给出一套主招（小 BOSS 用 / 终局第一变体用） */
+  /**
+   * 精英技能调度。每只精英独立计时，各自出招。
+   *
+   * 精英量大（30 秒一波，后期每波 2~3 只），所以：
+   *   - 出招间隔 5.5s（比小 BOSS 还慢，不会变成弹幕地狱）
+   *   - 威力 0.45（小 BOSS 是 0.55，终局是 1.0）
+   *   - 只有离玩家近的才出招，远处的继续走过来，避免屏幕外乱放
+   *   - 同屏同时施法的精英数量设上限，防止 6 只一起糊脸
+   */
+  private updateEliteSkills(dtMs: number) {
+    const ELITE_INTERVAL = 5500;
+    const SCHEDULE_RADIUS = 620;   // 超出这个距离的精英不出招
+    const MAX_CASTERS = 2;         // 同屏最多 2 只精英同时施法
+
+    // 清掉已死精英的计时条目，防止 Map 无限增长
+    for (const key of [...this.eliteSkillTimers.keys()]) {
+      if (!key.active) this.eliteSkillTimers.delete(key);
+    }
+
+    // 收集「准备好出招」的精英
+    const ready: Phaser.Physics.Arcade.Sprite[] = [];
+    this.enemies.forEachActive((e) => {
+      if (e.getData('kind') !== 'elite') return;
+      if (!this.eliteSkillTimers.has(e)) {
+        // 首次见到：随机初始延迟，避免同波精英一起开火
+        this.eliteSkillTimers.set(e, Phaser.Math.Between(1500, ELITE_INTERVAL));
+        return;
+      }
+      const left = (this.eliteSkillTimers.get(e) as number) - dtMs;
+      if (left > 0) { this.eliteSkillTimers.set(e, left); return; }
+      this.eliteSkillTimers.set(e, ELITE_INTERVAL);
+
+      const d = Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y);
+      if (d <= SCHEDULE_RADIUS) ready.push(e);
+    });
+
+    if (ready.length === 0) return;
+
+    // 离得最近的几只先出招，其余这轮跳过
+    ready.sort((a, b) =>
+      Phaser.Math.Distance.Between(a.x, a.y, this.player.x, this.player.y) -
+      Phaser.Math.Distance.Between(b.x, b.y, this.player.x, this.player.y));
+    for (const e of ready.slice(0, MAX_CASTERS)) {
+      this.castEliteSkill(e);
+    }
+  }
+
+  /** 精英放一次技能：按它自己的属性走，威力 0.45 */
+  private castEliteSkill(e: Phaser.Physics.Arcade.Sprite) {
+    const pkId = Number(e.texture.key.replace('pk_', ''));
+    const prof = this.bossProfile(pkId);
+    Sfx.bossSkill();
+    // 起手提示：脚下亮一圈，给玩家 0.3s 反应时间
+    this.combat.fx.castPulse(e.x, e.y, prof.accent, 22);
+    this.castBossElementSkill(e, prof, false, 0.45);
+  }
+
+  /** 按属性给出一套主招（精英 / 小 BOSS 共用 / 终局第一变体用） */
   private castBossElementSkill(
     boss: Phaser.Physics.Arcade.Sprite,
     prof: { kind: string; main: number; accent: number; motes: number },
@@ -1437,15 +1501,41 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** 按 BOSS 种类给出招式配置：颜色、粒子数、弹速都跟着属性走 */
-  private bossProfile(): { kind: string; main: number; accent: number; motes: number } {
-    switch (this.bossPokemonId) {
+  /**
+   * 按宝可梦编号给出招式配置：颜色、粒子数、弹速都跟着属性走。
+   *
+   * 不传参时用「当前 BOSS」的身份；精英会传自己的编号进来。
+   * 精英池里大部分是 Non-BOSS 宝可梦，所以要按类型兜底，
+   * 否则一堆精英都会退化成同一个红色超能弹。
+   */
+  private bossProfile(pkId?: number): { kind: string; main: number; accent: number; motes: number } {
+    const id = pkId ?? this.bossPokemonId ?? 0;
+
+    // ① 传说级专属配色
+    switch (id) {
       case 150: return { kind: 'psy',    main: 0xc060ff, accent: 0xff7ae0, motes: 22 }; // 超梦：超能紫
       case 151: return { kind: 'psy',    main: 0xff8ad0, accent: 0xffe0f4, motes: 26 }; // 梦幻：粉光
       case 145: return { kind: 'storm',  main: 0xffe74d, accent: 0x8ad0ff, motes: 24 }; // 闪电鸟：雷黄
       case 144: return { kind: 'ice',    main: 0x7fd8ff, accent: 0xe6f9ff, motes: 24 }; // 急冻鸟：冰蓝
       case 131: return { kind: 'water',  main: 0x4aa8ff, accent: 0xa8e4ff, motes: 22 }; // 拉普拉斯：水蓝
       case 112: return { kind: 'rock',   main: 0xc08a4a, accent: 0xf0d59a, motes: 20 }; // 钻角犀兽：土石
-      default:  return { kind: 'psy',    main: 0xff4d4d, accent: 0xffb3b3, motes: 18 };
+    }
+
+    // ② 普通精英：按图鉴属性归类，映射到相近的技能形态
+    const type = POKEDEX_TYPE[id];
+    switch (type) {
+      case 'electric': return { kind: 'storm', main: 0xffd93d, accent: 0xfff4a8, motes: 18 };
+      case 'water':
+      case 'ice_type': return { kind: 'water', main: 0x4aa8ff, accent: 0xa8e4ff, motes: 18 };
+      case 'ice':      return { kind: 'ice',   main: 0x7fd8ff, accent: 0xe6f9ff, motes: 18 };
+      case 'fire':     return { kind: 'dragon',main: 0xff6b3d, accent: 0xffc4a0, motes: 18 };
+      case 'grass':    return { kind: 'rock',  main: 0x63c256, accent: 0xb6f0a8, motes: 16 };
+      case 'psychic':  return { kind: 'psy',   main: 0xe060a0, accent: 0xffd0ec, motes: 18 };
+      case 'ground':
+      case 'rock_type':return { kind: 'rock',  main: 0xc0a070, accent: 0xf0d59a, motes: 16 };
+      case 'ghost':
+      case 'poison':   return { kind: 'psy',   main: 0xa040a0, accent: 0xf0c0f0, motes: 16 };
+      default:         return { kind: 'psy',   main: 0xff4d4d, accent: 0xffb3b3, motes: 16 };
     }
   }
 
