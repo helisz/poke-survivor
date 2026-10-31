@@ -13,6 +13,7 @@ import { UI, TEXT } from '../ui/Theme';
 import { RoundedPanel } from '../ui/RoundedPanel';
 import { attachPressFeedback } from '../ui/Feedback';
 import { makeCoinIcon, makePermIcon } from '../ui/Icons';
+import { isMuted, toggleMuted, onMuteChange } from '../systems/Audio';
 import { formatScore } from '../data/score';
 
 /** 招式类别中文名 */
@@ -519,6 +520,25 @@ export class UIScene extends Phaser.Scene {
       this.quitToMenu();
     });
     c.add([quitBtn, quitTxt]);
+
+    // 静音：和主页右上角那个共用全局状态，图标两边同步。
+    // 「恢复」宽 168 居中，右边缘在 width/2+84，静音按钮贴在它右边 8px。
+    const muteSize = 40;
+    const muteX = width / 2 + 84 + 8 + muteSize / 2;
+    const muteBtn = new RoundedPanel(this, muteX, height / 2 + 8, muteSize, muteSize,
+      UI.secondary, 0.95, { radius: 10 })
+      .setStrokeStyle(1.5, UI.primaryStroke, 0.8).setInteractive({ useHandCursor: true });
+    attachPressFeedback(muteBtn);
+    const muteIcon = this.add.text(muteX, height / 2 + 8, isMuted() ? '🔇' : '🔊', {
+      fontFamily: 'sans-serif', fontSize: '17px',
+    }).setOrigin(0.5);
+    const unsub = onMuteChange((m) => muteIcon.setText(m ? '🔇' : '🔊'));
+    c.once('destroy', unsub);
+    muteBtn.on('pointerdown', () => {
+      const m = toggleMuted();
+      if (!m) Sfx.select();
+    });
+    c.add([muteBtn, muteIcon]);
 
     this.pauseOverlay = c;
   }

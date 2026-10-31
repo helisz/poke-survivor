@@ -12,6 +12,7 @@ import { LevelUpScene } from './scenes/LevelUpScene';
 import { GameOverScene } from './scenes/GameOverScene';
 import { Sfx } from './systems/Sfx';
 import { Bgm } from './systems/Bgm';
+import { loadMuteSetting } from './systems/Audio';
 import { registerScene } from './systems/SceneFlow';
 
 /**
@@ -67,6 +68,9 @@ registerScene('Dex', () => new DexScene());
 registerScene('Game', () => new GameScene());
 
 // 音效：浏览器要求首次用户手势后才能出声
+// 静音设置要在任何播放之前读回
+loadMuteSetting();
+
 const initAudio = () => { Sfx.init(); Bgm.init(); };
 window.addEventListener('pointerdown', initAudio, { once: true });
 window.addEventListener('touchstart', initAudio, { once: true });

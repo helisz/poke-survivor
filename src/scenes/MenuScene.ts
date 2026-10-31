@@ -15,6 +15,7 @@ import { MenuBackdrop } from '../ui/MenuBackdrop';
 import { UI, TEXT } from '../ui/Theme';
 import { attachPressFeedback } from '../ui/Feedback';
 import { RoundedPanel } from '../ui/RoundedPanel';
+import { isMuted, toggleMuted, onMuteChange } from '../systems/Audio';
 
 /** 登录页：动态背景 + 顶部 logo + 底部操作区 */
 export class MenuScene extends Phaser.Scene {
@@ -176,6 +177,32 @@ export class MenuScene extends Phaser.Scene {
     bg.on('pointerout', () => bg.setFillStyle(UI.green, 0.95));
 
     this.rankBtn = c;
+    this.scale.on('resize', () => c.setPosition(this.scale.width - 34 - 88, y));
+  }
+
+  /** 右上角静音按钮：和暂停面板里的那个共用全局静音状态 */
+  private buildMuteButton(x: number, y: number) {
+    const c = this.add.container(x, y).setDepth(1900);
+    const bg = this.add.circle(0, 0, 17, UI.secondary, 0.92)
+      .setStrokeStyle(1.5, UI.primaryStroke, 0.75).setInteractive({ useHandCursor: true });
+    const icon = this.add.text(0, 0, isMuted() ? '🔇' : '🔊', {
+      fontFamily: 'sans-serif', fontSize: '14px', color: TEXT.gold,
+    }).setOrigin(0.5);
+    c.add([bg, icon]);
+
+    // 图标跟随全局状态：暂停面板里改了静音，这里也要跟着变
+    const unsub = onMuteChange((m) => icon.setText(m ? '🔇' : '🔊'));
+    c.once('destroy', unsub);
+
+    bg.on('pointerdown', (p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
+      ev?.stopPropagation?.();
+      const m = toggleMuted();
+      // 取消静音时给一声反馈，静音时本来就没声
+      if (!m) Sfx.click();
+    });
+    bg.on('pointerover', () => bg.setFillStyle(UI.secondaryHover, 0.95));
+    bg.on('pointerout', () => bg.setFillStyle(UI.secondary, 0.92));
+
     this.scale.on('resize', () => c.setPosition(this.scale.width - 34 - 44, y));
   }
 
@@ -216,11 +243,13 @@ export class MenuScene extends Phaser.Scene {
 
   private makeHelpButton(width: number) {
     const TOP_Y = (width < 640 ? 52 : 56) - 2;
-    // 从右到左：问号 → 排行榜（绿）→ 齿轮（仅开发者模式）
+    // 从右到左：问号 → 静音 → 排行榜（绿）→ 齿轮（仅开发者模式）
     const helpX = width - 34;
-    const rankX = width - 34 - 44;
-    const gearX = width - 34 - 88;
+    const muteX = width - 34 - 44;
+    const rankX = width - 34 - 88;
+    const gearX = width - 34 - 132;
 
+    this.buildMuteButton(muteX, TOP_Y);
     this.buildRankButton(rankX, TOP_Y);
 
     const btn = this.add.container(helpX, TOP_Y).setDepth(1900);
@@ -253,7 +282,7 @@ export class MenuScene extends Phaser.Scene {
       setDevRevealed();
       const width = scene.scale.width;
       const TOP_Y = (width < 640 ? 52 : 56) - 2;
-      this.showDevGear(width - 34 - 88, TOP_Y);
+      this.showDevGear(width - 34 - 132, TOP_Y);
       Sfx.select();
       return true;
     }
