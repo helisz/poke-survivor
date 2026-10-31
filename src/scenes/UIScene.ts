@@ -12,6 +12,7 @@ import { PICKUP_DEFS } from '../data/pickups';
 import { UI, TEXT } from '../ui/Theme';
 import { RoundedPanel } from '../ui/RoundedPanel';
 import { attachPressFeedback } from '../ui/Feedback';
+import { makeCoinIcon } from '../ui/Icons';
 import { formatScore } from '../data/score';
 
 /** 招式类别中文名 */
@@ -36,6 +37,8 @@ export class UIScene extends Phaser.Scene {
   private timeText!: Phaser.GameObjects.Text;
   private lvText!: Phaser.GameObjects.Text;
   private killText!: Phaser.GameObjects.Text;
+  private coinIcon!: Phaser.GameObjects.Image;
+  private coinText!: Phaser.GameObjects.Text;
   private scoreText!: Phaser.GameObjects.Text;
   private slotIcons: {
     box: Phaser.GameObjects.Rectangle | RoundedPanel;
@@ -92,12 +95,19 @@ export class UIScene extends Phaser.Scene {
     this.lvText = this.add.text(0, 0, 'Lv.1', {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '15px', color: TEXT.gold, fontStyle: 'bold',
     });
+    // 本局金币：Lv 右边的图标 + 数字，和 Lv 同一行
+    // UIScene 可能先于 Menu/Shop 启动，纹理不一定已生成，这里确保一次
+    makeCoinIcon(this, 22);
+    this.coinIcon = this.add.image(0, 0, 'ui_coin').setDisplaySize(14, 14);
+    this.coinText = this.add.text(0, 0, '0', {
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '15px', color: TEXT.gold, fontStyle: 'bold',
+    }).setOrigin(0, 0.5);
     this.killText = this.add.text(0, 0, '击杀 0', {
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '12px', color: '#8fa8b8',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '12px', color: '#c8dce8',
     });
     // 分数：和击杀数同字号同色，紧贴在它下面一行
     this.scoreText = this.add.text(0, 0, '分数 0', {
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '12px', color: '#8fa8b8',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", sans-serif', fontSize: '12px', color: '#c8dce8',
     });
 
     this.layoutSlots();
@@ -193,9 +203,15 @@ export class UIScene extends Phaser.Scene {
     this.hpText.setPosition(pad + hpW + 6, hpY).setFontSize(narrow ? 10 : 11);
 
     // 等级/击杀：血条下方（不贴底，避开招式槽与手机安全区）
-    this.lvText.setPosition(pad, hpY + hpH / 2 + 8);
-    this.killText.setPosition(pad, hpY + hpH / 2 + 26);
-    this.scoreText.setPosition(pad, hpY + hpH / 2 + 44);
+    const lvY = hpY + hpH / 2 + 8;
+    this.lvText.setPosition(pad, lvY);
+    // 金币跟在 Lv 文字右边，垂直居中对齐 Lv（lvText 顶端对齐，故 +半行高）
+    const lvMidY = lvY + this.lvText.height / 2;
+    const coinX = pad + this.lvText.width + 14;
+    this.coinIcon.setPosition(coinX + 7, lvMidY).setDisplaySize(14, 14);
+    this.coinText.setPosition(coinX + 18, lvMidY);
+    this.killText.setPosition(pad, hpY + hpH / 2 + 28);
+    this.scoreText.setPosition(pad, hpY + hpH / 2 + 46);
 
     // 招式槽贴底，只留一点边距；属性强化一行移到它上面
     const size = narrow ? 40 : 48;
@@ -244,6 +260,8 @@ export class UIScene extends Phaser.Scene {
     this.timeText.setText(`${m}:${String(sec).padStart(2, '0')}`);
 
     this.lvText.setText(`Lv.${this.gs.level}`);
+    // 本局金币，与结算页同一公式（GameOverScene: floor(time/6) + kills）
+    this.coinText.setText(String(Math.floor(this.gs.elapsed / 6) + this.gs.combat.kills));
     this.killText.setText(`击杀 ${this.gs.combat.kills}`);
     this.scoreText.setText(`分数 ${formatScore(this.gs.score)}`);
 

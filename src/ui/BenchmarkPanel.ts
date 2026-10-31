@@ -1,11 +1,15 @@
 import Phaser from 'phaser';
-import { UI, TEXT } from './Theme';
+import { UI } from './Theme';
 import { RoundedPanel } from './RoundedPanel';
-import { attachPressFeedback } from './Feedback';
 import { Sfx } from '../systems/Sfx';
-import { fetchTopStages, fetchTopScores, cloudEnabled, type RankRow } from '../data/cloud';
+import { fetchTopStages, cloudEnabled, type RankRow } from '../data/cloud';
 
-/** 排行榜面板：左右两列，左「最高关卡」，右「最高分」 */
+/**
+ * 排行榜：单列，按关数降序、同关数按分数降序。
+ *
+ * 不显示「最高分」单独一列，也不显示表头 —— 关数和分数挤在一行里
+ * 「第3关 · 12500分」一眼就够，表格头本身占一行高度、还没信息量。
+ */
 export function openBenchmarkPanel(scene: Phaser.Scene) {
   const { width, height } = scene.scale;
   const root = scene.add.container(0, 0).setDepth(2200);
@@ -25,54 +29,36 @@ export function openBenchmarkPanel(scene: Phaser.Scene) {
     fontFamily: 'sans-serif', fontSize: '19px', color: '#63c256', fontStyle: 'bold',
   }).setOrigin(0.5));
 
-  // 两列布局
-  const colW = (pw - 36) / 2;
-  const leftX = cx - pw / 2 + 14;
-  const rightX = leftX + colW + 8;
-  const headY = top + 62;
-  const rowH = Math.min(30, (ph - 130) / 10);
+  const listX = cx - pw / 2 + 16;
+  const listW = pw - 32;
+  const bodyTop = top + 62;
+  const rowH = Math.min(32, (ph - 132) / 10);
 
-  const mkHead = (x: number, label: string) => {
-    root.add(scene.add.rectangle(x + colW / 2, headY, colW, 26, UI.greenDark, 0.9)
-      .setStrokeStyle(1, UI.greenDarkStroke));
-    root.add(scene.add.text(x + colW / 2, headY, label, {
-      fontFamily: 'sans-serif', fontSize: '11px', color: '#8fe0a8', fontStyle: 'bold',
-    }).setOrigin(0.5));
-  };
-  mkHead(leftX, '最高关卡');
-  mkHead(rightX, '最高分');
-
-  const bodyTop = headY + 22;
-
-  const renderList = (x: number, rows: RankRow[], kind: 'stage' | 'score') => {
+  const renderList = (rows: RankRow[]) => {
     if (rows.length === 0) {
-      root.add(scene.add.text(x + colW / 2, bodyTop + rowH * 2, '暂无记录', {
-        fontFamily: 'sans-serif', fontSize: '11px', color: '#5f7a6c',
+      root.add(scene.add.text(cx, bodyTop + rowH * 2, '暂无记录', {
+        fontFamily: 'sans-serif', fontSize: '12px', color: '#5f7a6c',
       }).setOrigin(0.5));
       return;
     }
     rows.forEach((r, i) => {
       const y = bodyTop + i * rowH + rowH / 2;
-      // 前三名底色略亮
       if (i < 3) {
-        root.add(scene.add.rectangle(x + colW / 2, y, colW - 4, rowH - 2, UI.greenDark, 0.5));
+        root.add(scene.add.rectangle(cx, y, listW, rowH - 3, UI.greenDark, 0.5));
       }
       const medal = i === 0 ? '#ffd75e' : i === 1 ? '#d8e0e8' : i === 2 ? '#d99a5e' : '#6b8a78';
-      root.add(scene.add.text(x + 4, y, String(i + 1), {
-        fontFamily: 'sans-serif', fontSize: '10px', color: medal, fontStyle: 'bold',
+      root.add(scene.add.text(listX + 2, y, String(i + 1), {
+        fontFamily: 'sans-serif', fontSize: '12px', color: medal, fontStyle: 'bold',
       }).setOrigin(0, 0.5));
 
-      // 用户名过长截断
       const name = r.username.length > 10 ? r.username.slice(0, 9) + '…' : r.username;
-      root.add(scene.add.text(x + 18, y, name, {
-        fontFamily: 'sans-serif', fontSize: '10px', color: '#c8e0d0',
+      root.add(scene.add.text(listX + 24, y, name, {
+        fontFamily: 'sans-serif', fontSize: '12px', color: '#c8e0d0',
       }).setOrigin(0, 0.5));
 
-      const val = kind === 'stage'
-        ? `第${r.stage_progress}关`
-        : String(r.best_score);
-      root.add(scene.add.text(x + colW - 6, y, val, {
-        fontFamily: 'sans-serif', fontSize: '10px', color: '#63c256', fontStyle: 'bold',
+      // 关数 + 该关分数合成一段，右对齐
+      root.add(scene.add.text(listX + listW - 2, y, `第${r.stage_progress}关 · ${r.best_score}分`, {
+        fontFamily: 'sans-serif', fontSize: '12px', color: '#63c256', fontStyle: 'bold',
       }).setOrigin(1, 0.5));
     });
   };
@@ -82,7 +68,6 @@ export function openBenchmarkPanel(scene: Phaser.Scene) {
   }).setOrigin(0.5);
   root.add(loading);
 
-  // 关
   const close = scene.add.text(cx, cy + ph / 2 - 24, '关闭', {
     fontFamily: 'sans-serif', fontSize: '13px', color: '#8fe0a8',
   }).setOrigin(0.5).setInteractive({ useHandCursor: true });
@@ -94,11 +79,15 @@ export function openBenchmarkPanel(scene: Phaser.Scene) {
     return root;
   }
 
-  void Promise.all([fetchTopStages(), fetchTopScores()]).then(([stages, scores]) => {
+  void fetchTopStages().then((rows) => {
     loading.destroy();
     if (!root.active) return;
-    renderList(leftX, stages, 'stage');
-    renderList(rightX, scores, 'score');
+    // 后端已按 stage_progress desc, best_score desc 排好；前端再兜一次，
+    // 避免函数被替换或缓存旧版本时顺序不对。
+    const sorted = [...rows].sort((a, b) =>
+      (b.stage_progress ?? 0) - (a.stage_progress ?? 0)
+      || (b.best_score ?? 0) - (a.best_score ?? 0));
+    renderList(sorted);
   });
 
   return root;
