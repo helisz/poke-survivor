@@ -52,7 +52,10 @@ export class UIScene extends Phaser.Scene {
   }[] = [];
   private moveTip?: Phaser.GameObjects.Container;
   /** 属性强化行的顶边 y（屏幕坐标）。0 表示还没排过版 */
+  /** 属性图标行顶边（屏幕像素）。GameScene 的 BOSS 血条靠它定位 */
   buffTopY = 0;
+  /** 技能栏顶边（屏幕像素）。血条兜底定位用 */
+  slotTopY = 0;
 
   /** 底部小图标：属性强化叠加层 */
   private buffIcons: { bg: Phaser.GameObjects.Rectangle; icon: Phaser.GameObjects.Image; txt: Phaser.GameObjects.Text }[] = [];
@@ -795,6 +798,7 @@ export class UIScene extends Phaser.Scene {
     const bs = Math.max(16, Math.round(this.L.slotSize * 0.46));
     const buffRowY = this.L.slotY - this.L.slotSize / 2 - 6 - bs / 2;
     this.buffTopY = buffRowY - bs / 2;
+    this.slotTopY = this.L.slotY - this.L.slotSize / 2;
 
     if (!n) return;
 

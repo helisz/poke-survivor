@@ -1240,25 +1240,49 @@ export class GameScene extends Phaser.Scene {
     const z = this.cameras.main.zoom || 1;
     const barW = (Math.min(narrow ? w - 60 : 460, w - 60)) / z;
     const barH = 12 / z;
+    /**
+     * 屏幕像素 → 该相机上「固定对象」的坐标。
+     *
+     * 【踩了很久的坑】主相机 zoom=1.25，HUD 挂在它上面时：
+     *   - setScrollFactor(0) 只阻止对象跟随滚动，**不会**取消 zoom；
+     *   - 对象坐标 y 会被渲染到屏幕的 `camH/2 + (y - camH/2) * zoom`。
+     * 也就是说越靠近屏幕边缘，偏得越远。之前只把「宽高」除掉了 zoom，
+     * 位置没除，所以血条世界 y=508 实际画在屏幕 556，提示文字被推到 574，
+     * 而 UIScene 的技能栏顶边在 569 —— 提示直接插进了技能栏，
+     * 表现就是「血条和技能条重合」。调多少世界坐标都对不上，因为比例是 1.25。
+     *
+     * 这里把目标屏幕坐标反算回去：objY = camH/2 + (screenY - camH/2) / zoom。
+     */
+    const cam = this.cameras.main;
+    const camH = cam.height;
+    const toObjY = (screenY: number) => camH / 2 + (screenY - camH / 2) / z;
     // 固定在属性强化行上方。UIScene 负责算底部布局（技能槽 → 属性行），
     // 血条在 GameScene 里画，自己算不出来，只能读 UIScene 记下的 buffTopY。
     // 拿不到时退回一个保守估计，别让血条跑到屏幕外。
-    const ui = this.scene.get('UI') as { buffTopY?: number } | undefined;
-    const buffTop = ui?.buffTopY || (h - (narrow ? 214 : 190));
-    // 布局顺序（从下往上）：技能栏 → 属性图标行 → 血条底部。
-    // 血条要「在属性行再高一些」，所以整块（名字 + 血条 + 提示）的总高度先算出来，
-    // 再整体上移：名字 16 + 间隙 6 + 条高 + 间隙 6 + 提示 14。
-    const nameH = (narrow ? 15 : 17) / z;
-    const hintH = (narrow ? 11 : 12) / z;
-    const blockGap = 6 / z;
-    const blockH = nameH + blockGap + barH + blockGap + hintH;
-    // 整块底边贴在属性行上方 14px，条身位于块内「名字之下」
-    const blockBottom = buffTop - 14;
-    const y = blockBottom - blockH + nameH + blockGap + barH / 2;
+    const ui = this.scene.get('UI') as { buffTopY?: number; slotTopY?: number } | undefined;
+    // 目标屏幕位置（全部按真实像素算，最后再 toObjY 反算回相机坐标）
+    const slotTopScreen = ui?.slotTopY || h - 70;      // 技能栏顶边（屏幕像素）
+    const buffTopScreen = ui?.buffTopY || (slotTopScreen - 28);
+    // 整块（名字 + 血条 + 提示）放在属性行上方，留 16px 呼吸位
+    const nameH = narrow ? 15 : 17;
+    const hintH = narrow ? 11 : 12;
+    const blockGap = 6;
+    const barHScreen = 12;
+    const blockH = nameH + blockGap + barHScreen + blockGap + hintH;
+    const blockBottom = buffTopScreen - 16;
+    const blockTop = blockBottom - blockH;
+
+    const nameScreenY = blockTop + nameH / 2;
+    const barScreenY = blockTop + nameH + blockGap + barHScreen / 2;
+    const hintScreenY = blockBottom - hintH / 2;
+
+    const nameY = toObjY(nameScreenY);
+    const y = toObjY(barScreenY);
+    const hintY = toObjY(hintScreenY);
 
     // 名字：贴在条身正上方（整块顶部）
     const bossLabel = `${this.bossPokemonName ?? '终局'} · 终局`;
-    this.bossNameText = this.add.text(w / 2, y - barH / 2 - blockGap - nameH / 2, bossLabel, {
+    this.bossNameText = this.add.text(w / 2, nameY, bossLabel, {
       fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
       fontSize: `${(narrow ? 15 : 17) / z}px`, fontStyle: 'bold', color: '#ff6b6b',
       stroke: '#1a0000', strokeThickness: 4 / z,
@@ -1287,8 +1311,8 @@ export class GameScene extends Phaser.Scene {
     });
 
     // 提示：击杀才能过关。贴在条身正下方（整块底部），不再和属性行挤在一起
-    this.add.text(w / 2, y + barH / 2 + blockGap + hintH / 2, '击杀 BOSS 才能过关', {
-      fontFamily: 'sans-serif', fontSize: `${hintH}px`, color: '#ffb3b3',
+    this.add.text(w / 2, hintY, '击杀 BOSS 才能过关', {
+      fontFamily: 'sans-serif', fontSize: `${hintH / z}px`, color: '#ffb3b3',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(420).setName('bossHint');
   }
 
