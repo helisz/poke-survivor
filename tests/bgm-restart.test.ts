@@ -88,6 +88,20 @@ describe('背景音乐切曲', () => {
     expect(menu.currentTime).toBe(77);
   });
 
+  it('静音再取消静音，不能从头重放', () => {
+    Bgm.init();
+    const menu = created.find((e) => e.src.includes('bgm-menu'))!;
+    menu.currentTime = 120;   // 已经放了两分钟
+
+    Bgm.setMuted(true);
+    expect(menu.paused).toBe(true);
+    expect(menu.currentTime).toBe(120);   // 静音只是暂停，不回零
+
+    Bgm.setMuted(false);
+    expect(menu.paused).toBe(false);
+    expect(menu.currentTime).toBe(120);   // 取消静音接着放，不能跳回开头
+  });
+
   it('战斗曲只创建一次，来回切不会重复建对象', () => {
     Bgm.init();
     Bgm.setTrack('game');

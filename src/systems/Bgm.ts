@@ -72,8 +72,10 @@ class BgmSystem {
   private apply() {
     if (!this.unlocked) return;
     const active = this._muted ? null : this.want;
-    const switched = active !== this.lastActive;
-    this.lastActive = active;
+    // 只有「换了曲目」才算切换，重置到 0。静音/取消静音不换曲（want 没变），
+    // 不能归零 —— 否则一取消静音就跳回开头。
+    const switched = active !== null && active !== this.lastActive;
+    if (active !== null) this.lastActive = active;
 
     for (const track of ['menu', 'game'] as BgmTrack[]) {
       const el = this.els[track];
