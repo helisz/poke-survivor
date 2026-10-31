@@ -1,4 +1,4 @@
-import { loadSave, writeSave, setSaveHook, type SaveData } from './stats';
+import { loadSave, writeSave, clearSave, setSaveHook, type SaveData } from './stats';
 import { pushSave, saveToken, resumeSession, logout, type CloudSession } from './cloud';
 import { STAGE_COUNT } from './maps';
 
@@ -74,13 +74,17 @@ export function startSession(s: CloudSession) {
 
 export function endSession() {
   const tok = session?.token ?? '';
-  // 先把排队中的推送发掉，否则登出会吞掉刚打完的成绩
+  // 顺序不能反：
+  //  1. 先把排队中的推送发掉 —— 否则登出会吞掉刚打完的成绩
+  //  2. 再摘掉云同步钩子 —— 否则紧接着 clearSave() 之后的任何写档都会推空档上去
+  //  3. 最后清本地存档 —— 登出即「这台机器不再持有这个账号的数据」
   flushBeforeEnd();
-  session = null;
   setSaveHook(null);
   window.clearTimeout(timer);
   timer = undefined;
-  // 吊销服务端 token 并清本地，下次不会自动登录
+  session = null;
+  clearSave();
+  // 吊销服务端 token，下次不会自动登录
   void logout(tok);
 }
 

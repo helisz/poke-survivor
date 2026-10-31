@@ -67,17 +67,41 @@ registerScene('Shop', () => new ShopScene());
 registerScene('Dex', () => new DexScene());
 registerScene('Game', () => new GameScene());
 
-// 音效：浏览器要求首次用户手势后才能出声
+// 音效 / 音乐：浏览器要求首次用户手势后才能出声
 // 静音设置要在任何播放之前读回
 loadMuteSetting();
 
-const initAudio = () => { Sfx.init(); Bgm.init(); };
+let audioReady = false;
+const initAudio = () => {
+  if (audioReady) return;
+  audioReady = true;
+  Sfx.init();
+  Bgm.init();
+};
+
+// 先乐观试一次：部分浏览器（用户之前与该站点交互过 / PWA 已安装）允许直接播。
+// Bgm.init() 内部 play() 被拒绝会静默失败，不会报错，所以这里试一次是安全的。
+// 如果被拦，下面任一手势真正到来时会再试一次。
+Bgm.init();
+
+// 三个事件只用一个开关，否则同一次触摸会同时触发 touchstart 和 pointerdown，
+// initAudio 跑两遍（Sfx 会建两个 AudioContext）
 window.addEventListener('pointerdown', initAudio, { once: true });
 window.addEventListener('touchstart', initAudio, { once: true });
 window.addEventListener('keydown', initAudio, { once: true });
 
 // 调试句柄：控制台 __PS__.scene.getScene('Game') 可查状态
 (window as any).__PS__ = game;
+
+/**
+ * 全局点击音。
+ *
+ * 逐个头写 `Sfx.click()` 会一直在漏：新加一个按钮、改一处卡片就忘，
+ * 而且游戏里有些点击是 hit 层代理的，压根不经过按钮自己的 handler。
+ * 所以改成在 canvas 上统一监听：任何一次按下都出一声，音效内部自带节流，
+ * 同帧连点不会糊成一片。
+ */
+game.canvas?.addEventListener('pointerdown', () => { Sfx.click(); }, { passive: true });
 
 // 移动端：浏览器工具栏收放 / 旋转 → 重新按真实视口调整画布
 //

@@ -32,10 +32,15 @@ class BgmSystem {
   /** 当前该播哪首；null 表示全静音 */
   private want: BgmTrack | null = 'menu';
   private _muted = false;
+  /** 上次生效的曲目，用来判断「是否发生了切换」（切换才重置播放进度） */
+  private lastActive: BgmTrack | null = null;
 
   get muted() { return this._muted; }
 
-  /** 首次用户手势后调用一次 */
+  /**
+   * 解锁并开始播放。可以重复调用：main.ts 启动时先乐观试一次，
+   * 被浏览器拒绝后，首次用户手势再调一次真正生效。
+   */
   init() {
     this.unlocked = true;
     this.apply();
@@ -67,12 +72,17 @@ class BgmSystem {
   private apply() {
     if (!this.unlocked) return;
     const active = this._muted ? null : this.want;
+    const switched = active !== this.lastActive;
+    this.lastActive = active;
 
     for (const track of ['menu', 'game'] as BgmTrack[]) {
       const el = this.els[track];
       if (track === active) {
         const audio = el ?? this.ensure(track);
-        // 已经在下就别重复 play()，否则会从头开始
+        // 每次切到这首都从头放：进战斗是战斗曲的第 0 秒，
+        // 退出战斗回主菜单也重新起头，而不是接着上次停下的位置。
+        // 但同一首内部重复 apply()（比如改静音）不能重置，否则一静音就跳回开头。
+        if (switched) audio.currentTime = 0;
         if (audio.paused) {
           void audio.play().catch(() => { /* 没解锁/被拦，静默 */ });
         }

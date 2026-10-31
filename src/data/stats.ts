@@ -270,6 +270,11 @@ export function loadSave(): SaveData {
 let cloudHook: ((d: SaveData) => void) | null = null;
 export function setSaveHook(fn: ((d: SaveData) => void) | null) { cloudHook = fn; }
 
+/** 清空本地存档（登出用）。不触发云同步钩子，避免把空档推上去。 */
+export function clearSave() {
+  try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ }
+}
+
 export function writeSave(data: SaveData) {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
   // 登录状态下顺手推云端；未登录是 no-op
