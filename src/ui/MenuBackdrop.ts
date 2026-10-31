@@ -13,7 +13,6 @@ import { MENU_SPRITE_IDS } from '../data/sprites';
 export class MenuBackdrop {
   private scene: Phaser.Scene;
   private tile!: Phaser.GameObjects.TileSprite;
-  private blotch!: Phaser.GameObjects.Image;
   private mist: Phaser.GameObjects.TileSprite[] = [];
   private hero!: Phaser.GameObjects.Sprite;
   private shadow?: Phaser.GameObjects.Ellipse;
@@ -37,15 +36,9 @@ export class MenuBackdrop {
     const theme = MAP_THEMES[0];
 
     this.buildTileTexture(theme);
-    this.buildBlotchTexture(theme);
-
     // 地面：屏幕固定，只滚 tilePositionY
     this.tile = scene.add.tileSprite(0, 0, width, height, 'menu_tile')
       .setOrigin(0, 0).setScrollFactor(0).setDepth(-100);
-    // 明暗层用单张大图（不平铺），彻底消除周期感
-    this.blotch = scene.add.image(0, 0, 'menu_blotch')
-      .setOrigin(0, 0).setScrollFactor(0).setDepth(-99);
-    this.blotch.setDisplaySize(width * 1.4, height * 1.8);
 
     this.buildMistTexture();
 
@@ -156,34 +149,6 @@ export class MenuBackdrop {
     }
 
     ctx.globalAlpha = 1;
-    tex.refresh();
-  }
-
-  /**
-   * 低频明暗斑块。整屏铺一张不平铺的大图（1024×1024），
-   * 屏幕上根本不存在重复周期，也就不会有「格子」。
-   */
-  private buildBlotchTexture(theme: (typeof MAP_THEMES)[number]) {
-    const S = 1024;
-    const key = 'menu_blotch';
-    if (this.scene.textures.exists(key)) return;
-    const tex = this.scene.textures.createCanvas(key, S, S);
-    if (!tex) return;
-    const ctx = tex.getContext();
-    const rnd = mulberry32(777);
-    for (let i = 0; i < 150; i++) {
-      const x = rnd() * S;
-      const y = rnd() * S;
-      const r = 70 + rnd() * 240;
-      const dark = rnd() > 0.45;
-      for (const [ox, oy] of [[0, 0], [S, 0], [0, S], [S, S]]) {
-        const g = ctx.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r);
-        g.addColorStop(0, hex(dark ? theme.patch : theme.ambient, 0.16));
-        g.addColorStop(1, hex(dark ? theme.patch : theme.ambient, 0));
-        ctx.fillStyle = g;
-        ctx.fillRect(x + ox - r, y + oy - r, r * 2, r * 2);
-      }
-    }
     tex.refresh();
   }
 
@@ -358,10 +323,6 @@ export class MenuBackdrop {
     this.scroll += this.SCROLL_SPEED * dt;
     this.tile.tilePositionY = this.scroll;
 
-    // 明暗大图跟着上卷，用取模做无缝循环（图高 1.8 屏，位移一屏后回原点视觉无差）
-    const bH = this.blotch.displayHeight;
-    const loopH = bH - height;
-    this.blotch.y = -((this.scroll * 0.25) % loopH);
     // 两层雾以不同速度上卷：近层快，远层慢
     this.mist[0].tilePositionY = this.scroll * 0.30;
     this.mist[1].tilePositionY = this.scroll * 0.16;
