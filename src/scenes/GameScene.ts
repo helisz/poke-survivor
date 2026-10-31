@@ -108,6 +108,12 @@ export class GameScene extends Phaser.Scene {
    * 所以不能用单一 bossSkillTimer。
    */
   private eliteSkillTimers = new Map<Phaser.Physics.Arcade.Sprite, number>();
+  /** 受伤时的屏幕红色光晕（固定在摄像机上的四条渐变带） */
+  private hurtVignette?: Phaser.GameObjects.Container;
+  private hurtStripRefs: Phaser.GameObjects.Image[] = [];
+  /** 低血常驻呼吸光晕的容器（与受击闪白分开，各自控 alpha） */
+  private lowHpLayer?: Phaser.GameObjects.Container;
+  private lowHpTween?: Phaser.Tweens.Tween;
   private bossBarW = 300;
   private orbGroup!: Phaser.Physics.Arcade.Group;
   private healGroup!: Phaser.Physics.Arcade.Group;
@@ -193,6 +199,10 @@ export class GameScene extends Phaser.Scene {
     // 不需要另外调参。
     this.cameras.main.setZoom(1.25);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+
+    // 受击反馈：震屏 + 屏幕四周红色光晕
+    this.buildHurtVignette();
+    this.player.onHurt = (amount) => this.onPlayerHurt(amount);
 
     this.enemies = new EnemySystem(this);
     this.enemies.installLiftHook(this);
@@ -1300,7 +1310,146 @@ export class GameScene extends Phaser.Scene {
     (this.children.getByName('bossHint') as Phaser.GameObjects.Text)?.destroy();
   }
 
-  /** 记录 BOSS 身份（贴图 → 图鉴编号 → 技能属性）。小/大 BOSS 共用 */
+  /**
+   * 受伤时屏幕四周的红色光晕。
+   *
+   * Phaser 没有内置暗角/光晕，这里用四条「内侧渐变」的矩形条拼出一个
+   * 边框光晕：每条用 Canvas 渐变纹理做 alpha 从边缘向中心衰减，
+   * 再合成一个容器固定在摄像机上（setScrollFactor(0)），跟着屏幕走。
+   *
+   * 用纹理而不是 Graphics 逐像素画，是因为渐变要逐像素 alpha，
+   * Graphics 只能画实色，做不出柔和过渡。
+   */
+  private buildHurtVignette() {
+    const THICK = 90;   // 光晕带宽度（屏幕像素）
+    this.hurtVignette?.destroy(true);
+    this.hurtVignette = this.add.container(0, 0)
+      .setScrollFactor(0)
+      .setDepth(900)      // 在游戏物体之上、UI(1000+) 之下
+      .setAlpha(0);
+
+    const mkStrip = (w: number, h: number, dir: 'left' | 'right' | 'top' | 'bottom') => {
+      const key = `hurtgrad-${dir}-${w}x${h}`;
+      if (!this.textures.exists(key)) {
+        const tex = this.textures.createCanvas(key, Math.max(1, w), Math.max(1, h));
+        if (!tex) return null;
+        const ctx = tex.getContext();
+        let grad: CanvasGradient;
+        if (dir === 'left') grad = ctx.createLinearGradient(0, 0, w, 0);
+        else if (dir === 'right') grad = ctx.createLinearGradient(w, 0, 0, 0);
+        else if (dir === 'top') grad = ctx.createLinearGradient(0, 0, 0, h);
+        else grad = ctx.createLinearGradient(0, h, 0, 0);
+        grad.addColorStop(0, 'rgba(220, 30, 40, 0.85)');
+        grad.addColorStop(0.45, 'rgba(200, 20, 30, 0.32)');
+        grad.addColorStop(1, 'rgba(180, 10, 20, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+        tex.refresh();
+      }
+      return this.add.image(0, 0, key).setOrigin(0, 0);
+    };
+
+    this.hurtStripRefs = [];
+    const layout = () => {
+      const W = this.scale.width;
+      const H = this.scale.height;
+      this.hurtVignette!.removeAll(true);
+      this.hurtStripRefs = [];
+
+      const t = Math.min(THICK, Math.floor(Math.min(W, H) / 3));
+      const pieces: Array<{ img: Phaser.GameObjects.Image | null; x: number; y: number }> = [
+        { img: mkStrip(t, H, 'left'), x: 0, y: 0 },
+        { img: mkStrip(t, H, 'right'), x: W - t, y: 0 },
+        { img: mkStrip(W, t, 'top'), x: 0, y: 0 },
+        { img: mkStrip(W, t, 'bottom'), x: 0, y: H - t },
+      ];
+      for (const p of pieces) {
+        if (!p.img) continue;
+        p.img.setPosition(p.x, p.y);
+        this.hurtVignette!.add(p.img);
+        this.hurtStripRefs.push(p.img);
+      }
+    };
+    layout();
+    // 视口变化时重建，光晕始终贴合屏幕边缘
+    this.scale.on('resize', layout, this);
+    this.events.once('shutdown', () => this.scale.off('resize', layout, this));
+  }
+
+  /**
+   * 玩家受伤的表现层反馈。
+   *
+   * - 震屏强度跟伤害量走：蹭一下轻微抖，挨 BOSS 大招明显晃。
+   * - 红色光晕闪两次：先快速亮起，再淡出，避免连续受击时叠成一坨红。
+   * - 血量低于 30% 时挂一层常驻淡红光晕，给玩家「快死了」的持续压迫感。
+   */
+  private onPlayerHurt(amount: number) {
+    const cam = this.cameras.main;
+
+    // 震屏：基础 90ms / 0.004，伤害越高越强，上限 240ms / 0.012
+    const norm = Phaser.Math.Clamp(amount / 25, 0, 1);
+    cam.shake(90 + norm * 150, 0.004 + norm * 0.008);
+
+    // 受击闪光：只用 hurtVignette 这一个目标，且先杀旧 tween 再起新的
+    if (this.hurtVignette) {
+      this.tweens.killTweensOf(this.hurtVignette);
+      this.hurtVignette.setAlpha(Math.min(1, 0.55 + norm * 0.45));
+      this.tweens.add({
+        targets: this.hurtVignette,
+        alpha: 0,
+        duration: 380,
+        ease: 'Quad.Out',
+      });
+    }
+
+    // 低血常驻警示走**另一个容器**：它和受击闪光抢同一个 alpha 属性时
+    // 会互相覆盖（呼吸 tween 每帧把 alpha 拉回中间值，受击淡出就卡住不动），
+    // 所以两者必须分开，各自控制自己的 alpha。
+    this.updateLowHpWarning();
+  }
+
+  /** 低血常驻警示：<30% 时缓慢呼吸的淡红光晕；恢复后自动关掉 */
+  private updateLowHpWarning() {
+    const hpRatio = this.player.stats.hp / Math.max(1, this.player.stats.maxHp);
+    if (hpRatio < 0.3) {
+      if (!this.lowHpLayer) {
+        // 复用同一套渐变贴图，另建一个只负责「常驻警示」的容器
+        this.lowHpLayer = this.add.container(0, 0)
+          .setScrollFactor(0)
+          .setDepth(899)   // 比受击闪光低 1，闪光仍能盖住它
+          .setAlpha(0);
+        this.copyVignetteStrips(this.lowHpLayer);
+        this.lowHpTween = this.tweens.add({
+          targets: this.lowHpLayer,
+          alpha: { from: 0.10, to: 0.26 },
+          duration: 900,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.InOut',
+        });
+      }
+    } else if (this.lowHpLayer) {
+      // 血量恢复：淡出后销毁，避免一直留着占深度
+      this.lowHpTween?.stop();
+      this.lowHpTween = undefined;
+      const layer = this.lowHpLayer;
+      this.lowHpLayer = undefined;
+      this.tweens.add({
+        targets: layer,
+        alpha: 0,
+        duration: 400,
+        onComplete: () => layer.destroy(true),
+      });
+    }
+  }
+
+  /** 把 hurtVignette 的四条渐变带复制一份到目标容器（共用地形，不重建纹理） */
+  private copyVignetteStrips(dest: Phaser.GameObjects.Container) {
+    for (const img of this.hurtStripRefs) {
+      if (!img.active) continue;
+      dest.add(this.add.image(img.x, img.y, img.texture.key).setOrigin(0, 0));
+    }
+  }
   private registerBossIdentity(boss: Phaser.Physics.Arcade.Sprite | null) {
     if (!boss) return;
     const pkId = Number(boss.texture.key.replace('pk_', ''));

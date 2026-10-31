@@ -24,6 +24,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   lastDamage = 0;
   damageSeq = 0;
   damageAt = 0;
+  /** 受击回调：GameScene 用它挂震屏 / 红色光晕等表现层反馈 */
+  onHurt?: (amount: number) => void;
 
   constructor(scene: Phaser.Scene, x: number, y: number, trait: TraitId) {
     super(scene, x, y, 'ash', 0);
@@ -201,6 +203,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.hurtTimer = 0.5;
     Sfx.hurt();
     this.setTint(0xff6b6b);
+    // 表现层反馈（震屏 + 红色光晕）交给 GameScene，Player 只负责发出事件
+    this.onHurt?.(real);
     this.scene.time.delayedCall(120, () => {
       if (this.active && this.hurtTimer > 0) this.setTint(0xffffff);
     });
