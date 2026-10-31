@@ -26,6 +26,9 @@ export class BootScene extends Phaser.Scene {
     // 这里在加载时就定好采样方式，之后不再被覆盖。
     this.load.image('logo', 'logo.png', { magFilter: 1, minFilter: 1 } as never);
 
+    // GitHub 图标（矢量 SVG → Phaser 按目标尺寸栅格化，任意分辨率都清晰）
+    this.load.svg('github-mark', 'github-mark.svg', { width: 64, height: 64 });
+
     for (const id of POKEMON_IDS) {
       const key = `pk_${id}`;
       this.load.image(key, `pokemon/${String(id).padStart(3, '0')}.png`);

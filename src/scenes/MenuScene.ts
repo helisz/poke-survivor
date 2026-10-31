@@ -285,20 +285,12 @@ export class MenuScene extends Phaser.Scene {
     const bg = this.add.circle(0, 0, 17, UI.secondary, 0.92)
       .setStrokeStyle(1.5, UI.primaryStroke, 0.75).setInteractive({ useHandCursor: true });
 
-    // Phaser 没有 GitHub 图标字体，用 Graphics 手绘 Octocat 轮廓：
-    // 圆头 + 两只猫耳 + 下方身体/尾巴，够识别就行
-    const g = this.add.graphics();
-    g.fillStyle(0xe8eef6, 1);
-    g.fillCircle(0, 0.5, 6.2);                            // 头
-    g.fillTriangle(-6.4, -3.2, -2.6, -6.2, -1.9, -1.4);   // 左耳
-    g.fillTriangle(6.4, -3.2, 2.6, -6.2, 1.9, -1.4);      // 右耳
-    g.fillRect(-4.4, 4.4, 8.8, 3.4);                      // 身体底座
-    // 眼睛挖空，让猫头有辨识度
-    g.fillStyle(UI.secondary, 1);
-    g.fillCircle(-2.3, 0.4, 1.05);
-    g.fillCircle(2.3, 0.4, 1.05);
+    // 官方 Octocat mark（SVG），Boot 里预加载成纹理，这里直接贴图
+    const icon = this.textures.exists('github-mark')
+      ? this.add.image(0, 0, 'github-mark').setDisplaySize(19, 19)
+      : this.add.text(0, 0, '⌘', { fontFamily: 'sans-serif', fontSize: '16px', color: '#e8eef6' }).setOrigin(0.5);
 
-    c.add([bg, g]);
+    c.add([bg, icon]);
 
     bg.on('pointerdown', (p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
       ev?.stopPropagation?.();
