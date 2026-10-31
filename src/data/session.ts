@@ -71,6 +71,8 @@ export function startSession(s: CloudSession) {
 
 export function endSession() {
   const tok = session?.token ?? '';
+  // 先把排队中的推送发掉，否则登出会吞掉刚打完的成绩
+  flushBeforeEnd();
   session = null;
   setSaveHook(null);
   window.clearTimeout(timer);
@@ -107,4 +109,37 @@ export function scheduleSync(save: SaveData) {
       bestTime: save.bestTime,
     });
   }, 2000);
+}
+
+/**
+ * 立即推云端，跳过防抖。
+ *
+ * 结算、通关这类关键写入必须用它：scheduleSync 的 2 秒定时器会被
+ * 后续任意一次 writeSave 的 clearTimeout 清掉，而玩家打完一局往往
+ * 立刻点「返回主页」或刷新页面（endSession 里 clearTimeout），
+ * 排队中的推送就再也发不出去了 —— 表现就是「成绩没上榜」。
+ */
+export function flushSync() {
+  if (!session) return;
+  window.clearTimeout(timer);
+  timer = undefined;
+  const save = loadSave();
+  void pushSave(session, {
+    coins: save.coins,
+    stageBest: save.stageBest,
+    stageProgress: save.stageProgress,
+    perm: save.perm as unknown as Record<string, number>,
+    seenPartners: save.seenPartners,
+    seenEnemies: save.seenEnemies,
+    bestTime: save.bestTime,
+  });
+}
+
+/**
+ * endSession 前把没发出去的推送先发掉。
+ * 玩家登出的瞬间不该丢掉这局成绩。
+ */
+export function flushBeforeEnd() {
+  if (!session) return;
+  flushSync();
 }

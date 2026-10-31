@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { MOVES, MOVE_LIST, RARITY_WEIGHT } from '../data/moves';
 import { expForLevel, RUN_SECONDS, loadSave, writeSave, type PlayerStats } from '../data/stats';
 import { MAP_THEMES, stageScale, STAGE_COUNT } from '../data/maps';
+import { flushSync } from '../data/session';
 import { Player } from '../objects/Player';
 import { CombatSystem } from '../systems/CombatSystem';
 import { EnemySystem } from '../systems/EnemySystem';
@@ -1549,6 +1550,9 @@ export class GameScene extends Phaser.Scene {
         writeSave(sv);
       }
     }
+    // 结算成果立即推云端，不等 scheduleSync 的 2 秒防抖 ——
+    // 玩家通常这之后就退出/刷新，排队中的推送会被 clearTimeout 吞掉。
+    flushSync();
     // 通知 UI 收掉可能还开着的开发者面板，否则它会盖在结算页上
     this.events.emit('run-ended');
     this.scene.launch('GameOver', {
