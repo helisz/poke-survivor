@@ -118,6 +118,14 @@ Each level-up offers three cards, in four kinds:
 
 Slot cap is `MAX_SLOTS = 6`. Rerolls start at 3; each shop level of "Gambler" adds 1.
 
+**Evolution rules** (important):
+
+- Evolving **never resets move level**. The level at the moment of evolution is stored as `evoBaseLevel`, and every later upgrade keeps stacking on that base
+- Damage = `baseDamage × (1 + (level-1) × 0.42) × evolution multiplier` — it only ever goes up
+- Evolved projectiles are **fully piercing** (`pierce = Infinity`) and are no longer eaten by a single target
+- Evolved projectiles **self-home** (at half the turn rate of native homing), so they never just fly off in one direction
+- For fireball moves, the split children inherit both the piercing and the evolution VFX
+
 ### 2.4 Three Tiers of Enemies
 
 | Type | Scale | HP | Appearance | Behavior |
@@ -127,7 +135,24 @@ Slot cap is `MAX_SLOTS = 6`. Rerolls start at 3; each shop level of "Gambler" ad
 | **Mini-boss** | 1.47× | 3000 | One at 2:00, one at 4:40 | **Casts skills**: 4.2s interval, 0.55 power |
 | **Final boss** | 1.47× | — | When timer ends | **3-skill rotation**: one per 2.4s, 1.0 power |
 
-**Elite and boss skills follow the Pokémon's own type** (Grass→quake, Fire→charge, Electric→thunder, Ice→shards, Water→tide, Psychic→wave, Dragon→dash). The type table lives in `POKEDEX_TYPE` in `src/data/pokedex.ts`; anything unlisted falls back by type name.
+**Elite and boss skills follow the Pokémon's own type, rotating through 4 skills per type.** The type table lives in `POKEDEX_TYPE` in `src/data/pokedex.ts`; anything unlisted falls back by type name.
+
+The skill library has 10 entries, each demanding a different dodge:
+
+| Skill | What it looks like | How to dodge |
+|---|---|---|
+| **Sky strike** | A warning circle appears, then a lightning column lands 0.42s later | Step out of the circle |
+| **Poison pool** | 3–4 lingering pools on the ground, ticking every 0.5s for 5s | Move around the ground hazards |
+| **Meteor** | A fireball flies to a predicted point, leaving a burning patch | Don't stand still |
+| **Bouncer** | 3–4 orbs that bounce off the screen edges up to 5 times | Move laterally away |
+| **Laser fan** | 0.42s warning lines, then 4/6/8 laser beams | Stand in the gap between beams |
+| **Fire pillar** | A wall of fire columns erupts in sequence | Run along the wall's direction |
+| **Water jet** | 4–5 streams that knock you back on hit | Sidestep diagonally |
+| **Quake** | A dust ring underfoot, then radial debris | Back off early |
+| **Ice shards** | A cone of ice, slowing you 30% on hit | Cut sideways out of the cone |
+| **Charge / psy wave** | A dash followed by a ring of bullets | Predict the landing spot |
+
+**Projectile sizes were tightened across the board**: normal bullets dropped from `scale` 2.0–3.0 to 0.8–1.0. Big skills no longer express power by inflating bullets — they use laser lines, fire columns, and ground zones instead: strong on screen presence, but with clean hitboxes that don't cover half the display.
 
 Three safeguards keep elites from turning the screen into bullet hell:
 
@@ -631,6 +656,9 @@ Hard-won lessons — don't step on them again.
 | **Background-tab rAF throttling** | While debugging, `loop.frame` stays at 0, scenes don't advance, `delayedCall` never fires | Not a bug. Use `Page.bringToFront` + `Emulation.setFocusEmulationEnabled` when debugging |
 | **`100vw` includes scrollbar width** | Canvas stretched by a few pixels | Use `100%` in CSS, not `100vw` |
 | **`pixelArt: true` affects new textures** | White speckles around non-pixel art (e.g. the logo) | Set `magFilter`/`minFilter` to LINEAR explicitly at load time |
+| **Pooled projectiles keep a stale `splitDef`** | Split children split again, damage underflows to `1e-37` and the projectile count explodes | Explicitly reset `splitDef` on spawn and in split; children must set it to `undefined` |
+| **Body doesn't follow `setScale`** | After `setScale(0.55)` the body keeps its original size, leaving a 1–2px hit radius — looks like a hit but deals no damage | Recompute as `targetRadius / scale` and call `setCircle` again |
+| **`buffTopY` is 0** | Boss HP bar falls back to a guessed value and lands mid-screen | Compute the position unconditionally in `layoutBuffs()`, then `if (!n) return` |
 
 ---
 

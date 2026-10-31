@@ -102,6 +102,8 @@ export class GameScene extends Phaser.Scene {
   private bossPokemonId?: number;
   /** 大 BOSS 三种技能变体轮转指针（参考伙伴招式的形态） */
   private finalBossSkillStep = 0;
+  /** 小 BOSS 属性池的轮转索引（让它也别老是同一招） */
+  private bossElementStep = 0;
   /**
    * 精英施法冷却表。key 是精英 sprite，值是剩余毫秒。
    * 精英同一时刻可能有 3~6 只在场上，每只各自计时、各自出招，
@@ -1242,12 +1244,20 @@ export class GameScene extends Phaser.Scene {
     // 拿不到时退回一个保守估计，别让血条跑到屏幕外。
     const ui = this.scene.get('UI') as { buffTopY?: number } | undefined;
     const buffTop = ui?.buffTopY || (h - (narrow ? 214 : 190));
-    // 名字 16px + 间隙，血条整块贴在属性行上方 8px
-    const y = buffTop - 8 - barH / 2 - 16 / z;
+    // 布局顺序（从下往上）：技能栏 → 属性图标行 → 血条底部。
+    // 血条要「在属性行再高一些」，所以整块（名字 + 血条 + 提示）的总高度先算出来，
+    // 再整体上移：名字 16 + 间隙 6 + 条高 + 间隙 6 + 提示 14。
+    const nameH = (narrow ? 15 : 17) / z;
+    const hintH = (narrow ? 11 : 12) / z;
+    const blockGap = 6 / z;
+    const blockH = nameH + blockGap + barH + blockGap + hintH;
+    // 整块底边贴在属性行上方 14px，条身位于块内「名字之下」
+    const blockBottom = buffTop - 14;
+    const y = blockBottom - blockH + nameH + blockGap + barH / 2;
 
-    // 名字
+    // 名字：贴在条身正上方（整块顶部）
     const bossLabel = `${this.bossPokemonName ?? '终局'} · 终局`;
-    this.bossNameText = this.add.text(w / 2, y - 24 / z, bossLabel, {
+    this.bossNameText = this.add.text(w / 2, y - barH / 2 - blockGap - nameH / 2, bossLabel, {
       fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif',
       fontSize: `${(narrow ? 15 : 17) / z}px`, fontStyle: 'bold', color: '#ff6b6b',
       stroke: '#1a0000', strokeThickness: 4 / z,
@@ -1275,9 +1285,9 @@ export class GameScene extends Phaser.Scene {
       hold: 900, yoyo: true, onComplete: () => banner.destroy(),
     });
 
-    // 提示：击杀才能过关
-    this.add.text(w / 2, y + 22 / z, '击杀 BOSS 才能过关', {
-      fontFamily: 'sans-serif', fontSize: `${(narrow ? 11 : 12) / z}px`, color: '#ffb3b3',
+    // 提示：击杀才能过关。贴在条身正下方（整块底部），不再和属性行挤在一起
+    this.add.text(w / 2, y + barH / 2 + blockGap + hintH / 2, '击杀 BOSS 才能过关', {
+      fontFamily: 'sans-serif', fontSize: `${hintH}px`, color: '#ffb3b3',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(420).setName('bossHint');
   }
 
@@ -1487,8 +1497,8 @@ export class GameScene extends Phaser.Scene {
     Sfx.bossSkill();
 
     if (!isFinal) {
-      // 小 BOSS：只用「属性主招」，且不带暴怒增幅（威力减半）
-      this.castBossElementSkill(boss, prof, false, 0.55);
+      // 小 BOSS：按自己的轮转索引抽属性池里的招式（不再固定一招）
+      this.castBossElementSkill(boss, prof, false, 0.55, this.bossElementStep++);
       return;
     }
 
@@ -1546,47 +1556,128 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** 精英放一次技能：按它自己的属性走，威力 0.45 */
+  /**
+   * 精英放一次技能：按它自己的属性池轮转，威力 0.45。
+   *
+   * 每只精英有自己的 castStep（存在 sprite data 上），保证：
+   *   - 同一只不会连续放同一招
+   *   - 不同精英起步位置不同，不会整屏同时放同一种
+   */
   private castEliteSkill(e: Phaser.Physics.Arcade.Sprite) {
     const pkId = Number(e.texture.key.replace('pk_', ''));
     const prof = this.bossProfile(pkId);
     Sfx.bossSkill();
     // 起手提示：脚下亮一圈，给玩家 0.3s 反应时间
     this.combat.fx.castPulse(e.x, e.y, prof.accent, 22);
-    this.castBossElementSkill(e, prof, false, 0.45);
+    const step = ((e.getData('castStep') as number) ?? 0);
+    e.setData('castStep', step + 1);
+    this.castBossElementSkill(e, prof, false, 0.45, step);
   }
 
-  /** 按属性给出一套主招（精英 / 小 BOSS 共用 / 终局第一变体用） */
+  /**
+   * 技能池：每个属性给一组「形态不同、躲法不同」的技能。
+   *
+   * 关键改动：以前是 `prof.kind` → 一个固定函数（电系永远落雷、水系永远潮汐），
+   * 打久了就是背板。现在每个属性有 3~4 个候选，调度时按轮转索引轮流抽，
+   * 同一个 BOSS 打 4 招才会重复，精英之间也不会同步。
+   *
+   * 三条硬约束（防止变成「满屏弹幕但无路可走」）：
+   *   ① 每种技能都必须留出可走的缝（激光留夹缝、火柱留侧向、毒潭留空档）
+   *   ② 预警时间 ≥ 0.4s，给玩家反应窗口
+   *   ③ 同一时刻只保留一个「地面持续区域」类的技能
+   */
+  private skillPoolFor(
+    kind: string,
+  ): Array<(b: Phaser.Physics.Arcade.Sprite, p: { main: number; accent: number; motes: number }, enraged: boolean, power?: number) => void> {
+    // 通用：所有属性都会的组合，保证「丰富度」下限
+    const common = [
+      (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillSkyStrike(b, p, e, pw),
+      (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillLaserFan(b, p, e, pw, 4),
+      (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillBouncer(b, p, e, pw),
+    ];
+
+    switch (kind) {
+      case 'storm':
+        return [
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillSkyStrike(b, p, e, pw),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillLaserFan(b, p, e, pw, 6),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillThunderStorm(b, p, e, pw),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillBouncer(b, p, e, pw),
+        ];
+      case 'ice':
+        return [
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillLaserFan(b, p, e, pw, 6),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillWaterJet(b, p, e, pw),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillIceShards(b, p, e),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillSkyStrike(b, p, e, pw),
+        ];
+      case 'water':
+        return [
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillWaterJet(b, p, e, pw),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillTidalWave(b, p, e),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillLaserFan(b, p, e, pw, 4),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillPoisonPool(b, p, e, pw),
+        ];
+      case 'dragon':
+        return [
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillMeteor(b, p, e, pw),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillDragonRush(b, p, e),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillFirePillar(b, p, e, pw),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillLaserFan(b, p, e, pw, 8),
+        ];
+      case 'rock':
+        return [
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillRockQuake(b, p, e),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillFirePillar(b, p, e, pw),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillSkyStrike(b, p, e, pw),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillBouncer(b, p, e, pw),
+        ];
+      case 'psy':
+        return [
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillPsyWave(b, p, e),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillLaserFan(b, p, e, pw, 4),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillPoisonPool(b, p, e, pw),
+          (b: Phaser.Physics.Arcade.Sprite, p: any, e: boolean, pw = 1) => this.skillBouncer(b, p, e, pw),
+        ];
+      default:
+        return common;
+    }
+  }
+
+  /**
+   * 按属性抽一招。
+   *
+   * step 由调用方递增（BOSS 用 finalBossSkillStep、精英用各自计数），
+   * 保证「同一只怪不会连续放同一招」，同时不同怪之间因为起步位置不同而错开。
+   */
   private castBossElementSkill(
     boss: Phaser.Physics.Arcade.Sprite,
     prof: { kind: string; main: number; accent: number; motes: number },
     enraged: boolean,
     power = 1,
+    step = 0,
   ) {
-    switch (prof.kind) {
-      case 'dragon': this.skillDragonRush(boss, prof, enraged); break;
-      case 'storm':  this.skillThunderStorm(boss, prof, enraged, power); break;
-      case 'ice':    this.skillIceShards(boss, prof, enraged); break;
-      case 'water':  this.skillTidalWave(boss, prof, enraged); break;
-      case 'rock':   this.skillRockQuake(boss, prof, enraged); break;
-      default:       this.skillPsyWave(boss, prof, enraged); break;
-    }
+    const pool = this.skillPoolFor(prof.kind);
+    const fn = pool[step % pool.length];
+    fn(boss, prof, enraged, power);
   }
 
   /**
-   * 终局 BOSS 的三套技能变体。
+   * 终局 BOSS 的技能变体。
    *
-   * 设计思路是把伙伴的三种典型形态翻译成"打玩家"：
-   *   ① 属性主招 —— 该 BOSS 本命属性（追踪 / 扇形 / 环形都走各自的 skill）
-   *   ② 追踪狙击 —— 参考伙伴 homing 弹：三发跟踪光球锁定玩家当前位置
-   *   ③ 环形爆发 —— 参考伙伴 nova/光环：以自身为中心两圈交错弹幕 + 冲击环
-   * 三招轮流出现，玩家必须换三种躲法。
+   * 设计思路：把「伙伴的三种典型形态」翻译成「打玩家」，再叠加属性池增加变数：
+   *   ① 属性技能池 —— 该 BOSS 本命属性的 3~4 个技能里轮转（落雷/激光/毒潭/弹弹球…）
+   *   ② 追踪狙击   —— 参考 homing 弹，多发跟踪光球锁定玩家
+   *   ③ 环形爆发   —— 参考 nova/光环，两圈交错弹幕 + 冲击环
+   *
+   * 第 ① 项内部又走 step 轮转，所以一整局下来实际能看到
+   * 「属性池 4 种 × 3 变体」的组合，不会两分钟内就背完。
    */
   private finalBossVariants(prof: { kind: string; main: number; accent: number; motes: number }) {
     return [
-      // ① 本命属性主招
+      // ① 本命属性池：每次进入这个变体都换下一招
       (boss: Phaser.Physics.Arcade.Sprite, p: typeof prof, enraged: boolean) =>
-        this.castBossElementSkill(boss, p, enraged, 1),
+        this.castBossElementSkill(boss, p, enraged, 1, this.bossElementStep++),
       // ② 追踪狙击：参考 homing，锁定玩家三连发
       (boss: Phaser.Physics.Arcade.Sprite, p: typeof prof, enraged: boolean) =>
         this.skillHomingSnipe(boss, p, enraged),
@@ -1613,7 +1704,7 @@ export class GameScene extends Phaser.Scene {
         // 每次重新瞄玩家 ---- 玩家跑动就躲得掉，站着不动必吃
         const ang = Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
         const jitter = (i - (shots - 1) / 2) * 0.22;
-        this.spawnBossBullet(boss.x, boss.y, ang + jitter, 210 + i * 15, prof.accent, 3.0);
+        this.spawnBossBullet(boss.x, boss.y, ang + jitter, 210 + i * 15, prof.accent, 1.0, false, { homing: true, dmg: 13, trail: 1 });
         fx.burst(boss.x, boss.y, prof.accent, 8, 160, 3, 240);
       });
     }
@@ -1631,8 +1722,8 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.shake(140, 0.004);
 
     const rings = [
-      { n: enraged ? 16 : 13, spd: 175, delay: 0, color: prof.main, scale: 2.4 },
-      { n: enraged ? 13 : 11, spd: 230, delay: 260, color: prof.accent, scale: 2.0 },
+      { n: enraged ? 16 : 13, spd: 175, delay: 0, color: prof.main, scale: 0.95 },
+      { n: enraged ? 13 : 11, spd: 230, delay: 260, color: prof.accent, scale: 0.8 },
     ];
     rings.forEach((r, ri) => {
       this.time.delayedCall(r.delay, () => {
@@ -1701,7 +1792,7 @@ export class GameScene extends Phaser.Scene {
       const baseAng = Math.random() * Math.PI * 2;
       for (let i = 0; i < n; i++) {
         const a = baseAng + (Math.PI * 2 * i) / n;
-        this.spawnBossBullet(boss.x, boss.y, a, enraged ? 240 : 200, prof.main, 2.2);
+        this.spawnBossBullet(boss.x, boss.y, a, enraged ? 240 : 200, prof.main, 0.95);
       }
       fx.burst(boss.x, boss.y, prof.accent, prof.motes, 280, 5, 520);
       fx.shockRing(boss.x, boss.y, prof.main, 110, 380);
@@ -1720,7 +1811,7 @@ export class GameScene extends Phaser.Scene {
         const n = enraged ? 13 : 11;
         for (let i = 0; i < n; i++) {
           const spread = (i / (n - 1) - 0.5) * 1.9;
-          this.spawnBossBullet(boss.x, boss.y, ang + spread, 190 + w * 25, prof.main, 2.4);
+          this.spawnBossBullet(boss.x, boss.y, ang + spread, 190 + w * 25, prof.main, 0.9);
         }
         fx.burst(boss.x, boss.y, prof.accent, 12, 190, 3.5, 380);
         fx.castPulse(boss.x, boss.y, prof.accent, 26);
@@ -1740,7 +1831,7 @@ export class GameScene extends Phaser.Scene {
       const n = enraged ? 9 : 7;
       for (let i = 0; i < n; i++) {
         const a = ang + (i / (n - 1) - 0.5) * 1.4;
-        this.spawnBossBullet(boss.x, boss.y, a, 260, prof.main, 2.6, true);
+        this.spawnBossBullet(boss.x, boss.y, a, 260, prof.main, 1.0, true);
       }
       // 冰霜炸开：一排小碎晶
       for (let i = 0; i < 6; i++) {
@@ -1790,7 +1881,7 @@ export class GameScene extends Phaser.Scene {
       const baseAng = Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
       for (let i = 0; i < n; i++) {
         const a = baseAng + (i / n) * Math.PI * 2;
-        this.spawnBossBullet(boss.x, boss.y, a, 165, prof.main, 3.0);
+        this.spawnBossBullet(boss.x, boss.y, a, 165, prof.main, 1.0);
       }
       fx.burst(boss.x, boss.y, prof.accent, prof.motes, 230, 4, 520);
       fx.castPulse(boss.x, boss.y, prof.main, 40);
@@ -1815,14 +1906,25 @@ export class GameScene extends Phaser.Scene {
       const n = enraged ? 12 : 8;
       for (let i = 0; i < n; i++) {
         const a = (Math.PI * 2 * i) / n;
-        this.spawnBossBullet(boss.x, boss.y, a, enraged ? 220 : 185, prof.main, 2.2);
+        this.spawnBossBullet(boss.x, boss.y, a, enraged ? 220 : 185, prof.main, 0.95);
       }
     });
   }
 
-  /** BOSS 弹幕 */
+  /**
+   * BOSS 弹幕。
+   *
+   * scale 语义：dot 基础贴图很小，scale 就是屏幕上的视觉倍率。
+   * 这个值之前默认 1.6、调用点常传 2.0~3.0，实机在手机上看是一个大球糊住半个屏幕，
+   * 玩家根本分不清弹幕缝隙。现在统一压到「能看清飞行方向」的大小：
+   * 普通弹 0.9，重弹 1.2，特大型技能走独立视觉（激光/火柱），不再靠放大弹体表达威力。
+   *
+   * dps 参数：伤害随技能类型走，不再写死 14。激光/火柱这类持续技能用低 dps 高频，
+   * 落雷/弹弹球这种一次性用高伤害。frost=true 附带减速。
+   */
   private spawnBossBullet(x: number, y: number, ang: number, speed: number,
-                          color = 0xff3355, scale = 1.6, frost = false) {
+                          color = 0xff3355, scale = 0.9, frost = false,
+                          opt?: { dmg?: number; homing?: boolean; bouncy?: number; trail?: number }) {
     const b = this.physics.add.image(x, y, 'dot')
       .setDepth(7).setTintFill(color).setScale(scale);
     const body = b.body as Phaser.Physics.Arcade.Body;
@@ -1831,17 +1933,52 @@ export class GameScene extends Phaser.Scene {
     b.setVelocity(Math.cos(ang) * speed, Math.sin(ang) * speed);
     this.combat.fx.burst(x, y, color, 3, 90, 2, 180);
 
+    // 弹体追尾光点：让弹道有「往哪飞」的方向感
+    const trail = opt?.trail ?? 0;
+    let trailAcc = 0;
+
+    const dmg = opt?.dmg ?? (frost ? 9 : 14);
+    const homing = !!opt?.homing;
+    let bouncesLeft = opt?.bouncy ?? 0;
+
     // 命中玩家判定
     const timer = this.time.addEvent({
       delay: 16, loop: true, callback: () => {
         if (!b.active) { timer.remove(); return; }
-        const d = Phaser.Math.Distance.Between(b.x, b.y, this.player.x, this.player.y);
-        if (d < 22) {
-          this.player.takeDamage(frost ? 9 : 14);
-          if (frost) {
-            // 冰弹命中附带减速：把移速压到 70%，1.2 秒后恢复
-            this.applyFrost();
+
+        // 追踪弹：每帧朝玩家转一点，绕不掉的压迫感
+        if (homing) {
+          const want = Math.atan2(this.player.y - b.y, this.player.x - b.x);
+          const cur = Math.atan2(b.body!.velocity.y, b.body!.velocity.x);
+          const next = Phaser.Math.Angle.RotateTo(cur, want, 0.05);
+          const sp = Math.hypot(b.body!.velocity.x, b.body!.velocity.y);
+          b.setVelocity(Math.cos(next) * sp, Math.sin(next) * sp);
+        }
+
+        if (trail > 0) {
+          trailAcc += 16;
+          if (trailAcc >= 40) {
+            trailAcc = 0;
+            this.combat.fx.burst(b.x, b.y, color, 1, 26, 1.6, 160);
           }
+        }
+
+        // 弹弹球：撞到屏幕边界反弹（用摄像机世界视口做墙）
+        if (bouncesLeft > 0) {
+          const v = b.body!.velocity;
+          const view = this.cameras.main.worldView;
+          if ((b.x < view.x && v.x < 0) || (b.x > view.right && v.x > 0)) {
+            b.setVelocityX(-v.x); bouncesLeft--; this.combat.fx.burst(b.x, b.y, color, 5, 80, 2, 180);
+          }
+          if ((b.y < view.y && v.y < 0) || (b.y > view.bottom && v.y > 0)) {
+            b.setVelocityY(-v.y); bouncesLeft--; this.combat.fx.burst(b.x, b.y, color, 5, 80, 2, 180);
+          }
+        }
+
+        const d = Phaser.Math.Distance.Between(b.x, b.y, this.player.x, this.player.y);
+        if (d < 20 + scale * 4) {
+          this.player.takeDamage(dmg);
+          if (frost) this.applyFrost();
           this.combat.fx.burst(b.x, b.y, color, 8, 160, 3, 220);
           b.destroy(); timer.remove();
         }
@@ -1849,6 +1986,317 @@ export class GameScene extends Phaser.Scene {
     });
     // 3.2 秒后自动销毁
     this.time.delayedCall(3200, () => { if (b.active) b.destroy(); timer.remove(); });
+  }
+
+  // ───────────────────────── BOSS / 精英 技能库 ─────────────────────────
+  //
+  // 设计原则：
+  //   1. 每种技能给玩家一条**独立的躲避规则**（绕圈 / 贴边 / 走位穿缝 / 拉开距离），
+  //      而不是换个颜色再散射一次。之前只有 6 种主招，全部是「从 BOSS 身上朝外散」，
+  //      观感上就是一坨球，玩家学会「一直跑」就无解。
+  //   2. 弹体不再靠放大表达威力：激光是线、火柱是柱、毒潭是地面区域，
+  //      视觉体积大但判定明确，不会糊住半个屏幕。
+  //   3. 每个技能都配独立粒子：预告(ring) → 生效(burst) → 残留(trail)。
+
+  /** 定点落雷：在玩家当前位置与周围预判点落下雷柱，先给 0.55s 预警圈 */
+  private skillSkyStrike(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean, power = 1) {
+    const fx = this.combat.fx;
+    const strikes = enraged ? 5 : 4;
+    fx.shockRing(boss.x, boss.y, prof.accent, 26, 240);
+    for (let i = 0; i < strikes; i++) {
+      // 前两发直接砸玩家脚下，后续围绕玩家预判点铺开
+      const spread = i < 2 ? 0 : 70 + (i - 2) * 55;
+      const ang = (Math.PI * 2 * i) / Math.max(1, strikes) + Phaser.Math.FloatBetween(-0.4, 0.4);
+      const tx = this.player.x + Math.cos(ang) * spread;
+      const ty = this.player.y + Math.sin(ang) * spread;
+      // 预警圈：地面上先亮一个圈，玩家看到就该走开
+      const warn = this.add.circle(tx, ty, 34, prof.main, 0.16)
+        .setStrokeStyle(2, prof.accent, 0.85).setDepth(6);
+      this.tweens.add({ targets: warn, scale: 0.35, alpha: 0.6, duration: 520, ease: 'Quad.In',
+        onComplete: () => warn.destroy() });
+
+      this.time.delayedCall(420 + i * 90, () => {
+        if (this.runEnded) return;
+        // 雷柱：一条从天上砸下来的折线 + 落点爆开
+        fx.bolt(tx, ty - 260, tx, ty, prof.main);
+        fx.bolt(tx, ty - 260, tx + Phaser.Math.Between(-26, 26), ty, prof.accent);
+        fx.burst(tx, ty, prof.main, prof.motes, 240, 4, 420);
+        fx.burst(tx, ty, prof.accent, 8, 140, 2.6, 300);
+        fx.shockRing(tx, ty, prof.accent, 62, 300);
+        const d = Phaser.Math.Distance.Between(tx, ty, this.player.x, this.player.y);
+        if (d < 46) {
+          this.player.takeDamage(Math.round(16 * power));
+          this.cameras.main.shake(110, 0.005);
+        }
+      });
+    }
+  }
+
+  /** 毒潭：地面留下 3 滩持续伤害区域，玩家踩上去掉血 */
+  private skillPoisonPool(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean, power = 1) {
+    const fx = this.combat.fx;
+    const pools = enraged ? 4 : 3;
+    fx.castPulse(boss.x, boss.y, prof.main, 24);
+    for (let i = 0; i < pools; i++) {
+      const ang = (Math.PI * 2 * i) / pools + Phaser.Math.FloatBetween(-0.3, 0.3);
+      const dist = i === 0 ? 0 : 90 + Math.random() * 70;
+      const px = this.player.x + Math.cos(ang) * dist;
+      const py = this.player.y + Math.sin(ang) * dist;
+      const radius = 52 + (enraged ? 8 : 0);
+
+      // 地块：一个有描边的半透明圆，缓慢膨胀到位
+      const pool = this.add.circle(px, py, radius, prof.main, 0.30)
+        .setStrokeStyle(2, prof.accent, 0.7).setDepth(4).setScale(0.2);
+      this.tweens.add({ targets: pool, scale: 1, duration: 260, ease: 'Back.Out' });
+      // 表面浮泡：持续冒小泡，表示"还在生效"
+      const bubble = this.time.addEvent({
+        delay: 180, loop: true, callback: () => {
+          if (!pool.active) { bubble.remove(); return; }
+          fx.burst(px + Phaser.Math.Between(-radius, radius) * 0.7,
+                   py + Phaser.Math.Between(-radius, radius) * 0.7,
+                   prof.accent, 2, 34, 2.2, 320);
+        },
+      });
+
+      // 踩在里面的持续伤害：每 500ms 结算一次
+      const tick = this.time.addEvent({
+        delay: 500, loop: true, callback: () => {
+          if (!pool.active || this.runEnded) { tick.remove(); return; }
+          const d = Phaser.Math.Distance.Between(px, py, this.player.x, this.player.y);
+          if (d < radius) this.player.takeDamage(Math.max(2, Math.round(5 * power)));
+        },
+      });
+
+      // 毒潭寿命：5 秒后淡出销毁
+      this.time.delayedCall(5000, () => {
+        this.tweens.add({
+          targets: pool, alpha: 0, scale: 1.15, duration: 400,
+          onComplete: () => { pool.destroy(); bubble.remove(); tick.remove(); },
+        });
+      });
+    }
+  }
+
+  /** 火球抛物线：火球飞到玩家位置留一圈火，形成"落脚点预判" */
+  private skillMeteor(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean, power = 1) {
+    const fx = this.combat.fx;
+    const balls = enraged ? 4 : 3;
+    for (let i = 0; i < balls; i++) {
+      this.time.delayedCall(i * 260, () => {
+        if (!boss.active || this.runEnded) return;
+        const lead = 0.55 + i * 0.18;   // 预判提前量：越往后砸得越偏
+        const tx = this.player.x + Phaser.Math.Between(-90, 90) * lead;
+        const ty = this.player.y + Phaser.Math.Between(-90, 90) * lead;
+        const ang = Math.atan2(ty - boss.y, tx - boss.x);
+        const dist = Phaser.Math.Distance.Between(boss.x, boss.y, tx, ty);
+        const life = Math.max(280, Math.min(900, dist / 0.9));
+
+        // 大号火球本体：本体不算太大，靠尾焰表达体积
+        const ball = this.physics.add.image(boss.x, boss.y, 'dot')
+          .setDepth(8).setTintFill(prof.main).setScale(1.4);
+        (ball.body as Phaser.Physics.Arcade.Body).setCircle(10, -4, -4);
+        ball.setVelocity(Math.cos(ang) * 420, Math.sin(ang) * 420);
+        fx.burst(boss.x, boss.y, prof.accent, 10, 180, 3, 280);
+
+        const ticker = this.time.addEvent({ delay: 30, loop: true, callback: () => {
+          if (!ball.active) { ticker.remove(); return; }
+          fx.fireTrail(ball.x, ball.y, ang, prof.main, 30);
+        } });
+
+        this.time.delayedCall(life, () => {
+          if (!ball.active) { ticker.remove(); return; }
+          const bx = ball.x, by = ball.y;
+          ball.destroy(); ticker.remove();
+          fx.burst(bx, by, prof.main, 26, 300, 5, 460);
+          fx.burst(bx, by, prof.accent, 14, 190, 3.4, 340);
+          fx.shockRing(bx, by, prof.accent, 78, 340);
+          // 落点火圈：短暂残留，二次伤害
+          const fire = this.add.circle(bx, by, 46, prof.main, 0.34).setDepth(4);
+          const hitTick = this.time.addEvent({ delay: 300, loop: true, callback: () => {
+            if (!fire.active || this.runEnded) { hitTick.remove(); return; }
+            if (Phaser.Math.Distance.Between(bx, by, this.player.x, this.player.y) < 46) {
+              this.player.takeDamage(Math.max(3, Math.round(7 * power)));
+            }
+          } });
+          this.time.delayedCall(1400, () => {
+            this.tweens.add({ targets: fire, alpha: 0, duration: 300,
+              onComplete: () => { fire.destroy(); hitTick.remove(); } });
+          });
+        });
+        this.cameras.main.shake(90, 0.003);
+      });
+    }
+  }
+
+  /** 弹弹球：几颗会在屏幕边界反弹的球，逼玩家绕柱子走位 */
+  private skillBouncer(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean, power = 1) {
+    const fx = this.combat.fx;
+    const n = enraged ? 4 : 3;
+    fx.castPulse(boss.x, boss.y, prof.accent, 30);
+    const baseAng = Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
+    for (let i = 0; i < n; i++) {
+      const a = baseAng + (i / n) * Math.PI * 2;
+      // 弹弹球体：中等尺寸 + 环形描边，看起来像会弹的东西
+      const ball = this.add.circle(boss.x, boss.y, 13, prof.main, 0.95)
+        .setStrokeStyle(3, prof.accent, 0.9).setDepth(9);
+      this.physics.add.existing(ball);
+      const body = ball.body as Phaser.Physics.Arcade.Body;
+      body.setCircle(13);
+      body.setBounce(1, 1);
+      body.setCollideWorldBounds(false);
+      body.setVelocity(Math.cos(a) * 260, Math.sin(a) * 260);
+
+      const ballData = { bounces: 5, hit: false };
+      const ticker = this.time.addEvent({ delay: 16, loop: true, callback: () => {
+        if (!ball.active || this.runEnded) { ticker.remove(); return; }
+        const view = this.cameras.main.worldView;
+        const v = body.velocity;
+        // 撞墙：手动反弹 + 火花
+        if (ball.x < view.x + 13 && v.x < 0) { body.setVelocityX(-v.x); ballData.bounces--; fx.burst(ball.x, ball.y, prof.accent, 6, 90, 2.4, 220); }
+        if (ball.x > view.right - 13 && v.x > 0) { body.setVelocityX(-v.x); ballData.bounces--; fx.burst(ball.x, ball.y, prof.accent, 6, 90, 2.4, 220); }
+        if (ball.y < view.y + 13 && v.y < 0) { body.setVelocityY(-v.y); ballData.bounces--; fx.burst(ball.x, ball.y, prof.accent, 6, 90, 2.4, 220); }
+        if (ball.y > view.bottom - 13 && v.y > 0) { body.setVelocityY(-v.y); ballData.bounces--; fx.burst(ball.x, ball.y, prof.accent, 6, 90, 2.4, 220); }
+        // 尾迹
+        fx.burst(ball.x, ball.y, prof.main, 1, 30, 2.2, 200);
+        // 命中
+        if (!ballData.hit && Phaser.Math.Distance.Between(ball.x, ball.y, this.player.x, this.player.y) < 24) {
+          ballData.hit = true;
+          this.player.takeDamage(Math.max(4, Math.round(11 * power)));
+          fx.burst(ball.x, ball.y, prof.accent, 12, 180, 3.4, 300);
+        }
+        if (ballData.bounces < 0) {
+          fx.burst(ball.x, ball.y, prof.main, 14, 220, 3, 340);
+          ball.destroy(); ticker.remove();
+        }
+      } });
+      this.time.delayedCall(6000, () => { if (ball.active) { ball.destroy(); ticker.remove(); } });
+    }
+    this.cameras.main.shake(100, 0.004);
+  }
+
+  /** N 向激光：从 BOSS 射出发散光柱，先预警 0.4s 再开火 */
+  private skillLaserFan(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean, power = 1, dirs = 4) {
+    const fx = this.combat.fx;
+    const n = enraged ? dirs + 2 : dirs;
+    const baseAng = Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
+    fx.shockRing(boss.x, boss.y, prof.accent, 30, 260);
+
+    // 预警：先画淡线，告诉玩家"这 N 个方向会开火"
+    const warns: Phaser.GameObjects.Graphics[] = [];
+    for (let i = 0; i < n; i++) {
+      const a = baseAng + (Math.PI * 2 * i) / n;
+      const g = this.add.graphics().setDepth(5);
+      g.lineStyle(3, prof.accent, 0.45);
+      g.lineBetween(boss.x, boss.y, boss.x + Math.cos(a) * 900, boss.y + Math.sin(a) * 900);
+      warns.push(g);
+    }
+
+    this.time.delayedCall(420, () => {
+      warns.forEach((g) => g.destroy());
+      if (!boss.active || this.runEnded) return;
+      for (let i = 0; i < n; i++) {
+        const a = baseAng + (Math.PI * 2 * i) / n;
+        const ex = boss.x + Math.cos(a) * 900;
+        const ey = boss.y + Math.sin(a) * 900;
+        // 双层激光：粗辉光 + 亮芯，不做成弹体所以不糊屏
+        fx.laser(boss.x, boss.y, ex, ey, prof.accent, 14);
+        fx.laser(boss.x, boss.y, ex, ey, prof.main, 6);
+        // 沿光柱撒粒子，让激光有"能量"质感
+        for (let k = 1; k <= 6; k++) {
+          const t = k / 7;
+          fx.burst(boss.x + (ex - boss.x) * t, boss.y + (ey - boss.y) * t,
+            prof.main, 2, 40, 2.2, 260);
+        }
+        // 光束判定：玩家到线段的距离小于 22 就中
+        if (this.pointNearSegment(this.player.x, this.player.y, boss.x, boss.y, ex, ey, 22)) {
+          this.player.takeDamage(Math.max(5, Math.round(13 * power)));
+        }
+      }
+      this.cameras.main.shake(180, 0.007);
+    });
+  }
+
+  /** 火柱：地面上依次喷出火柱，形成推过来的火墙 */
+  private skillFirePillar(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean, power = 1) {
+    const fx = this.combat.fx;
+    const cols = enraged ? 6 : 5;
+    // 火墙沿垂直于 BOSS→玩家 的方向铺开，玩家侧向绕开
+    const toPlayer = Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
+    const perp = toPlayer + Math.PI / 2;
+    const anchorX = this.player.x;
+    const anchorY = this.player.y;
+    for (let i = 0; i < cols; i++) {
+      const offset = (i - (cols - 1) / 2) * 62;
+      const px = anchorX + Math.cos(perp) * offset;
+      const py = anchorY + Math.sin(perp) * offset;
+      this.time.delayedCall(i * 110, () => {
+        if (this.runEnded) return;
+        // 地面预警
+        const warn = this.add.circle(px, py, 26, prof.main, 0.2)
+          .setStrokeStyle(2, prof.accent, 0.8).setDepth(5);
+        this.tweens.add({ targets: warn, scale: 0.4, alpha: 0.7, duration: 260, onComplete: () => warn.destroy() });
+
+        this.time.delayedCall(280, () => {
+          if (this.runEnded) return;
+          // 火柱立柱：一串沿垂直方向堆叠的火光 + 自下而上的粒子
+          for (let h = 0; h < 5; h++) {
+            const yy = py - h * 26;
+            fx.burst(px + Phaser.Math.Between(-8, 8), yy, h < 2 ? prof.accent : prof.main,
+              6, 90, 3.4 - h * 0.3, 340 + h * 30);
+          }
+          fx.shockRing(px, py, prof.main, 40, 320);
+          // 柱身判定：一个竖长条
+          if (Math.abs(this.player.x - px) < 26 &&
+              this.player.y < py + 20 && this.player.y > py - 140) {
+            this.player.takeDamage(Math.max(4, Math.round(10 * power)));
+          }
+        });
+      });
+    }
+    this.cameras.main.shake(140, 0.005);
+  }
+
+  /** 水柱：从 BOSS 朝玩家喷一道横向水墙，会把玩家推开 */
+  private skillWaterJet(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean, power = 1) {
+    const fx = this.combat.fx;
+    const ang = Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
+    const streams = enraged ? 5 : 4;
+    fx.castPulse(boss.x, boss.y, prof.accent, 26);
+    for (let s = 0; s < streams; s++) {
+      const spreadAng = ang + (s - (streams - 1) / 2) * 0.16;
+      this.time.delayedCall(s * 90, () => {
+        if (!boss.active || this.runEnded) return;
+        // 水流：一条带抖动的粗线 + 沿路径粒子
+        const len = 620;
+        const ex = boss.x + Math.cos(spreadAng) * len;
+        const ey = boss.y + Math.sin(spreadAng) * len;
+        fx.laser(boss.x, boss.y, ex, ey, prof.main, 10);
+        for (let k = 1; k <= 10; k++) {
+          const t = k / 11;
+          const wx = boss.x + (ex - boss.x) * t + Phaser.Math.Between(-10, 10);
+          const wy = boss.y + (ey - boss.y) * t + Phaser.Math.Between(-10, 10);
+          fx.burst(wx, wy, k % 3 === 0 ? prof.accent : prof.main, 3, 70, 2.8, 300);
+        }
+        if (this.pointNearSegment(this.player.x, this.player.y, boss.x, boss.y, ex, ey, 18)) {
+          this.player.takeDamage(Math.max(4, Math.round(9 * power)));
+          // 水压推开：把玩家沿水流方向推一段
+          this.player.x += Math.cos(spreadAng) * 26;
+          this.player.y += Math.sin(spreadAng) * 26;
+        }
+      });
+    }
+    this.cameras.main.shake(110, 0.003);
+  }
+
+  /** 点到线段的距离判定，激光/水柱的命中检测用 */
+  private pointNearSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number, tol: number): boolean {
+    const dx = x2 - x1, dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Phaser.Math.Distance.Between(px, py, x1, y1) <= tol;
+    let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+    t = Phaser.Math.Clamp(t, 0, 1);
+    const nx = x1 + dx * t, ny = y1 + dy * t;
+    return Phaser.Math.Distance.Between(px, py, nx, ny) <= tol;
   }
 
   /** 冰弹命中：短暂减速。重复命中不叠加，只重置计时 */

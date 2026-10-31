@@ -789,26 +789,26 @@ export class UIScene extends Phaser.Scene {
   private layoutBuffs() {
     const { width } = this.scale;
     const n = this.buffIcons.length;
+
+    // 尺寸固定算（即使没有 buff 也要算）：GameScene 的 BOSS 血条靠 buffTopY 定位，
+    // 没 buff 时如果不写这个值，血条会用一个拍脑袋的回退值，实机位置会跑到屏幕中间。
+    const bs = Math.max(16, Math.round(this.L.slotSize * 0.46));
+    const buffRowY = this.L.slotY - this.L.slotSize / 2 - 6 - bs / 2;
+    this.buffTopY = buffRowY - bs / 2;
+
     if (!n) return;
 
-    // 尺寸缩小：无边框后图标可以更紧凑，约为技能格的 0.46
-    const bs = Math.max(16, Math.round(this.L.slotSize * 0.46));
     const gap = 8;
     const totalW = n * bs + (n - 1) * gap;
     const startX = (width - totalW) / 2 + bs / 2;
-    // 属性强化行在技能槽正上方，间隔 6px
-    const y = this.L.slotY - this.L.slotSize / 2 - 6 - bs / 2;
-    // 记下属性行顶边，GameScene 的 BOSS 血条要靠它定位（血条在 GameScene 里画，
-    // 它看不到这里的布局，只能读这个值）
-    this.buffTopY = y - bs / 2;
 
     for (let i = 0; i < n; i++) {
       const b = this.buffIcons[i];
       const x = startX + i * (bs + gap);
-      b.bg.setSize(bs, bs).setPosition(x, y);
-      b.icon.setPosition(x, y).setDisplaySize(bs, bs);
+      b.bg.setSize(bs, bs).setPosition(x, buffRowY);
+      b.icon.setPosition(x, buffRowY).setDisplaySize(bs, bs);
       // 层数贴在图标右下角，白字，稍微压出边界一点更紧凑
-      b.txt.setPosition(x + bs / 2 + 1, y + bs / 2 + 1)
+      b.txt.setPosition(x + bs / 2 + 1, buffRowY + bs / 2 + 1)
         .setFontSize(Math.max(9, Math.round(bs * 0.5)));
     }
   }

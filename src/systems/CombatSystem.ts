@@ -22,6 +22,13 @@ interface ActiveSlot {
   evoPokeId?: number;
   /** 进化后的显示名 */
   evoName?: string;
+  /**
+   * 进化那一刻的招式等级快照。
+   *
+   * 需求：进化之后强度要在「进化前的等级」基础上往上加，不能掉回 Lv.1 重算。
+   * slot.level 本身会随升级继续涨，这个快照用于保证进化前已经吃到的等级加成不掉。
+   */
+  evoBaseLevel?: number;
 }
 
 /** 玩家持有的招式 → 自动释放 */
@@ -164,11 +171,20 @@ export class CombatSystem {
     return s?.evoName ?? MOVES[moveId]?.name ?? moveId;
   }
 
-  /** 执行进化：换图、叠倍率、记阶段 */
+  /**
+   * 执行进化：换图、叠倍率、记阶段。
+   *
+   * 强度规则：进化是「在同一等级基数上乘倍率」，不是重置等级。
+   * slot.level 保持不变并继续随升级增长，evoDmgMul/evoCdMul 累乘，
+   * 所以玩家进化后看到的是「当前等级 × 进化倍率」，一路往上，不会掉回去。
+   * evoBaseLevel 记下进化时刻的等级，UI 与后续阶梯进化用它做基准。
+   */
   evolve(moveId: string, evo: EvolutionDef): boolean {
     const slot = this.slots.find((s) => s.moveId === moveId);
     if (!slot) return false;
     slot.evoStage = (slot.evoStage ?? 0) + 1;
+    // 首次进化才记基准等级；后续阶梯进化不掉档，沿用最初的快照
+    if (slot.evoBaseLevel === undefined) slot.evoBaseLevel = slot.level;
     slot.evoDmgMul = (slot.evoDmgMul ?? 1) * evo.dmgMul;
     slot.evoCdMul = (slot.evoCdMul ?? 1) * evo.cdMul;
     slot.evoPokeId = evo.toId;
@@ -232,35 +248,62 @@ export class CombatSystem {
     this.fx.update(dtMs);
   }
 
-  /** 火球炸裂：主弹体消失，向四周撒出 6 颗小子弹 */
+  /**
+   * 火球炸裂：主弹体消失，向四周撒出 6 颗小子弹。
+   *
+   * 踩过的坑：子弹出 setScale(0.2) 但 body.setSize(14,14) 是在**缩放前**的
+   * 原始坐标系里设的 —— 缩放 0.2 之后实际碰撞半径只剩 1.4px，物理上根本
+   * 撞不到怪，于是「爆炸分裂了但没伤害」。这里按缩放补偿碰撞尺寸。
+   */
   private splitFireball(src: Phaser.Physics.Arcade.Image) {
     const def = src.getData('splitDef') as MoveDef;
+    // 防御：pool 复用时 splitDef 可能已被清空，直接回收避免 def.id 崩
+    if (!def) { this.killProjectile(src); return; }
     const damage = (src.getData('damage') as number) * 0.45;
     const color = src.getData('color') as number;
     const crit = (src.getData('crit') as boolean) ?? false;
+    // 分裂弹继承主弹体的进化状态：进化火球分裂出来的小子弹同样带进化特效与全穿透
+    const evolved = (src.getData('evolved') as boolean) ?? false;
+    const accent = (src.getData('accent') as number) ?? color;
+    const evoHit = (src.getData('evoHit') as number) ?? 0;
     const n = 6;
     // 3D 透视火球：核心白 → 中圈亮黄 → 外圈橘 → 拖尾暗红，四色叠出体积感
     this.fx.burst(src.x, src.y, 0xffb347, 26, 240, 4.4, 360);
     this.fx.burst(src.x, src.y, 0xffe98a, 16, 160, 3.2, 300);
     this.fx.shockRing(src.x, src.y, 0xff8c1a, 34, 260);
+    const CHILD_SCALE = 0.55;
     for (let i = 0; i < n; i++) {
       const a = (Math.PI * 2 * i) / n + Math.random() * 0.3;
       const p = this.projectiles.get(src.x, src.y, 'dot') as Phaser.Physics.Arcade.Image | null;
       if (!p) continue;
       p.setActive(true).setVisible(true);
       p.setTintFill(color);
-      p.setScale(0.2);
+      p.setScale(CHILD_SCALE);
       p.setData('damage', damage);
       p.setData('crit', crit);
-      p.setData('pierce', 0);
+      // 进化火球的分裂弹同样全穿透；没进化则保持原样（0 = 命中即消失）
+      p.setData('pierce', evolved ? Number.POSITIVE_INFINITY : 0);
       p.setData('life', 420);
       p.setData('moveId', def.id);
       p.setData('color', color);
+      p.setData('accent', accent);
+      p.setData('evolved', evolved);
+      p.setData('evoHit', evoHit);
       p.setData('fx', 'shell');
       p.setData('hitList', []);
+      p.setData('speed', 380);
+      // 【关键】分裂弹不能再当父弹体继续分裂。
+      // splitDef 不清掉的话，子弹出会再次走进 update 的分裂分支，
+      // 每代伤害 ×0.45 指数下溢（实测降到 1e-37），弹体数量也指数爆炸。
+      p.setData('splitDef', undefined);
+      p.setData('splitDone', true);
+      p.setData('splitIn', 0);
       p.setVelocity(Math.cos(a) * 380, Math.sin(a) * 380);
-      (p.body as Phaser.Physics.Arcade.Body).setEnable(true);
-      (p.body as Phaser.Physics.Arcade.Body).setSize(14, 14, true);
+      const body = p.body as Phaser.Physics.Arcade.Body;
+      body.setEnable(true);
+      // 碰撞半径按缩放反算：想让屏幕上的实际半径约 7px，就得设 7/CHILD_SCALE
+      const r = Math.round(7 / CHILD_SCALE);
+      body.setCircle(r, -r + 3, -r + 3);
     }
     this.killProjectile(src);
   }
@@ -380,7 +423,9 @@ export class CombatSystem {
       // 进化形态的主色 + 辅色一起带上，命中处按这个配色出特效
       p.setData('damage', damage);
       p.setData('crit', crit);
-      p.setData('pierce', def.pierce ?? 0);
+      // 进化形态一律全穿透：进化是「招式质变」，不该还被单个目标吃掉。
+      // 用 Infinity 而不是很大数字，killProjectile 判定 pierceLeft > 0 时不会成立。
+      p.setData('pierce', evo ? Number.POSITIVE_INFINITY : (def.pierce ?? 0));
       p.setData('life', 1600);
       p.setData('moveId', def.id);
       p.setData('color', fxColor);
@@ -397,14 +442,18 @@ export class CombatSystem {
         return;
       }
       p.setData('fx', fxKind);
-      p.setData('homing', homing);
+      // 池复用：必须显式清掉上一轮的分裂状态，否则复用到一发普通弹时
+      // 会带着上一个火球的 splitDef 立刻分裂（表现为「莫名其妙到处冒小弹」）。
+      p.setData('splitDef', def.style === 'fireball' ? def : undefined);
+      p.setData('splitDone', false);
+      p.setData('splitIn', def.style === 'fireball' ? 260 : 0);
+      // 进化后弹道自带追踪：这是「橙色圈只会往一个方向飘」的根因。
+      // 原来只在 traits 带 homing 时才追；进化后弹体变大、寿命更长，
+      // 若不重新瞄准就会沿着出生时的初速度一路飞出去、再也不打人。
+      // 进化弹体给它一个温和的追踪（转向速度比原生 homing 慢，不喧宾夺主）。
+      p.setData('homing', homing || !!evo);
+      p.setData('evoAim', !!evo && !homing);   // 标记：这是「进化附赠的追踪」，转向更慢
       p.setData('chain', chain);
-      // 火系分裂火球：飞行 260ms 后炸成多颗小子弹
-      if (def.style === 'fireball') {
-        p.setData('splitIn', 260);
-        p.setData('splitDone', false);
-        p.setData('splitDef', def);
-      }
       p.setData('chainLeft', chain ? 2 : 0);
       p.setData('hitList', []);          // 已命中目标，避免连锁重复打同一个
       const speed = homing ? (def.projectileSpeed ?? 400) * 0.8 : (def.projectileSpeed ?? 400);
@@ -412,6 +461,8 @@ export class CombatSystem {
       (p.body as Phaser.Physics.Arcade.Body).setCircle(6, -2, -2);
       p.setVelocity(Math.cos(ang) * speed, Math.sin(ang) * speed);
       p.setDepth(8);
+      // 追踪（含进化附赠的追踪）需要记住巡航速度，updateHoming 靠它重设速度
+      p.setData('speed', speed);
 
       if (evo?.scale) {
         // 进化形态：弹体统一按 evo.scale 放大，比任何原始形态都显眼
@@ -469,7 +520,11 @@ export class CombatSystem {
     const speed = (p.getData('speed') as number) ?? 320;
     const want = Math.atan2(target.y - p.y, target.x - p.x);
     const cur = Math.atan2(p.body!.velocity.y, p.body!.velocity.x);
-    const next = Phaser.Math.Angle.RotateTo(cur, want, 0.09);
+    // 进化附赠的追踪转向更软（0.035），原生 homing 用 0.09：
+    // 进化弹体本来就大、穿透、命中频繁，转太快会变成「自动锁定必中」，
+    // 手感上还是想让玩家看到它在空中拐个弯再吃上去。
+    const turn = p.getData('evoAim') ? 0.035 : 0.09;
+    const next = Phaser.Math.Angle.RotateTo(cur, want, turn);
     p.setVelocity(Math.cos(next) * speed, Math.sin(next) * speed);
   }
 
