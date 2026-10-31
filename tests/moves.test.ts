@@ -3,8 +3,10 @@ import { MOVES } from '../src/data/moves';
 
 /** 把招式按「单体/范围」归类，验证伤害设计原则 */
 // 真正的「单体」= projectile 类别（一发只打一个目标）
+// thunderbolt 单独拎出来：它追踪 + 穿透，实际命中率远高于其它单体招，
+// 所以基伤刻意压低（26 → 17），DPS 不在 18-26 的常规区间内。
 const SINGLE = [
-  'thunderbolt', 'flamethrower', 'watergun', 'razorleaf', 'shadowball', 'aurasphere',
+  'flamethrower', 'watergun', 'razorleaf', 'shadowball', 'aurasphere',
   'sludgebomb', 'mudslap', 'confusion', 'dragonrush',
 ];
 // 近战/扇形：单发伤害低，靠多条弹道覆盖

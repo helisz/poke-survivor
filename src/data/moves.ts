@@ -92,7 +92,9 @@ export const RARITY_ZH: Record<Rarity, string> = {
 export const MOVES: Record<string, MoveDef> = {
   thunderbolt: {
     id: 'thunderbolt', name: '十万伏特', pokeId: 25, type: '电', category: 'projectile', style: 'lightning',
-    color: 0xf7d02c, baseDamage: 26, cooldown: 1150, projectileSpeed: 520, pierce: 1,
+    // 伤害下调记录：原 26 → 17（-35%）。它自带追踪 + 穿透 + 无限射程，
+    // 实际命中率远高于其他招式，单体 DPS 必须压低才不会一家独大。
+    color: 0xf7d02c, baseDamage: 17, cooldown: 1150, projectileSpeed: 520, pierce: 1,
     desc: '向最近的敌人发射电球',
     traits: ['homing'],
     rarity: 'rare',

@@ -97,9 +97,11 @@ export class GameScene extends Phaser.Scene {
   private bossBarBg?: Phaser.GameObjects.Rectangle;
   private bossBarFill?: Phaser.GameObjects.Rectangle;
   private bossNameText?: Phaser.GameObjects.Text;
-  /** 终局 BOSS 实际刷出的宝可梦（决定血条名字） */
+  /** 当前 BOSS 实际刷出的宝可梦（决定血条名字与技能属性） */
   private bossPokemonName?: string;
   private bossPokemonId?: number;
+  /** 大 BOSS 三种技能变体轮转指针（参考伙伴招式的形态） */
+  private finalBossSkillStep = 0;
   private bossBarW = 300;
   private orbGroup!: Phaser.Physics.Arcade.Group;
   private healGroup!: Phaser.Physics.Arcade.Group;
@@ -617,7 +619,10 @@ export class GameScene extends Phaser.Scene {
       if (!this.bossSpawned[sec] && this.elapsed >= sec) {
         this.bossSpawned[sec] = true;
         const p = this.ringPosition(this.offscreenRadius(), SPAWN_BAND);
-        this.bossRef = this.enemies.spawn('boss', p.x, p.y, 1, 1, 26);
+        const mini = this.enemies.spawn('boss', p.x, p.y, 1, 1, 26);
+        this.bossRef = mini;
+        // 小 BOSS 也要吃「三技能轮转」：记录它刷的是哪只，才能给出对应属性招式
+        this.registerBossIdentity(mini);
         this.cameras.main.flash(400, 120, 0, 0);
         this.events.emit('boss-announce');
       }
@@ -1288,13 +1293,35 @@ export class GameScene extends Phaser.Scene {
     (this.children.getByName('bossHint') as Phaser.GameObjects.Text)?.destroy();
   }
 
-  /** 终局 BOSS 技能：按属性走不同招式，每招都带粒子效果 */
+  /** 记录 BOSS 身份（贴图 → 图鉴编号 → 技能属性）。小/大 BOSS 共用 */
+  private registerBossIdentity(boss: Phaser.Physics.Arcade.Sprite | null) {
+    if (!boss) return;
+    const pkId = Number(boss.texture.key.replace('pk_', ''));
+    this.bossPokemonId = pkId;
+    this.bossPokemonName = POKEDEX_NAME[pkId] ?? '神秘 BOSS';
+    this.finalBossSkillStep = 0;
+  }
+
+  /**
+   * BOSS 技能调度。
+   *
+   * - 小 BOSS（isFinal=false）：间隔长、只用 1 种技能，给玩家「它在打你」的压力，
+   *   但不会因为叠满三招而变成第二个终局 BOSS。
+   * - 终局 BOSS（isFinal=true）：三套变体**轮流**施放（轮转指针 finalBossSkillStep），
+   *   每套都带独立粒子/弹道，打段位感。暴怒后间隔缩短。
+   *
+   * 技能全部参考伙伴招式的形态（追踪弹 / 扇形散射 / 环形爆发 / 落雷 / 冲锋），
+   * 只是把"打怪"翻成"打玩家"。
+   */
   private updateBossSkill(dtMs: number) {
     const boss = this.bossRef;
-    if (!boss || !boss.active || !boss.getData('isFinal')) return;
+    if (!boss || !boss.active) return;
 
+    const isFinal = !!boss.getData('isFinal');
+    // 小 BOSS 4.2 秒一招，终局 BOSS 2.4 秒三招轮转
+    const baseInterval = isFinal ? 2400 : 4200;
     this.bossSkillTimer += dtMs;
-    if (this.bossSkillTimer < 2400) return;
+    if (this.bossSkillTimer < baseInterval) return;
     this.bossSkillTimer = 0;
 
     const hp = boss.getData('hp') as number;
@@ -1303,14 +1330,110 @@ export class GameScene extends Phaser.Scene {
     const prof = this.bossProfile();
     Sfx.bossSkill();
 
+    if (!isFinal) {
+      // 小 BOSS：只用「属性主招」，且不带暴怒增幅（威力减半）
+      this.castBossElementSkill(boss, prof, false, 0.55);
+      return;
+    }
+
+    // 终局 BOSS：三套变体轮转
+    const variants = this.finalBossVariants(prof);
+    const v = variants[this.finalBossSkillStep % variants.length];
+    this.finalBossSkillStep++;
+    v(boss, prof, enraged);
+  }
+
+  /** 按属性给出一套主招（小 BOSS 用 / 终局第一变体用） */
+  private castBossElementSkill(
+    boss: Phaser.Physics.Arcade.Sprite,
+    prof: { kind: string; main: number; accent: number; motes: number },
+    enraged: boolean,
+    power = 1,
+  ) {
     switch (prof.kind) {
       case 'dragon': this.skillDragonRush(boss, prof, enraged); break;
-      case 'storm':  this.skillThunderStorm(boss, prof, enraged); break;
+      case 'storm':  this.skillThunderStorm(boss, prof, enraged, power); break;
       case 'ice':    this.skillIceShards(boss, prof, enraged); break;
       case 'water':  this.skillTidalWave(boss, prof, enraged); break;
       case 'rock':   this.skillRockQuake(boss, prof, enraged); break;
       default:       this.skillPsyWave(boss, prof, enraged); break;
     }
+  }
+
+  /**
+   * 终局 BOSS 的三套技能变体。
+   *
+   * 设计思路是把伙伴的三种典型形态翻译成"打玩家"：
+   *   ① 属性主招 —— 该 BOSS 本命属性（追踪 / 扇形 / 环形都走各自的 skill）
+   *   ② 追踪狙击 —— 参考伙伴 homing 弹：三发跟踪光球锁定玩家当前位置
+   *   ③ 环形爆发 —— 参考伙伴 nova/光环：以自身为中心两圈交错弹幕 + 冲击环
+   * 三招轮流出现，玩家必须换三种躲法。
+   */
+  private finalBossVariants(prof: { kind: string; main: number; accent: number; motes: number }) {
+    return [
+      // ① 本命属性主招
+      (boss: Phaser.Physics.Arcade.Sprite, p: typeof prof, enraged: boolean) =>
+        this.castBossElementSkill(boss, p, enraged, 1),
+      // ② 追踪狙击：参考 homing，锁定玩家三连发
+      (boss: Phaser.Physics.Arcade.Sprite, p: typeof prof, enraged: boolean) =>
+        this.skillHomingSnipe(boss, p, enraged),
+      // ③ 环形爆发：参考 nova，双圈交错
+      (boss: Phaser.Physics.Arcade.Sprite, p: typeof prof, enraged: boolean) =>
+        this.skillNovaRing(boss, p, enraged),
+    ];
+  }
+
+  /** 变体②：追踪狙击 —— 三发瞄准玩家当前位置的光球，速度递减形成"追上来"的压迫感 */
+  private skillHomingSnipe(
+    boss: Phaser.Physics.Arcade.Sprite,
+    prof: { main: number; accent: number; motes: number },
+    enraged: boolean,
+  ) {
+    const fx = this.combat.fx;
+    const shots = enraged ? 4 : 3;
+    fx.castPulse(boss.x, boss.y, prof.accent, 30);
+    fx.shockRing(boss.x, boss.y, prof.main, 46, 300);
+
+    for (let i = 0; i < shots; i++) {
+      this.time.delayedCall(i * 180, () => {
+        if (!boss.active || this.runEnded) return;
+        // 每次重新瞄玩家 ---- 玩家跑动就躲得掉，站着不动必吃
+        const ang = Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
+        const jitter = (i - (shots - 1) / 2) * 0.22;
+        this.spawnBossBullet(boss.x, boss.y, ang + jitter, 210 + i * 15, prof.accent, 3.0);
+        fx.burst(boss.x, boss.y, prof.accent, 8, 160, 3, 240);
+      });
+    }
+    this.cameras.main.shake(120, 0.003);
+  }
+
+  /** 变体③：环形爆发 —— 两圈交错弹幕，圈间错开半个角度，留出缝隙 */
+  private skillNovaRing(
+    boss: Phaser.Physics.Arcade.Sprite,
+    prof: { main: number; accent: number; motes: number },
+    enraged: boolean,
+  ) {
+    const fx = this.combat.fx;
+    fx.shockRing(boss.x, boss.y, prof.accent, 34, 420);
+    this.cameras.main.shake(140, 0.004);
+
+    const rings = [
+      { n: enraged ? 16 : 13, spd: 175, delay: 0, color: prof.main, scale: 2.4 },
+      { n: enraged ? 13 : 11, spd: 230, delay: 260, color: prof.accent, scale: 2.0 },
+    ];
+    rings.forEach((r, ri) => {
+      this.time.delayedCall(r.delay, () => {
+        if (!boss.active || this.runEnded) return;
+        // 第二圈错开半格，形成交错缝隙
+        const offset = ri === 0 ? 0 : Math.PI / r.n;
+        for (let i = 0; i < r.n; i++) {
+          const a = offset + (Math.PI * 2 * i) / r.n;
+          this.spawnBossBullet(boss.x, boss.y, a, r.spd, r.color, r.scale);
+        }
+        fx.burst(boss.x, boss.y, r.color, prof.motes, 240, 4, 460);
+        fx.shockRing(boss.x, boss.y, r.color, 96, 340);
+      });
+    });
   }
 
   /** 按 BOSS 种类给出招式配置：颜色、粒子数、弹速都跟着属性走 */
@@ -1390,8 +1513,8 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  /** 电系：落雷三连，每道上一击落点周边再炸一圈 */
-  private skillThunderStorm(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean) {
+  /** 电系：落雷三连，每道上一击落点周边再炸一圈。power<1 用于小 BOSS 削弱 */
+  private skillThunderStorm(boss: Phaser.Physics.Arcade.Sprite, prof: { main: number; accent: number; motes: number }, enraged: boolean, power = 1) {
     const fx = this.combat.fx;
     const strikes = enraged ? 4 : 3;
     for (let k = 0; k < strikes; k++) {
@@ -1405,9 +1528,9 @@ export class GameScene extends Phaser.Scene {
         fx.bolt(boss.x, boss.y, tx, ty, prof.main);
         fx.burst(tx, ty, prof.main, prof.motes, 260, 4, 460);
         fx.shockRing(tx, ty, prof.accent, 80, 320);
-        // 落点伤害
+        // 落点伤害（power 让小 BOSS 版明显轻）
         const d = Phaser.Math.Distance.Between(tx, ty, this.player.x, this.player.y);
-        if (d < 54) this.player.takeDamage(enraged ? 12 : 10);
+        if (d < 54) this.player.takeDamage(Math.max(2, Math.round((enraged ? 12 : 10) * power)));
         this.cameras.main.shake(150, 0.006);
       });
     }
