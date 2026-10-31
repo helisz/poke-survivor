@@ -113,7 +113,15 @@ export class CombatSystem {
       if (pierceLeft > 0) {
         proj.setData('pierce', pierceLeft - 1);
       } else {
-        this.killProjectile(proj);
+        // 【火球命中即炸】飞行到期的分裂只在 `update` 里处理，命中这条路以前是
+        // 直接 killProjectile —— 于是火球打到怪身上是「凭空消失」，不会爆开，
+        // 分裂伤害也拿不到。这里让带 splitDef 的弹体在命中时也走分裂。
+        // splitFireball 内部会把主弹体回收，所以不要再 killProjectile。
+        if (proj.getData('splitDef') && !proj.getData('splitDone')) {
+          this.splitFireball(proj);
+        } else {
+          this.killProjectile(proj);
+        }
       }
     });
   }
