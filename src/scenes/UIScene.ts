@@ -460,6 +460,36 @@ export class UIScene extends Phaser.Scene {
       fontFamily: 'sans-serif', fontSize: '17px', color: '#041018', fontStyle: 'bold',
     }).setOrigin(0.5));
 
+    // 放弃本关：与开发者面板同款「点两次确认」。
+    // 不能只靠双击间隔判断 —— 误触一次就丢整局，所以第一次点了要变文案+变色，
+    // 3 秒内不确认自动解除。
+    const qy = height / 2 + 70;
+    const quitBtn = new RoundedPanel(this, width / 2, qy, 168, 38, 0x3a1f22, 1, { radius: 10 })
+      .setStrokeStyle(1.5, 0x6f3a3f).setInteractive({ useHandCursor: true });
+    attachPressFeedback(quitBtn);
+    const quitTxt = this.add.text(width / 2, qy, '放弃本关', {
+      fontFamily: 'sans-serif', fontSize: '15px', color: '#e08a90', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    let armed = false;
+    let armTimer: Phaser.Time.TimerEvent | null = null;
+    quitBtn.on('pointerdown', () => {
+      if (!armed) {
+        armed = true;
+        quitTxt.setText('再点一次确认');
+        quitBtn.setFillStyle(0x5a2a2e).setStrokeStyle(1.5, 0x9a4a52);
+        armTimer?.remove();
+        armTimer = this.time.delayedCall(3000, () => {
+          armed = false;
+          quitTxt.setText('放弃本关');
+          quitBtn.setFillStyle(0x3a1f22).setStrokeStyle(1.5, 0x6f3a3f);
+        });
+        return;
+      }
+      armTimer?.remove();
+      this.quitToMenu();
+    });
+    c.add([quitBtn, quitTxt]);
+
     this.pauseOverlay = c;
   }
 
