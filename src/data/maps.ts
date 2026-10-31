@@ -189,16 +189,19 @@ export const MAP_SEGMENTS = MAP_THEMES.length;
 export const STAGE_COUNT = MAP_THEMES.length;
 
 /**
- * 关卡强度倍率：每往后一关，怪的攻击 +15%、血量 +20%、速度 +2%，连乘。
+ * 关卡强度倍率：每往后一关，怪的攻击 +15%、速度 +2%（连乘）。
  *
- * 第 0 关（草原）为 1×，第 5 关（遗迹）依次累乘到：
- *   攻击 1.15^5 ≈ 2.01×，血量 1.20^5 ≈ 2.49×，速度 1.02^5 ≈ 1.10×
+ * 血量改为**线性**增长：1 + 0.16 × (关卡-1)。
+ * 原来血量用 1.20^n 连乘，第 6 关就到 2.49×，叠加时间成长后 5 分钟冲到
+ * 3.86×，升级速度根本追不上，第 3 关起就明显打不动。
+ * 线性后：第 3 关 1.32×、第 6 关 1.80×，与玩家「每级 +42%」的养成曲线匹配。
  *
  * 注意：这是「关卡本身」的倍率，取代了旧版每张地图自带的
  * enemyHpMul / enemySpeedMul。地图的刷怪密度与经验倍率仍然保留。
  */
 export const STAGE_ATK_STEP = 1.15;
-export const STAGE_HP_STEP = 1.20;
+/** 血量每关线性增量（不再是指数底数） */
+export const STAGE_HP_ADD = 0.16;
 export const STAGE_SPD_STEP = 1.02;
 
 export interface StageScale {
@@ -214,7 +217,7 @@ export function stageScale(stage: number): StageScale {
   const n = Math.max(0, Math.min(STAGE_COUNT - 1, Math.floor(stage)));
   return {
     atk: Math.pow(STAGE_ATK_STEP, n),
-    hp: Math.pow(STAGE_HP_STEP, n),
+    hp: 1 + STAGE_HP_ADD * n,
     spd: Math.pow(STAGE_SPD_STEP, n),
   };
 }

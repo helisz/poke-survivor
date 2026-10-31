@@ -216,6 +216,8 @@ export class CombatSystem {
         const v = p.body!.velocity;
         const ang = Math.atan2(v.y, v.x);
         this.fx.shellTrail(p, p.x, p.y, ang, p.getData('color') as number, dtMs);
+        // 火球：弹体周围烧一圈火舌 + 内部翻腾的亮芯，比普通炮弹更"炸"
+        if (p.getData('fireball')) this.fx.fireTrail(p.x, p.y, ang, p.getData('color') as number, dtMs);
         // 进化弹体：额外撒辅色残影，拖尾明显更粗更长
         const trail = (p.getData('evoTrail') as number) ?? 0;
         if (trail > 0) {
@@ -237,7 +239,10 @@ export class CombatSystem {
     const color = src.getData('color') as number;
     const crit = (src.getData('crit') as boolean) ?? false;
     const n = 6;
-    this.fx.burst(src.x, src.y, color, 18, 200, 3.2, 320);
+    // 3D 透视火球：核心白 → 中圈亮黄 → 外圈橘 → 拖尾暗红，四色叠出体积感
+    this.fx.burst(src.x, src.y, 0xffb347, 26, 240, 4.4, 360);
+    this.fx.burst(src.x, src.y, 0xffe98a, 16, 160, 3.2, 300);
+    this.fx.shockRing(src.x, src.y, 0xff8c1a, 34, 260);
     for (let i = 0; i < n; i++) {
       const a = (Math.PI * 2 * i) / n + Math.random() * 0.3;
       const p = this.projectiles.get(src.x, src.y, 'dot') as Phaser.Physics.Arcade.Image | null;
@@ -383,6 +388,8 @@ export class CombatSystem {
       p.setData('evolved', !!evo);
       p.setData('evoTrail', evo?.trail ?? 0);
       p.setData('evoHit', evo?.hitParticles ?? 0);
+      // 火球流派：飞行途中持续冒火，分裂时更炸
+      p.setData('fireball', def.style === 'fireball');
       // 电系：不发弹体，直接从施法者身上放射电弧并结算伤害
       if (def.style === 'lightning') {
         this.killProjectile(p);
@@ -756,7 +763,7 @@ export class CombatSystem {
    * 震屏必须节流：进化招式一秒可能打七八下，每下都震会晕。
    * 这里限制到每 220ms 最多震一次，其余只出粒子和冲击环。
    */
-  private evoHitFx(x: number, y: number, evo: { color: number; accent: number; particles: number; shake: boolean }) {
+  public evoHitFx(x: number, y: number, evo: { color: number; accent: number; particles: number; shake: boolean }) {
     // 主色粒子向外炸，辅色点缀形成双色爆点
     this.fx.burst(x, y, evo.color, evo.particles, 260, 3.4, 360);
     this.fx.burst(x, y, evo.accent, Math.max(6, Math.round(evo.particles * 0.4)), 180, 2.6, 300);

@@ -206,6 +206,30 @@ export class FxSystem {
     }
   }
 
+  /** 火球拖尾：弹体外层橘红光晕 + 内芯亮黄，翻腾感强 */
+  fireTrail(x: number, y: number, ang: number, color: number, dtMs: number) {
+    const back = ang + Math.PI;
+    const rate = Math.min(6, Math.ceil(dtMs / 11));
+    for (let i = 0; i < rate; i++) {
+      const spread = (Math.random() - 0.5) * 1.5;
+      const sp = 60 + Math.random() * 170;
+      const light = Math.random();
+      this.spawn(
+        x + Math.cos(back + spread) * 4 + (Math.random() - 0.5) * 8,
+        y + Math.sin(back + spread) * 4 + (Math.random() - 0.5) * 8,
+        Math.cos(back + spread) * sp,
+        Math.sin(back + spread) * sp,
+        light < 0.3 ? 0xfff0b0 : light < 0.65 ? 0xffc247 : color,
+        3 + Math.random() * 3.4,
+        220 + Math.random() * 200,
+        { drag: 0.86 },
+      );
+    }
+    // 弹体胸口的一颗亮芯，制造"正在燃烧"的错觉
+    this.spawn(x + (Math.random() - 0.5) * 6, y + (Math.random() - 0.5) * 6,
+      0, 0, 0xffffff, 2.6, 90, { shrink: true, drag: 1 });
+  }
+
   /**
    * 炮弹尾焰：弹体每帧调用，沿速度反方向喷粒子
    * 用 key 缓存上一帧位置，还能顺手画一条渐隐拖尾

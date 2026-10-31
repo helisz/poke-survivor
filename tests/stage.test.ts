@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
   MAP_THEMES, STAGE_COUNT, stageScale,
-  STAGE_ATK_STEP, STAGE_HP_STEP, STAGE_SPD_STEP,
+  STAGE_ATK_STEP, STAGE_HP_ADD, STAGE_SPD_STEP,
 } from '../src/data/maps';
 import { loadSave, writeSave, PERM_EMPTY } from '../src/data/stats';
 
@@ -24,7 +24,7 @@ describe('关卡：数量与顺序', () => {
   });
 });
 
-describe('关卡：强度倍率连乘', () => {
+describe('关卡：强度倍率', () => {
   it('第 1 关是基准 1×', () => {
     const s = stageScale(0);
     expect(s.atk).toBe(1);
@@ -32,27 +32,27 @@ describe('关卡：强度倍率连乘', () => {
     expect(s.spd).toBe(1);
   });
 
-  it('每关攻击 +15%、血量 +20%、速度 +2%（连乘）', () => {
+  it('攻击 +15%、速度 +2% 连乘；血量线性 +0.16', () => {
     expect(STAGE_ATK_STEP).toBe(1.15);
-    expect(STAGE_HP_STEP).toBe(1.20);
+    expect(STAGE_HP_ADD).toBe(0.16);
     expect(STAGE_SPD_STEP).toBe(1.02);
 
     for (let n = 1; n < STAGE_COUNT; n++) {
       const prev = stageScale(n - 1);
       const cur = stageScale(n);
       expect(cur.atk).toBeCloseTo(prev.atk * 1.15, 6);
-      expect(cur.hp).toBeCloseTo(prev.hp * 1.20, 6);
+      expect(cur.hp).toBeCloseTo(prev.hp + 0.16, 6);
       expect(cur.spd).toBeCloseTo(prev.spd * 1.02, 6);
     }
   });
 
-  it('第 6 关（遗迹）攻击 2.01×、血量 2.49×、速度 1.10×', () => {
+  it('第 6 关（遗迹）攻击 2.01×、血量 1.80×、速度 1.10×', () => {
     const s = stageScale(5);
     expect(s.atk).toBeCloseTo(Math.pow(1.15, 5), 6);   // 2.0114
-    expect(s.hp).toBeCloseTo(Math.pow(1.20, 5), 6);    // 2.4883
+    expect(s.hp).toBeCloseTo(1 + 0.16 * 5, 6);         // 1.80
     expect(s.spd).toBeCloseTo(Math.pow(1.02, 5), 6);   // 1.1041
     expect(s.atk).toBeCloseTo(2.01, 2);
-    expect(s.hp).toBeCloseTo(2.49, 2);
+    expect(s.hp).toBeCloseTo(1.80, 2);
     expect(s.spd).toBeCloseTo(1.10, 2);
   });
 
