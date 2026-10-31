@@ -28,10 +28,12 @@
         position: fixed;
         top: 0;
         left: 0;
-        width: 100vw;
+        /* 宽度用 100% 而非 100vw：100vw 含滚动条宽度，会和 JS 读到的
+           innerWidth 差几个像素，画布被拉伸后就是「画面偏大」的来源。 */
+        width: 100%;
         height: 100vh;          /* 老浏览器兜底 */
         height: 100dvh;         /* 现代浏览器：真实可见高度 */
-        height: var(--vh, 100dvh); /* JS 用 visualViewport 精确校准 */
+        height: var(--vh, 100dvh); /* JS 用视口校准值精确覆盖 */
       }
       canvas { display: block; }
       #boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: #449ddf; font: 600 16px/1.6 -apple-system, "PingFang SC", sans-serif; letter-spacing: 2px; }

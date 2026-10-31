@@ -16,14 +16,30 @@ import { loadMuteSetting } from './systems/Audio';
 import { registerScene } from './systems/SceneFlow';
 
 /**
- * 移动端真实可用高度。
- * iOS/Android 地址栏 + 底部工具栏会吃掉视口，100vh 拿的是"工具栏隐藏时的最大高度"，
- * 导致底部 UI 被工具栏盖住。visualViewport 给出真正可见的那块，最准。
+ * 移动端真实可用视口。
+ *
+ * 踩过的坑：首屏直接用 visualViewport 取尺寸，iOS Safari 在地址栏尚未收起、
+ * 或者页面刚插入 DOM 时，会返回一个偏小的宽度/高度。Phaser 按这个小尺寸
+ * 初始化画布，浏览器再把画布拉伸铺满 #game → 画面「被放大」，
+ * 必须刷新一次（此时地址栏状态稳定）才恢复正常。
+ *
+ * 所以规则改成：
+ *   1. 宽度恒用 innerWidth —— 它不受地址栏影响，最稳。
+ *   2. 高度取 innerHeight 与 visualViewport.height 的较小值 —— 地址栏展开时
+ *      两者一致，键盘弹出时 visualViewport 更小，正好取到真正可见的那块。
+ *   3. 尺寸取整并做下限保护，避免拿到 0 或负值把画布搞崩。
  */
 function viewportSize() {
   const vv = (window as any).visualViewport;
-  const w = Math.round(vv?.width || window.innerWidth);
-  const h = Math.round(vv?.height || window.innerHeight);
+  const iw = window.innerWidth || 0;
+  const ih = window.innerHeight || 0;
+  const vvh = vv?.height || ih;
+
+  // 宽度只信 innerWidth；visualViewport.width 在 iOS 首屏会偏小
+  const w = Math.max(200, Math.round(iw || vv?.width || 0));
+  // 高度取更小的那个（键盘弹出时 vv 更小），但不超过 innerHeight
+  const h = Math.max(200, Math.round(Math.min(ih || vvh, vvh)));
+
   // 同步写 CSS 变量，让 #game 容器跟着变
   document.documentElement.style.setProperty('--vh', h + 'px');
   return { w, h };
@@ -142,6 +158,8 @@ function syncViewport() {
 
     const { w, h } = viewportSize();
     const cur = game.scale.gameSize;
+    // Boot 还在 loading 时不要 resize：会打断加载流程，场景停在 LOADING 永远进不去
+    if (game.scene.isActive('Boot') && !game.scene.isActive('Menu')) return;
     if (Math.abs(cur.width - w) > 1 || Math.abs(cur.height - h) > 1) {
       game.scale.resize(w, h);
     }
@@ -150,6 +168,31 @@ function syncViewport() {
 window.addEventListener('resize', syncViewport);
 window.addEventListener('orientationchange', syncViewport);
 (window as any).visualViewport?.addEventListener('resize', syncViewport);
+// 首屏校准：上面的监听只在「尺寸变化」时才跑，而画布是用启动瞬间的 vp0 建的。
+// iOS 如果那一瞬间读到了暂态尺寸，之后就算不再 resize，画面也会一直放大着，
+// 必须刷新才好 —— 这就是用户看到的 bug。所以启动后主动校一次。
+//
+// 注意：不能在 Boot 还在 loading 时调 game.scale.resize()，
+// 那会把 Boot 的加载流程打断（场景永远停在 LOADING 状态，卡在 LOADING… 界面）。
+// 所以等 Boot 走到 Menu 之后再校。
+function calibrateOnce(delay: number) {
+  window.setTimeout(() => {
+    if (keyboardOpen()) return;
+    const cur = game.scale.gameSize;
+    // 只在「非加载中」才动尺寸
+    const booting = game.scene.isActive('Boot') && !game.scene.isActive('Menu');
+    if (booting) return;
+    const { w, h } = viewportSize();
+    if (Math.abs(cur.width - w) > 1 || Math.abs(cur.height - h) > 1) {
+      game.scale.resize(w, h);
+    }
+  }, delay);
+}
+// Menu 真正跑起来之后才校准（此时 Boot 已退场，resize 不会打断任何加载）
+game.scene.getScene('Menu')?.events.once('create', () => {
+  calibrateOnce(120);
+  calibrateOnce(650);   // 等地址栏收起动画结束再补一次
+});
 // 输入框失焦后可能不再触发 resize，兜一次
 document.addEventListener('focusout', () => window.setTimeout(syncViewport, 60));
 

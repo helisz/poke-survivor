@@ -272,6 +272,42 @@ export class MenuScene extends Phaser.Scene {
 
     // 已开启过（同一会话返回主页）就直接补上齿轮
     if (devRevealed()) this.showDevGear(gearX, TOP_Y);
+
+    // GitHub 链接：放在问号正下方（竖排，不挤占顶部横排空间）
+    this.buildGithubButton(helpX, TOP_Y);
+  }
+
+  /** GitHub 仓库链接按钮：问号正下方，点了在新标签页打开仓库 */
+  private buildGithubButton(x: number, topY: number) {
+    const GAP = 40; // 顶部图标直径 34 + 6px 间距
+    const y = topY + GAP;
+    const c = this.add.container(x, y).setDepth(1900);
+    const bg = this.add.circle(0, 0, 17, UI.secondary, 0.92)
+      .setStrokeStyle(1.5, UI.primaryStroke, 0.75).setInteractive({ useHandCursor: true });
+
+    // Phaser 没有 GitHub 图标字体，用 Graphics 手绘 Octocat 轮廓：
+    // 圆头 + 两只猫耳 + 下方身体/尾巴，够识别就行
+    const g = this.add.graphics();
+    g.fillStyle(0xe8eef6, 1);
+    g.fillCircle(0, 0.5, 6.2);                            // 头
+    g.fillTriangle(-6.4, -3.2, -2.6, -6.2, -1.9, -1.4);   // 左耳
+    g.fillTriangle(6.4, -3.2, 2.6, -6.2, 1.9, -1.4);      // 右耳
+    g.fillRect(-4.4, 4.4, 8.8, 3.4);                      // 身体底座
+    // 眼睛挖空，让猫头有辨识度
+    g.fillStyle(UI.secondary, 1);
+    g.fillCircle(-2.3, 0.4, 1.05);
+    g.fillCircle(2.3, 0.4, 1.05);
+
+    c.add([bg, g]);
+
+    bg.on('pointerdown', (p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
+      ev?.stopPropagation?.();
+      Sfx.click();
+      window.open('https://github.com/helisz/poke-survivor', '_blank', 'noopener');
+    });
+    bg.on('pointerover', () => bg.setFillStyle(UI.secondaryHover, 0.95));
+    bg.on('pointerout', () => bg.setFillStyle(UI.secondary, 0.92));
+    this.scale.on('resize', () => c.setPosition(this.scale.width - 34, y));
   }
 
   /** 连点计数：满 5 次把齿轮放出来 */
