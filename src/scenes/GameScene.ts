@@ -368,6 +368,9 @@ export class GameScene extends Phaser.Scene {
   /** 时间到：刷出终局 BOSS，杀掉才算过关 */
   private spawnFinalBoss() {
     this.finalBossSpawned = true;
+    // 登场瞬间强制吸一次经验：清场会连带抹掉一地经验球，
+    // 玩家打了 5 分钟的小怪成果不该就这么蒸发。
+    this.vacuumAllOrbs();
     // 终局 BOSS 同样从屏幕外进场，给玩家一个"它来了"的准备时间
     const p = this.ringPosition(this.offscreenRadius(), SPAWN_BAND);
     const boss = this.enemies.spawn('boss', p.x, p.y, 1, 1, 30);
@@ -518,15 +521,33 @@ export class GameScene extends Phaser.Scene {
     this.drawPickupArrows();
   }
 
+  /**
+   * 触发一次「磁力」：把场上所有经验球标记为吸取状态，它们会以 1200 的速度飞向玩家。
+   *
+   * 磁力道具和关底 BOSS 登场共用这一段 —— BOSS 登场前清场会白扔掉一地的经验，
+   * 玩家打了半天的小怪成果全没了。改成登场瞬间自动吸一次，
+   * 观感上还能和「红屏 + 震屏」叠成一个有节奏的转场。
+   */
+  private vacuumAllOrbs() {
+    let n = 0;
+    for (const o of this.orbGroup.getChildren() as Phaser.Physics.Arcade.Image[]) {
+      if (!o.active) continue;
+      o.setData('magnetized', true);
+      n++;
+    }
+    // 吸取时从玩家身上放一圈波纹，让「吸」这个动作有视觉落点
+    if (n > 0) {
+      this.combat.fx.shockRing(this.player.x, this.player.y, 0xffd166, 120, 380);
+      this.combat.fx.burst(this.player.x, this.player.y, 0xffe066, 14, 220, 3, 320);
+    }
+  }
+
   private applyPickup(obj: Phaser.Physics.Arcade.Image) {
     const kind = obj.getData('kind') as PickupKind;
     const def = PICKUP_DEFS[kind];
     if (kind === 'magnet') {
       // 吸取全场经验球
-      for (const o of this.orbGroup.getChildren() as Phaser.Physics.Arcade.Image[]) {
-        if (!o.active) continue;
-        o.setData('magnetized', true);
-      }
+      this.vacuumAllOrbs();
       this.cameras.main.flash(220, 120, 40, 40);
     } else if (kind === 'shield') {
       this.shieldTimer = 15;
