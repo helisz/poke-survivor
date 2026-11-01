@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>宝可梦 · 招式一览</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --bg:#0a0f14; --panel:#111c26; --line:#1e2f3c; --ink:#e8f2f8; --dim:#7d96a8; --titu:#449ddf; }
+  html, body { background:var(--bg); color:var(--ink);
+    font: 16px/1.5 -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    -webkit-text-size-adjust:100%; }
+  body { padding: 16px max(12px, env(safe-area-inset-left)) calc(28px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-right));
+    max-width: 720px; margin: 0 auto; }
+  header { position: sticky; top:0; z-index:5; background:linear-gradient(var(--bg) 80%, transparent);
+    padding: 8px 0 12px; }
+  h1 { font-size: 20px; font-weight: 800; letter-spacing:.4px; }
+  h1 em { color: var(--titu); font-style: normal; }
+  .sub { color: var(--dim); font-size: 12.5px; margin-top: 3px; }
+  ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .row { display:flex; align-items:center; gap: 11px;
+    background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--c);
+    border-radius: 11px; padding: 9px 12px; }
+  .ico { flex: 0 0 52px; width:52px; height:52px; image-rendering: pixelated;
+    background: radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--c) 24%, transparent), transparent 72%);
+    border-radius: 9px; }
+  .info { min-width: 0; flex: 1; }
+  .l1 { display:flex; align-items:center; gap: 6px; font-size: 16px; font-weight: 700; letter-spacing:.3px; }
+  .tag { font-size: 10.5px; font-weight: 700; color: #08111a; background: var(--c);
+    padding: 1px 6px; border-radius: 999px; }
+  .l2 { font-size: 13px; line-height: 1.5; margin-top: 2px; color: var(--dim); white-space: nowrap; }
+  .l2 b { color: var(--c); font-weight: 700; }
+  .l2 .d { color: #a8bfd0; margin-left: 5px; }
+  .l2 .m { color: #5d7385; font-size: 11px; margin-left: 6px; font-variant-numeric: tabular-nums; }
+  @media (max-width: 380px) {
+    .ico { flex-basis:46px; width:46px; height:46px; }
+    .l1 { font-size: 15px; }
+    .l2 { font-size: 11.5px; }
+    .l2 .m { display:none; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>宝可梦 · <em>招式一览</em></h1>
+    <div class="sub">共 24 只 · 每只携带 1 个专属招式</div>
+  </header>
+  <ul>
+    <li class="row" style="--c:#f7d02c">
+      <img class="ico" src="assets/pokemon/025.png" alt="皮卡丘" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">皮卡丘<span class="tag">电</span></div>
+        <div class="l2"><b>十万伏特</b><span class="d">电球追踪敌人</span><span class="m">弹道·12·0.62s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#f0703c">
+      <img class="ico" src="assets/pokemon/006.png" alt="喷火龙" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">喷火龙<span class="tag">火</span></div>
+        <div class="l2"><b>喷射火焰</b><span class="d">快速喷出穿透火焰</span><span class="m">弹道·9·0.40s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#4592e0">
+      <img class="ico" src="assets/pokemon/009.png" alt="水箭龟" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">水箭龟<span class="tag">水</span></div>
+        <div class="l2"><b>水枪</b><span class="d">同时射出两股水流</span><span class="m">弹道·10·0.52s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#63c256">
+      <img class="ico" src="assets/pokemon/003.png" alt="妙蛙花" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">妙蛙花<span class="tag">草</span></div>
+        <div class="l2"><b>飞叶快刀</b><span class="d">高穿透飞叶</span><span class="m">弹道·8·0.56s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#b8b8a8">
+      <img class="ico" src="assets/pokemon/143.png" alt="卡比兽" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">卡比兽<span class="tag">一般</span></div>
+        <div class="l2"><b>泰山压顶</b><span class="d">以自身为中心重压</span><span class="m">范围·30·1.80s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#8a5fbf">
+      <img class="ico" src="assets/pokemon/094.png" alt="耿鬼" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">耿鬼<span class="tag">幽灵</span></div>
+        <div class="l2"><b>暗影球</b><span class="d">缓慢但高伤的暗影球</span><span class="m">弹道·18·0.90s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#6a4fd0">
+      <img class="ico" src="assets/pokemon/149.png" alt="快龙" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">快龙<span class="tag">龙</span></div>
+        <div class="l2"><b>龙之爪</b><span class="d">身前横扫近战</span><span class="m">近战·22·0.70s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#d0402c">
+      <img class="ico" src="assets/pokemon/448.png" alt="路卡利欧" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">路卡利欧<span class="tag">格斗</span></div>
+        <div class="l2"><b>波导弹</b><span class="d">追踪波导弹</span><span class="m">弹道·16·0.80s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#f0609c">
+      <img class="ico" src="assets/pokemon/282.png" alt="沙奈朵" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">沙奈朵<span class="tag">超能</span></div>
+        <div class="l2"><b>精神强念</b><span class="d">持续超能光环</span><span class="m">光环·6·0.30s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#4592e0">
+      <img class="ico" src="assets/pokemon/130.png" alt="暴鲤龙" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">暴鲤龙<span class="tag">水</span></div>
+        <div class="l2"><b>水流尾</b><span class="d">大幅扫尾近战</span><span class="m">近战·26·0.90s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#b8a038">
+      <img class="ico" src="assets/pokemon/248.png" alt="班基拉斯" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">班基拉斯<span class="tag">岩石</span></div>
+        <div class="l2"><b>岩崩</b><span class="d">落石范围爆发</span><span class="m">范围·34·2.20s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#f7d02c">
+      <img class="ico" src="assets/pokemon/466.png" alt="电击魔兽" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">电击魔兽<span class="tag">电</span></div>
+        <div class="l2"><b>雷光拳</b><span class="d">快速电拳</span><span class="m">近战·20·0.60s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#f0703c">
+      <img class="ico" src="assets/pokemon/078.png" alt="烈焰马" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">烈焰马<span class="tag">火</span></div>
+        <div class="l2"><b>闪焰冲锋</b><span class="d">冲锋火焰近战</span><span class="m">近战·28·1.00s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#d0a848">
+      <img class="ico" src="assets/pokemon/028.png" alt="穿山王" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">穿山王<span class="tag">地面</span></div>
+        <div class="l2"><b>地震</b><span class="d">大范围地面爆破</span><span class="m">范围·40·2.50s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#f0703c">
+      <img class="ico" src="assets/pokemon/038.png" alt="九尾" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">九尾<span class="tag">火</span></div>
+        <div class="l2"><b>火焰旋涡</b><span class="d">火焰光环持续灼烧</span><span class="m">光环·5·0.30s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#9aa8b8">
+      <img class="ico" src="assets/pokemon/208.png" alt="大钢蛇" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">大钢蛇<span class="tag">钢</span></div>
+        <div class="l2"><b>铁头</b><span class="d">钢之头槌</span><span class="m">近战·24·0.80s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#f0609c">
+      <img class="ico" src="assets/pokemon/196.png" alt="太阳伊布" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">太阳伊布<span class="tag">超能</span></div>
+        <div class="l2"><b>晨光</b><span class="d">恢复自身生命</span><span class="m">召唤·0·6.00s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#a040a0">
+      <img class="ico" src="assets/pokemon/034.png" alt="尼多王" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">尼多王<span class="tag">毒</span></div>
+        <div class="l2"><b>污泥炸弹</b><span class="d">投掷污泥弹</span><span class="m">弹道·14·0.70s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#f0703c">
+      <img class="ico" src="assets/pokemon/257.png" alt="火焰鸡" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">火焰鸡<span class="tag">火</span></div>
+        <div class="l2"><b>火焰踢</b><span class="d">火焰飞踢</span><span class="m">近战·26·0.75s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#4592e0">
+      <img class="ico" src="assets/pokemon/260.png" alt="巨沼怪" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">巨沼怪<span class="tag">水</span></div>
+        <div class="l2"><b>泥巴射击</b><span class="d">快速双发泥浆</span><span class="m">弹道·11·0.45s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#63c256">
+      <img class="ico" src="assets/pokemon/254.png" alt="蜥蜴王" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">蜥蜴王<span class="tag">草</span></div>
+        <div class="l2"><b>叶刃</b><span class="d">利刃横扫</span><span class="m">近战·25·0.85s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#f0609c">
+      <img class="ico" src="assets/pokemon/065.png" alt="胡地" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">胡地<span class="tag">超能</span></div>
+        <div class="l2"><b>念力</b><span class="d">高穿透念力波</span><span class="m">弹道·13·0.50s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#b8b8a8">
+      <img class="ico" src="assets/pokemon/115.png" alt="袋兽" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">袋兽<span class="tag">一般</span></div>
+        <div class="l2"><b>连续拳</b><span class="d">超快三段拳</span><span class="m">近战·8·0.32s</span></div>
+      </div>
+    </li>
+    <li class="row" style="--c:#6a4fd0">
+      <img class="ico" src="assets/pokemon/445.png" alt="烈咬陆鲨" loading="lazy" width="52" height="52" />
+      <div class="info">
+        <div class="l1">烈咬陆鲨<span class="tag">龙</span></div>
+        <div class="l2"><b>龙之俯冲</b><span class="d">高速穿透冲击</span><span class="m">弹道·21·0.95s</span></div>
+      </div>
+    </li>
+  </ul>
+</body>
+</html>

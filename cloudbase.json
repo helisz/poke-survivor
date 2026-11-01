@@ -2,14 +2,13 @@
   "version": "2.0",
   "$schema": "https://framework.service.tcloudbase.com/schema.json",
   "framework": {
-    "name": "vite",
+    "name": "static",
     "plugins": {
       "client": {
         "use": "@cloudbase/framework-plugin-website",
         "inputs": {
-          "outputPath": "./dist",
-          "cloudPath": "/poke-survivor",
-          "buildCommand": "npm ci && npm run build"
+          "outputPath": "/",
+          "cloudPath": "/poke-survivor"
         }
       }
     }
