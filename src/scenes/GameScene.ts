@@ -11,7 +11,7 @@ import { Ground } from '../systems/Ground';
 import { PickupSystem } from '../systems/PickupSystem';
 import { PICKUP_DEFS, type PickupKind } from '../data/pickups';
 import type { TraitId } from '../data/stats';
-import { EVOLUTIONS, canEvolve, evoLadderFor, type EvolutionDef } from '../data/evolutions';
+import { EVOLUTIONS, canEvolve, evoLadderFor, EVOLVE_MIN_MOVE_LEVEL, type EvolutionDef } from '../data/evolutions';
 import { applyPerm, rerollsPerRun } from '../data/stats';
 import { POKEMON_PLAYABLE, POKEDEX_NAME, POKEDEX_TYPE, BOSS_POOL } from '../data/pokedex';
 import { ensureSprites } from '../data/lazySprites';
@@ -379,8 +379,10 @@ export class GameScene extends Phaser.Scene {
       const pkId = Number(texKey.replace('pk_', ''));
       this.bossPokemonName = POKEDEX_NAME[pkId] ?? '神秘 BOSS';
       this.bossPokemonId = pkId;
-      // BOSS 血量同样吃关卡倍率；终局 BOSS 血量翻倍（6600 → 13200 基础）
-      const hp = 3000 * 2.2 * 2 * this.stageScale.hp;
+      // BOSS 血量同样吃关卡倍率；终局 BOSS 血量很高。
+      // 原 3000 × 2.2 × 2 = 13200；这里再乘 3 → 39600 基础。
+      // 后期玩家 DPS 涨得比预期快，13200 撑不过 20 秒，Boss 战没有压迫感。
+      const hp = 3000 * 2.2 * 2 * 3 * this.stageScale.hp;
       boss.setData('hp', hp);
       boss.setData('maxHp', hp);
       boss.setData('isFinal', true);
@@ -1026,16 +1028,21 @@ export class GameScene extends Phaser.Scene {
       const ladder = evoLadderFor(moveId, stage);
       if (!ladder) continue;
       const next = ladder.def;
-      // 第一次进化：玩家总等级 / 招式等级任一满足。
+      // 第一次进化：招式必须先到 EVOLVE_MIN_MOVE_LEVEL（5 级）——
+      // 这是「刚抽到的伙伴不能立刻进化」的硬闸，写在 EvolutionDef.require 里。
+      // 补上的原有条件：玩家总等级 / 招式 8 级任一满足。
       // 注意这里不再传 elapsed —— 进化不认「存活时长」，时间到点不会白送进化。
-      const moveCtx = { ...ctx, moveLevel: this.combat.getMoveLevel(moveId) };
+      const moveLv = this.combat.getMoveLevel(moveId);
+      const moveCtx = { ...ctx, moveLevel: moveLv };
       // 多级进化只看招式等级门槛（每 5 级一次），不再看玩家总等级
       if (stage > 0) {
-        if (this.combat.getMoveLevel(moveId) >= ladder.moveLevel) {
+        if (moveLv >= ladder.moveLevel) {
           out.push({ moveId, evo: next });
         }
         continue;
       }
+      // 保底再挡一次：即使数据里漏了 require，也不允许 5 级以下进化
+      if (moveLv < EVOLVE_MIN_MOVE_LEVEL) continue;
       if (canEvolve(next, moveCtx)) out.push({ moveId, evo: next });
     }
     return out;
@@ -1078,11 +1085,19 @@ export class GameScene extends Phaser.Scene {
       const lv = this.combat.getMoveLevel(id);
       // 进化后：卡面用进化后的招式名和宝可梦，玩家看到的就是雷丘而不是皮卡丘
       const evoName = this.combat.getEvoName(id);
+      // 未进化且离进化门槛还差等级：在描述里给个明确进度，
+      // 让玩家知道「这只伙伴还练不够，不能进化」，而不是以为进化坏了
+      const evoChain = EVOLUTIONS[id];
+      const nearEvo = evoChain && evoChain.length > 0
+        && this.combat.getEvoStage(id) === 0
+        && lv < EVOLVE_MIN_MOVE_LEVEL;
       const displayName = evoName ?? def.name;
       const displayPokeId = this.combat.getDisplayPokeId(id) ?? def.pokeId;
       pool.push({
         kind: 'upgrade', id: `up_${id}`, title: `${displayName}  Lv.${lv + 1}`,
-        desc: `伤害 +18%（当前 Lv.${lv}）`, color: def.color,
+        desc: nearEvo
+          ? `伤害 +18%（Lv.${lv + 1}/${EVOLVE_MIN_MOVE_LEVEL} 可进化）`
+          : `伤害 +18%（当前 Lv.${lv}）`, color: def.color,
         pokeId: displayPokeId,
         pokeName: POKEDEX_NAME[displayPokeId] ?? this.pokeNameOf(id),
         apply: () => this.combat.upgradeMove(id),
@@ -1157,7 +1172,7 @@ export class GameScene extends Phaser.Scene {
         { kind: 'stat', id: 'spd', title: '疾行', desc: '移速 +8%', color: 0x449ddf, apply: () => { this.player.stats.speed *= 1.08; this.addStatStack('spd'); } },
         { kind: 'stat', id: 'hp', title: '体力强化', desc: '最大 HP +20 并回满', color: 0x63c256, apply: () => { this.player.stats.maxHp += 20; this.player.stats.hp = this.player.stats.maxHp; this.addStatStack('hp'); } },
         { kind: 'stat', id: 'pick', title: '磁力', desc: '拾取范围 +25%', color: 0xf7d02c, apply: () => { this.player.stats.pickup *= 1.25; this.addStatStack('pick'); } },
-        { kind: 'stat', id: 'cd', title: '迅捷', desc: '招式冷却 -8%', color: 0x8a5fbf, apply: () => { this.player.stats.cooldownMul *= 0.92; this.addStatStack('cd'); } },
+        { kind: 'stat', id: 'cd', title: '迅捷', desc: '招式冷却 -4%', color: 0x8a5fbf, apply: () => { this.player.stats.cooldownMul *= 0.96; this.addStatStack('cd'); } },
       ];
       // 权重：基底 STAT_CARD_WEIGHT(1.0)。等级 3 起从 0.5 起步，等级 11 满 1.0，
       // 与招式卡（权重恒 1）同权竞争。下限设 0.5 是为了「第一次升级解禁」后

@@ -28,6 +28,17 @@ export type EvolveCond =
 /** 招式升到多少级也能触发进化（取代纯看玩家等级） */
 export const MOVE_LEVEL_EVOLVE_AT = 8;
 
+/**
+ * 进化硬门槛：新拿到的伙伴必须先练到这个等级。
+ *
+ * 【为什么要有这道闸】原来第一次进化的条件是 `玩家等级 OR 招式 8 级`。
+ * 玩家总等级在中期已经 20+，于是新抽到的伙伴哪怕只有 1 级，
+ * 下一秒升级就直接弹进化卡 —— 相当于「没有原始形态也白送进化版」。
+ * 现在改成「招式本身必须先到 5 级」，再叠加原来的总等级门槛，
+ * 伙伴必须先真练过一段时间才有资格进化。
+ */
+export const EVOLVE_MIN_MOVE_LEVEL = 5;
+
 export interface EvolutionDef {
   /** 进化后的图鉴 ID（决定换哪张精灵图） */
   toId: number;
@@ -54,6 +65,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   thunderbolt: [
     {
       toId: 26, name: '雷丘',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 18 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.65, cdMul: 0.82,
       note: '十万伏特 → 高压电击：伤害 +65%，冷却 -18%，附带感电',
@@ -63,6 +75,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   flamethrower: [
     {
       toId: 146, name: '火焰鸟',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 24 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.6, cdMul: 0.86,
       note: '喷射火焰 → 圣火：伤害 +60%，冷却 -14%，穿透 +1',
@@ -72,6 +85,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   watergun: [
     {
       toId: 160, name: '大力鳄',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.6, cdMul: 0.86,
       note: '水枪 → 激流炮：伤害 +60%，冷却 -14%，弹数 +1',
@@ -81,6 +95,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   razorleaf: [
     {
       toId: 154, name: '大竺葵',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.6, cdMul: 0.86,
       note: '飞叶快刀 → 叶风暴：伤害 +60%，冷却 -14%，穿透 +2',
@@ -90,6 +105,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   shadowball: [
     {
       toId: 429, name: '梦妖魔',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.65, cdMul: 0.85,
       note: '暗影球 → 黑色凝视：伤害 +65%，冷却 -15%，命中回复少量生命',
@@ -99,6 +115,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   dragonclaw: [
     {
       toId: 373, name: '暴飞龙',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 24 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.65, cdMul: 0.82,
       note: '龙之爪 → 龙星群：伤害 +65%，冷却 -18%',
@@ -108,6 +125,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   aurasphere: [
     {
       toId: 448, name: 'Mega 路卡利欧',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 26 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.75, cdMul: 0.78,
       note: '波导弹 → 波导爆发：伤害 +75%，冷却 -22%，穿透 +2',
@@ -117,6 +135,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   psychic: [
     {
       toId: 475, name: '艾路雷朵',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.6, cdMul: 0.82,
       note: '精神强念 → 精神利刃：伤害 +60%，冷却 -18%，光环范围扩大',
@@ -126,6 +145,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   rockslide: [
     {
       toId: 142, name: '化石翼龙',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 24 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.7, cdMul: 0.86,
       note: '岩崩 → 岩崩乱舞：伤害 +70%，冷却 -14%，落石数 +2',
@@ -135,6 +155,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   aquatail: [
     {
       toId: 130, name: 'Mega 暴鲤龙',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 26 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.75, cdMul: 0.82,
       note: '水流尾 → 破坏光线：伤害 +75%，冷却 -18%',
@@ -149,6 +170,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   bodyslam: [
     {
       toId: 143, name: '卡比兽 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.55, cdMul: 0.88,
       note: '泰山压顶 → 超重压：伤害 +55%，冷却 -12%，范围扩大',
@@ -158,6 +180,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   thunderpunch: [
     {
       toId: 466, name: '电击魔兽 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.45, cdMul: 0.80,
       note: '雷光拳 → 狂雷电拳：伤害 +45%，冷却 -20%',
@@ -167,6 +190,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   flareblitz: [
     {
       toId: 78, name: '烈焰马 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.60, cdMul: 0.88,
       note: '闪焰冲锋 → 烈焰突进：伤害 +60%，冷却 -12%',
@@ -176,6 +200,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   earthquake: [
     {
       toId: 28, name: '穿山王 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 24 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.60, cdMul: 0.88,
       note: '地震 → 地裂：伤害 +60%，冷却 -12%，爆破范围扩大',
@@ -185,6 +210,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   firespin: [
     {
       toId: 38, name: '九尾 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.50, cdMul: 0.85,
       note: '火焰旋涡 → 炼狱之环：伤害 +50%，冷却 -15%',
@@ -194,6 +220,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   ironhead: [
     {
       toId: 208, name: '大钢蛇 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.55, cdMul: 0.90,
       note: '铁头 → 钢牙铁壁：伤害 +55%，冷却 -10%',
@@ -203,6 +230,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   morningsun: [
     {
       toId: 196, name: '太阳伊布 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 18 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.00, cdMul: 0.72,
       note: '晨光 → 大晴空：冷却 -28%，治疗频率大幅提升',
@@ -212,6 +240,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   sludgebomb: [
     {
       toId: 34, name: '尼多王 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.60, cdMul: 0.90,
       note: '污泥炸弹 → 剧毒爆弹：伤害 +60%，冷却 -10%',
@@ -221,6 +250,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   blazekick: [
     {
       toId: 257, name: '火焰鸡 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.55, cdMul: 0.86,
       note: '火焰踢 → 烈焰连踢：伤害 +55%，冷却 -14%',
@@ -230,6 +260,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   mudslap: [
     {
       toId: 260, name: '巨沼怪 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.55, cdMul: 0.90,
       note: '泥巴射击 → 泥沼重击：伤害 +55%，冷却 -10%',
@@ -239,6 +270,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   leafblade: [
     {
       toId: 254, name: '蜥蜴王 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.60, cdMul: 0.88,
       note: '叶刃 → 圣剑叶刃：伤害 +60%，冷却 -12%',
@@ -248,6 +280,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   confusion: [
     {
       toId: 65, name: '胡地 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 22 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.60, cdMul: 0.88,
       note: '念力 → 超念动力：伤害 +60%，冷却 -12%，穿透 +1',
@@ -257,6 +290,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   cometpunch: [
     {
       toId: 115, name: '袋兽 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 20 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.40, cdMul: 0.78,
       note: '连续拳 → 亲子连打：伤害 +40%，冷却 -22%',
@@ -266,6 +300,7 @@ export const EVOLUTIONS: Record<string, EvolutionDef[]> = {
   dragonrush: [
     {
       toId: 445, name: '烈咬陆鲨 · 觉醒形态',
+      require: [{ kind: 'moveLevel', value: EVOLVE_MIN_MOVE_LEVEL }],
       requireOneOf: [{ kind: 'level', value: 24 }, { kind: 'moveLevel', value: MOVE_LEVEL_EVOLVE_AT }],
       dmgMul: 1.65, cdMul: 0.86,
       note: '龙之俯冲 → 神速龙击：伤害 +65%，冷却 -14%',

@@ -3,7 +3,7 @@ export const TRAITS = [
   { id: 'iron',     name: '铁壁',   icon: 'shield', desc: '最大 HP +12，受伤 -5%' },
   { id: 'affinity', name: '亲和',   icon: 'heart',  desc: '拾取范围 +15%，经验 +5%' },
   { id: 'power',    name: '蛮力',   icon: 'fist',   desc: '伤害 +5%' },
-  { id: 'haste',    name: '迅捷',   icon: 'clock',  desc: '招式冷却 -4%' },
+  { id: 'haste',    name: '迅捷',   icon: 'clock',  desc: '招式冷却 -2%' },
   { id: 'vitality', name: '活力',   icon: 'plus',   desc: '最大 HP +18，回血球效果 +15%' },
   { id: 'scholar',  name: '好学',   icon: 'book',   desc: '经验 +8%' },
   { id: 'magnet',   name: '磁力',   icon: 'magnet', desc: '拾取范围 +25%' },

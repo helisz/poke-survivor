@@ -63,7 +63,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         this.stats.expMul *= 1.05;
         break;
       case 'power':    this.stats.damageMul *= 1.05; break;
-      case 'haste':    this.stats.cooldownMul *= 0.96; break;
+      case 'haste':    this.stats.cooldownMul *= 0.98; break;
       case 'vitality':
         this.stats.maxHp += 18;
         this.stats.hp = this.stats.maxHp;

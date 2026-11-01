@@ -44,7 +44,7 @@ describe('特性数值保守', () => {
       ['移速 +6%', 'speed *= 1.06'],
       ['伤害 +5%', 'damageMul *= 1.05'],
       ['经验 +8%', 'expMul *= 1.08'],
-      ['招式冷却 -4%', 'cooldownMul *= 0.96'],
+      ['招式冷却 -2%', 'cooldownMul *= 0.98'],
     ];
     for (const [desc, code] of pairs) {
       expect(TRAITS.some((t) => t.desc === desc), `缺少描述「${desc}」`).toBe(true);
