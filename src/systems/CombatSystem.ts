@@ -331,6 +331,34 @@ export class CombatSystem {
     return Math.hypot(halfW, halfH);
   }
 
+  /**
+   * 伙伴攻击范围（按招式等级）。
+   *
+   * 设计：刚拿到时射程很紧，逼玩家贴身走位；升级到 5 级后封顶到全屏最长边，
+   * 之后不再增长（再长也没有意义，屏幕外打不到）。
+   *
+   *   1 级      = min(视口宽, 视口高) / 2   —— 短边的一半，勉强够到半个屏幕
+   *   5 级及以后 = max(视口宽, 视口高)      —— 长边，相当于覆盖整个屏幕
+   *   2~4 级    在两者之间线性插值
+   *
+   * 【为什么要按视口而不是给固定像素】
+   * 手机竖屏和桌面横屏的可用面积差一倍以上，写死像素会导致
+   * 竖屏上「1 级就能打穿全场」、横屏上「练满也够不到屏幕边缘」。
+   * 取 cam.width/zoom 是**世界坐标下的可视尺寸**，主相机 zoom=1.25
+   * 不除掉的话实际射程会被放大 25%。
+   */
+  private moveRange(level: number): number {
+    const cam = this.scene.cameras.main;
+    const w = cam.width / (cam.zoom || 1);
+    const h = cam.height / (cam.zoom || 1);
+    const shortSide = Math.min(w, h);
+    const longSide = Math.max(w, h);
+    const lv = Math.max(1, level);
+    if (lv <= 1) return shortSide / 2;
+    if (lv >= 5) return longSide;
+    return shortSide / 2 + (longSide - shortSide / 2) * ((lv - 1) / 4);
+  }
+
   /** 世界坐标是否在当前相机可视矩形内（带一点外扩余量） */
   private onScreen(x: number, y: number, pad = 24): boolean {
     const cam = this.scene.cameras.main;
@@ -407,8 +435,10 @@ export class CombatSystem {
     const traits = def.traits ?? [];
     const homing = traits.includes('homing');
     const chain = traits.includes('chain');
-    const target = this.nearestEnemy(ox, oy, this.screenAimRadius());
-    const count = (def.count ?? 1) + Math.floor((this.getMoveLevel(def.id) - 1) / 2);
+    // 寻敌半径 = 该招式当前等级的射程，不再是无脑全屏
+    const moveLv = this.getMoveLevel(def.id);
+    const target = this.nearestEnemy(ox, oy, this.moveRange(moveLv));
+    const count = (def.count ?? 1) + Math.floor((moveLv - 1) / 2);
     const baseAng = target ? Math.atan2(target.y - oy, target.x - ox) : 0;
     // spread 标签：扇形角度更大，否则默认小夹角
     const spreadStep = traits.includes('spread') ? 0.3 : 0.16;
@@ -434,7 +464,13 @@ export class CombatSystem {
       // 进化形态一律全穿透：进化是「招式质变」，不该还被单个目标吃掉。
       // 用 Infinity 而不是很大数字，killProjectile 判定 pierceLeft > 0 时不会成立。
       p.setData('pierce', evo ? Number.POSITIVE_INFINITY : (def.pierce ?? 0));
-      p.setData('life', 1600);
+      // 弹道寿命 = 飞完该等级射程所需时间 + 一点余量。
+      // 原来写死 1600ms：低级时弹道会飞出远超射程的距离（看起来像无限射程），
+      // 高级时又可能提前消失。改成按 moveRange(level) / 速度推导，
+      // 「射程」才真的是一个能看见的圈，而不是只影响寻敌。
+      const flightSpeed = homing ? (def.projectileSpeed ?? 400) * 0.8 : (def.projectileSpeed ?? 400);
+      const rangeForLife = this.moveRange(moveLv);
+      p.setData('life', Math.min(2600, (rangeForLife / flightSpeed) * 1000 + 120));
       p.setData('moveId', def.id);
       p.setData('color', fxColor);
       p.setData('accent', evo?.accent ?? fxColor);
@@ -464,7 +500,7 @@ export class CombatSystem {
       p.setData('chain', chain);
       p.setData('chainLeft', chain ? 2 : 0);
       p.setData('hitList', []);          // 已命中目标，避免连锁重复打同一个
-      const speed = homing ? (def.projectileSpeed ?? 400) * 0.8 : (def.projectileSpeed ?? 400);
+      const speed = flightSpeed;
       (p.body as Phaser.Physics.Arcade.Body).setEnable(true);
       (p.body as Phaser.Physics.Arcade.Body).setCircle(6, -2, -2);
       p.setVelocity(Math.cos(ang) * speed, Math.sin(ang) * speed);
@@ -549,7 +585,7 @@ export class CombatSystem {
     const sweep = traits.includes('sweep');
     const lvl = this.getMoveLevel(def.id) - 1;
 
-    const target = this.nearestEnemy(ox, oy, Math.min((def.range ?? 90) * 2.2, this.screenAimRadius()));
+    const target = this.nearestEnemy(ox, oy, Math.min((def.range ?? 90) * 2.2, this.moveRange(this.getMoveLevel(def.id))));
     const ang = target ? Math.atan2(target.y - oy, target.x - ox) : this.playerAngle();
 
     // 射程随等级增长
@@ -615,7 +651,9 @@ export class CombatSystem {
     def: MoveDef, damage: number, ox: number, oy: number,
     target: Phaser.Physics.Arcade.Sprite | null, crit = false,
   ) {
-    const range = Math.min((def.range ?? 300) * 1.5, this.screenAimRadius());
+    // 电弧射程同样受招式等级控制，取「招式定义范围」与「等级射程」的较小值，
+    // 避免低级时电弧直接甩出屏幕
+    const range = Math.min((def.range ?? 300) * 1.5, this.moveRange(this.getMoveLevel(def.id)));
     const ang = target ? Math.atan2(target.y - oy, target.x - ox) : this.playerAngle();
     // 主束 + 两侧小分叉
     this.fx.boltArc(ox, oy, ang, range, def.color, 0.34, 3);

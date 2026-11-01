@@ -596,8 +596,23 @@ export class GameScene extends Phaser.Scene {
     const theme = this.ground.theme;
     // 地图同步给怪物池
     this.enemies.theme = theme;
-    const rate = (0.62 + 3.3 * Math.pow(Math.min(t, RUN_SECONDS) / RUN_SECONDS, 0.65))
-      * (theme.spawnMul ?? 1);
+    // 刷怪速率：极平缓的幂曲线，全程几乎线性微增
+    // 基准 0.62 ~ 3.92/s（0 秒 → 5 分钟）
+    const baseRate = 0.62 + 3.3 * Math.pow(Math.min(t, RUN_SECONDS) / RUN_SECONDS, 0.65);
+    /**
+     * 后期加压：120 秒之后刷怪密度线性加码到 2.5 倍。
+     *
+     * 【为什么不整条曲线乘 2.5】
+     * 开局 0.62/s 已经接近手机能安稳发育的上限，直接乘 2.5 会变成
+     * 「一进场就被围死」；而玩家真正抱怨的是后期手感变空 ——
+     * 5 分钟 3.92/s 配上 300 的同屏上限，实际经常打不满。
+     * 所以只在 t ≥ 120 之后抬，且用 1 → 2.5 的线性过渡，
+     * 让加压发生在玩家已经有几件装备之后。
+     */
+    const lateBoost = t <= 120
+      ? 1
+      : 1 + 1.5 * Math.min(1, (t - 120) / (RUN_SECONDS - 120));
+    const rate = baseRate * lateBoost * (theme.spawnMul ?? 1);
     this.spawnAccum += dt * rate;
     // 血量成长：原 1 + t/45 在 2 分钟就涨到 3.7 倍，太陡。
     // 改为 300 秒内从 1 涨到 2.2 倍，前段几乎持平，后段缓慢加速。
@@ -611,8 +626,10 @@ export class GameScene extends Phaser.Scene {
     const speedMul = (1 + 0.18 * Math.pow(Math.max(0, Math.min(t, 300) - 90) / 210, 1.5))
       * this.stageScale.spd;
 
-    // 同屏怪物上限。设计值 300 —— 手机端 260 会明显感觉“打到一半没怪了”。
-    const cap = 300;
+    // 同屏怪物上限。原 300 是按「3.92/s」定的；后期刷怪已加到 2.5 倍
+    // （约 9.8/s），上限不抬的话怪物会被 cap 卡住、实际密度上不去。
+    // 750 ≈ 300 × 2.5，与速率同步放大。
+    const cap = 750;
     // 每帧最多批量刷出数：全程保持 1-2，避免整屏瞬间涌出
     const batch = t < 120 ? 1 : t < 240 ? 2 : 3;
     while (this.spawnAccum >= 1) {

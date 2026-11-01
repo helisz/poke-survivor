@@ -134,7 +134,9 @@ Slot cap is `MAX_SLOTS = 6`. Rerolls start at 3; each shop level of "Gambler" ad
 | Common | 0.62–0.70× | 26 | Throughout | Body-checks only |
 | **Elite** | 1.35× | 260 | Every 30s | **Casts skills**: 5.5s interval, 0.45 power |
 | **Mini-boss** | 1.47× | 3000 | One at 2:00, one at 4:40 | **Casts skills**: 4.2s interval, 0.55 power |
-| **Final boss** | 1.47× | — | When timer ends | **3-skill rotation**: one per 2.4s, 1.0 power |
+| **Final boss** | 1.47× | — | When the timer ends | **Rotates 3 skills**: one every 2.4s, power 1.0 |
+
+**Late-game spawn pressure**: base rate is `0.62 + 3.3 × (t/300)^0.65` (0.62/s at 0s → 3.92/s at 5min). **After 120s** an extra 1 → 2.5 linear multiplier kicks in, reaching **9.8/s (2.5×)** at the 5-minute mark. The early game is untouched so you aren't swarmed on spawn; the on-screen cap rose from 300 to 750 in step with the rate.
 
 **Elite and boss skills follow the Pokémon's own type, rotating through 4 skills per type.** The type table lives in `POKEDEX_TYPE` in `src/data/pokedex.ts`; anything unlisted falls back by type name.
 
