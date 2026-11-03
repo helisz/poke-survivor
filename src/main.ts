@@ -10,6 +10,8 @@ import { GameScene } from './scenes/GameScene';
 import { UIScene } from './scenes/UIScene';
 import { LevelUpScene } from './scenes/LevelUpScene';
 import { GameOverScene } from './scenes/GameOverScene';
+import { VictoryScene } from './scenes/VictoryScene';
+import { StaffScene } from './scenes/StaffScene';
 import { Sfx } from './systems/Sfx';
 import { Bgm } from './systems/Bgm';
 import { loadMuteSetting } from './systems/Audio';
@@ -66,7 +68,11 @@ const config: Phaser.Types.Core.GameConfig = {
     default: 'arcade',
     arcade: { gravity: { x: 0, y: 0 }, debug: false },
   },
-  scene: [BootScene, MenuScene, MapSelectScene, TraitSelectScene, PartnerSelectScene, ShopScene, DexScene, GameScene, UIScene, LevelUpScene, GameOverScene],
+  scene: [
+    BootScene, MenuScene, MapSelectScene, TraitSelectScene, PartnerSelectScene,
+    ShopScene, DexScene, GameScene, UIScene, LevelUpScene, GameOverScene,
+    VictoryScene, StaffScene,
+  ],
 };
 
 const game = new Phaser.Game(config);
@@ -82,6 +88,8 @@ registerScene('Shop', () => new ShopScene());
 // mgr.start 又因旧实例状态卡住 → 全场景停摆、纯黑屏。
 registerScene('Dex', () => new DexScene());
 registerScene('Game', () => new GameScene());
+registerScene('Victory', () => new VictoryScene());
+registerScene('Staff', () => new StaffScene());
 
 // 音效 / 音乐：浏览器要求首次用户手势后才能出声
 // 静音设置要在任何播放之前读回

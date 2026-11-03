@@ -47,6 +47,16 @@ function buildStamp() {
 
 const STAMP = buildStamp();
 
+/**
+ * 入口 script 标签只在构建时注入（见 scripts/publish.mjs）。
+ *
+ * 为什么源码模板里不写这行：仓库根目录本身就是线上静态站点，根 index.html
+ * 里的 `<script src>` 一旦硬编码文件名，vite 按 hash 生成新文件名后没有任何
+ * 代码去改它 —— build/publish/部署全绿，线上却一直是老版本。现在改成
+ * publish 从 dist/index.html 摘真实标签回写，源码里只留一个位置注释。
+ *
+ * dev server 不需要这行：vite 发现没有 module script 时会自己注入 /src/main.ts。
+ */
 export default defineConfig({
   base: './',
   define: {

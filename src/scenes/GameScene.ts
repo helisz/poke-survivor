@@ -7,6 +7,7 @@ import { Player } from '../objects/Player';
 import { CombatSystem } from '../systems/CombatSystem';
 import { EnemySystem } from '../systems/EnemySystem';
 import { Sfx } from '../systems/Sfx';
+import { goTo } from '../systems/SceneFlow';
 import { Ground } from '../systems/Ground';
 import { PickupSystem } from '../systems/PickupSystem';
 import { PICKUP_DEFS, type PickupKind } from '../data/pickups';
@@ -2448,6 +2449,15 @@ export class GameScene extends Phaser.Scene {
     flushSync();
     // 通知 UI 收掉可能还开着的开发者面板，否则它会盖在结算页上
     this.events.emit('run-ended');
+
+    // 最后一关通关 → 不走结算，直接进「恭喜通关」大字页 → 片尾名单。
+    // 判定放在这里而不是 GameOverScene：结算页会先把金币/解锁写进存档，
+    // 而通关这条路不该弹那些中途解锁项，只留仪式感。
+    if (survived && this.mapIndex >= STAGE_COUNT - 1) {
+      goTo(this, 'Victory', { stage: this.mapIndex });
+      return;
+    }
+
     this.scene.launch('GameOver', {
       game: this,
       survived,

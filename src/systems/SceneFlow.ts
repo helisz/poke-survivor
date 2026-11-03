@@ -20,7 +20,9 @@ import { Bgm } from './Bgm';
  * 重新挂载一个新实例**，保证每次进入都是干净状态。
  */
 
-type SceneKeyActivity = 'Menu' | 'MapSelect' | 'TraitSelect' | 'PartnerSelect' | 'Game' | 'Shop' | 'Dex';
+type SceneKeyActivity =
+  | 'Menu' | 'MapSelect' | 'TraitSelect' | 'PartnerSelect'
+  | 'Game' | 'Shop' | 'Dex' | 'Victory' | 'Staff';
 
 /** 场景构造器注册表：新增场景时要登记，供重建时 new 一个干净实例 */
 const FACTORIES: Record<string, () => Phaser.Scene> = {};
@@ -34,7 +36,7 @@ const FACTORIES: Record<string, () => Phaser.Scene> = {};
  */
 const SCENE_ORDER = [
   'Boot', 'Menu', 'MapSelect', 'TraitSelect', 'PartnerSelect',
-  'Shop', 'Dex', 'Game', 'UI', 'LevelUp', 'GameOver',
+  'Shop', 'Dex', 'Game', 'UI', 'LevelUp', 'GameOver', 'Victory', 'Staff',
 ];
 
 /** 注册场景构造器。main.ts 里对可重开的场景调用一次。 */

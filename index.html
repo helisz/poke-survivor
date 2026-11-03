@@ -6,10 +6,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="./favicon.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon-32-BLfTnpdA.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="./assets/favicon-16-Bq_HgsZ3.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="./assets/favicon-By8WPdr8.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon-C-cpwQ8l.png" />
     <title>Poke Survivor</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -38,7 +38,11 @@
       canvas { display: block; }
       #boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: #449ddf; font: 600 16px/1.6 -apple-system, "PingFang SC", sans-serif; letter-spacing: 2px; }
     </style>
-    <script type="module" crossorigin src="./assets/index-Czu1Umkg.js"></script>
+    <!-- 入口固定指向源码：vite 靠这一行才知道从哪打包。
+         产物文件名由 build 自己决定，scripts/publish.mjs 负责把生成的
+         真实文件名回写到仓库根 index.html（根目录 = 线上静态站点）。
+         别手改成 ./assets/xxx.js —— 会解析失败/指向旧产物。 -->
+    <script type="module" crossorigin src="./assets/index-H0OeXeas.js"></script>
   </head>
   <body>
     <div id="boot">LOADING…</div>
