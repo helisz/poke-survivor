@@ -10,6 +10,7 @@ import { openBenchmarkPanel } from '../ui/BenchmarkPanel';
 import { currentSession, startSession, tryResumeSession } from '../data/session';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
+import { enterFullscreen } from '../systems/Fullscreen';
 import { makeCoinIcon } from '../ui/Icons';
 import { MenuBackdrop } from '../ui/MenuBackdrop';
 import { UI, TEXT } from '../ui/Theme';
@@ -136,6 +137,11 @@ export class MenuScene extends Phaser.Scene {
     // 看起来像「点了没反应」。留一小段让缩放动画走完。
     btn.on('pointerup', () => {
       Sfx.init(); Sfx.click();
+      // 「开始」是最早的一次用户手势：在这里就请求真·全屏，
+      // 后续 MapSelect→TraitSelect→PartnerSelect 都保持全屏；
+      // 浏览器不支持时静默降级为 100dvh 铺满。真正开局时 PartnerSelect
+      // 会再补一次 enterFullscreen（重复调用是幂等的）。
+      void enterFullscreen();
       this.time.delayedCall(90, () => goTo(this, 'MapSelect'));
     });
     btn.on('pointerover', () => btn.setFillStyle(UI.primaryLight));

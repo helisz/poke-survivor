@@ -210,5 +210,26 @@ game.events.once(Phaser.Core.Events.READY, () => {
   if (el) el.remove();
 });
 
+// 全屏状态变化（进入/退出、圆点被系统收回）→ 重新按真实视口校准画布。
+// 全屏切换会让 innerHeight/visualViewport 突变，而 Phaser RESIZE 模式下
+// 画布不会自动跟随，必须显式 sync 一次，否则留黑边或画面被拉伸。
+let fsResizeTimer: number | undefined;
+function onFullscreenChange() {
+  window.clearTimeout(fsResizeTimer);
+  // 等浏览器完成全屏布局动画（iOS 有 200~300ms 的过渡）
+  fsResizeTimer = window.setTimeout(() => {
+    if (keyboardOpen()) return;
+    const booting = game.scene.isActive('Boot') && !game.scene.isActive('Menu');
+    if (booting) return;
+    const { w, h } = viewportSize();
+    const cur = game.scale.gameSize;
+    if (Math.abs(cur.width - w) > 1 || Math.abs(cur.height - h) > 1) {
+      game.scale.resize(w, h);
+    }
+  }, 220);
+}
+document.addEventListener('fullscreenchange', onFullscreenChange);
+document.addEventListener('webkitfullscreenchange', onFullscreenChange as EventListener);
+
 export default game;
 

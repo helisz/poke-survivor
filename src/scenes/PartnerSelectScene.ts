@@ -4,6 +4,7 @@ import { MOVES } from '../data/moves';
 import { ensureSprites, isSpriteReady } from '../data/lazySprites';
 import { Sfx } from '../systems/Sfx';
 import { installTextTextureCleanup, goTo } from '../systems/SceneFlow';
+import { enterFullscreen } from '../systems/Fullscreen';
 import { UI, TEXT } from '../ui/Theme';
 import { attachPressFeedback } from '../ui/Feedback';
 import { RoundedPanel } from '../ui/RoundedPanel';
@@ -168,6 +169,9 @@ export class PartnerSelectScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.startBtn.on('pointerdown', () => {
       if (!this.selected) return;
+      // 真·全屏必须在用户手势同步栈里请求；先请求再切场景，
+      // 不支持全屏（iOS Safari）时 enterFullscreen 静默降级，不影响开局。
+      void enterFullscreen();
       goTo(this, 'Game', { trait: this.trait, starterMove: this.selected, stage: this.stage });
     });
 
